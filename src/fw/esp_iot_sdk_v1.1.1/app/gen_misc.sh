@@ -141,7 +141,7 @@ fi
 
 echo ""
 
-touch user/user_main.c
+#touch user/user_main.c
 
 echo ""
 echo "start..."

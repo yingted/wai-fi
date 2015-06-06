@@ -1,54 +1,20 @@
-/******************************************************************************
- * Copyright 2013-2014 Espressif Systems (Wuxi)
- *
- * FileName: user_main.c
- *
- * Description: entry file of user application
- *
- * Modification history:
- *     2014/1/1, v1.0 create this file.
-*******************************************************************************/
 #include "ets_sys.h"
 #include "osapi.h"
+#include "mem.h"
 
 #include "user_interface.h"
-#include "smartconfig.h"
 
-sc_type SC_Type = 0;
-
-void ICACHE_FLASH_ATTR
-smartconfig_done(sc_status status, void *pdata)
+void user_wifi(System_Event_t *event)
 {
-    switch(status) {
-        case SC_STATUS_WAIT:
-            os_printf("SC_STATUS_WAIT\n");
-            break;
-        case SC_STATUS_FIND_CHANNEL:
-            os_printf("SC_STATUS_FIND_CHANNEL\n");
-            break;
-        case SC_STATUS_GETTING_SSID_PSWD:
-            os_printf("SC_STATUS_GETTING_SSID_PSWD\n");
-            break;
-        case SC_STATUS_LINK:
-            os_printf("SC_STATUS_LINK\n");
-            struct station_config *sta_conf = pdata;
-	
-	        wifi_station_set_config(sta_conf);
-	        wifi_station_disconnect();
-	        wifi_station_connect();
-            break;
-        case SC_STATUS_LINK_OVER:
-            os_printf("SC_STATUS_LINK_OVER\n");
-            if (SC_Type == SC_TYPE_ESPTOUCH) {
-                uint8 phone_ip[4] = {0};
-
-                os_memcpy(phone_ip, (uint8*)pdata, 4);
-                os_printf("Phone ip: %d.%d.%d.%d\n",phone_ip[0],phone_ip[1],phone_ip[2],phone_ip[3]);
-            }
-            smartconfig_stop();
+    os_printf("event %x\n", event);
+    switch (event->event) {
+        case EVENT_STAMODE_GOT_IP:
+            os_printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR "\n",
+                      IP2STR(&event->event_info.got_ip.ip),
+                      IP2STR(&event->event_info.got_ip.mask),
+                      IP2STR(&event->event_info.got_ip.gw));
             break;
     }
-	
 }
 
 void user_rf_pre_init(void)
@@ -57,9 +23,17 @@ void user_rf_pre_init(void)
 
 void user_init(void)
 {
-    os_printf("SDK version:%s\n", system_get_sdk_version());
-	
-	SC_Type = SC_TYPE_ESPTOUCH;
-    wifi_set_opmode(STATION_MODE);
-    smartconfig_start(SC_Type, smartconfig_done);
+    uart_div_modify(0, UART_CLK_FREQ / 115200);
+
+    wifi_set_opmode_current(STATION_MODE);
+    {
+        struct station_config *config = (struct station_config *)os_zalloc(sizeof(struct station_config));
+        const static char *ssid = "icmp-test";
+        os_memcpy(config->ssid, ssid, os_strlen(ssid));
+        wifi_station_set_config_current(config);
+    }
+    wifi_station_set_auto_connect(1);
+    wifi_station_set_reconnect_policy(true);
+
+    wifi_set_event_handler_cb(user_wifi);
 }
