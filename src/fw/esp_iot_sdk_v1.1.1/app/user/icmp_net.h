@@ -9,7 +9,7 @@
 struct icmp_net_config {
     struct ip_addr bind_ip;
     struct icmp_net_config *next;
-    struct netif *netif;
+    struct netif *slave;
 };
 
 err_t icmp_net_init(struct netif *netif);
