@@ -5,6 +5,15 @@
 #include "lwip/ip.h"
 #include "lwip/netif.h"
 
+static inline unsigned long ccount() {
+    register unsigned long ccount;
+    asm(
+        "rsr.ccount %0"
+        :"=r"(ccount)
+    );
+    return ccount;
+}
+
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     user_dprintf("icmp_net_linkoutput()\n");
@@ -40,13 +49,11 @@ err_buf:
     pbuf_header(p, -IP_HLEN);
 
     {
-        u32_t header = 0; // TODO
-
         struct icmp_echo_hdr *icmphdr = (struct icmp_echo_hdr *)p->payload;
         icmphdr->type = ICMP_ECHO;
         icmphdr->code = 0;
         icmphdr->chksum = 0;
-        ((u32_t *)icmphdr)[1] = header;
+        ((u32_t *)icmphdr)[1] = ccount();
         icmphdr->chksum = inet_chksum(icmphdr, p->len);
     }
 
@@ -77,11 +84,14 @@ err_t icmp_net_init(struct netif *netif) {
     config->slave = netif_default;
     root = config;
 
+    user_dprintf("icmp_net_init: ccount: %u\n", ccount());
+
     return ERR_OK;
 }
 
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("icmp_input()\n");
+    user_dprintf("icmp_input: ccount: %u\n", ccount());
 
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
@@ -108,8 +118,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 
             user_dprintf("icmp_input: config=%p\n", config);
             if (ip_addr_cmp(&current_iphdr_src, &config->slave->gw)) {
-                user_dprintf("icmp_input: match: header=%u len=%u\n", header, p->tot_len);
-                // TODO check header retransmission
+                user_dprintf("icmp_input: match: header=%u delay=%u freq=%u len=%u\n", header, ccount() - header, (unsigned int)system_get_cpu_freq(), p->tot_len);
+                // TODO check header retransmission, delay
                 (*config->slave->input)(p, config->slave);
             }
         }
