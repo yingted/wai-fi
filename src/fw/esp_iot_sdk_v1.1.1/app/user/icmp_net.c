@@ -10,22 +10,6 @@
 // from user_interface.h:
 #define STATION_IF      0x00
 
-err_t __real_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
-err_t __wrap_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif) {
-    user_dprintf("");
-    pbuf_ref(p);
-    err_t ret = __real_ip_output_if(p, src, dest, ttl, tos, proto, netif);
-    user_dprintf("sent, payload size %u", (unsigned)p->len);
-    os_printf("eth: ");
-    int i;
-    for (i = 0; i < p->len; ++i) {
-        os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
-    }
-    os_printf("\n");
-    pbuf_free(p);
-    return ret;
-}
-
 static inline unsigned long ccount() {
     register unsigned long ccount;
     asm(
@@ -39,7 +23,6 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     user_dprintf("");
 
-#if 0
     const static u16_t hlen = IP_HLEN + sizeof(struct icmp_echo_hdr);
     if (pbuf_header(p, hlen)) {
         user_dprintf("resizing p to hold %u", (unsigned)(hlen + p->tot_len));
@@ -83,15 +66,13 @@ err_buf:
         ((u32_t *)icmphdr)[1] = ccount();
         icmphdr->chksum = inet_chksum(icmphdr, p->len);
     }
-#endif
 
     {
         struct netif *slave = config->slave;
-        //user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
-        //user_dprintf("outputting to %p", slave->output);
-        //user_dprintf("%p %p %p %p %p", slave, config, ip_output_if, __real_ip_output_if, __wrap_ip_output_if);
-        //err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
-        err_t rc = ip_output_if(p, &slave->ip_addr, IP_HDRINCL, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
+        user_dprintf("outputting to %p", slave->output);
+        user_dprintf("%p %p %p", slave, config, ip_output_if);
+        err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
         user_dprintf("done", slave->output);
         if (rc != ERR_OK) {
             pbuf_free(p);

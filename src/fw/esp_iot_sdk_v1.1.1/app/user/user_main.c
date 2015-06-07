@@ -28,16 +28,6 @@ void wifi_handle_event_cb(System_Event_t *event) {
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
             user_dprintf("route via " IPSTR, IP2STR(&icmp_config.slave->ip_addr));
 
-{
-    user_dprintf("=========================================================");
-    struct netif *netif = &icmp_tun;
-    struct pbuf *p = pbuf_alloc(PBUF_IP, 0, PBUF_RAM);
-    //if (ip_output_if(p, &netif->ip_addr, &netif->gw, ICMP_TTL, 0, IP_PROTO_ICMP, netif)) {
-    if (ip_output(p, &netif->ip_addr, &netif->gw, ICMP_TTL, 0, IP_PROTO_ICMP)) {
-        user_dprintf("error!");
-    }
-}
-
             assert(saved_default == NULL);
             assert(netif_default != &icmp_tun);
             saved_default = netif_default;
