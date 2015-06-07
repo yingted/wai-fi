@@ -4,6 +4,10 @@
 #include "lwip/icmp.h"
 #include "lwip/ip.h"
 #include "lwip/netif.h"
+#include "lwip/netif/etharp.h"
+
+// from user_interface.h:
+#define STATION_IF      0x00
 
 static inline unsigned long ccount() {
     register unsigned long ccount;
@@ -65,24 +69,41 @@ err_buf:
     return ERR_OK;
 }
 
-static err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
-    if (!ip_addr_cmp(ipaddr, &netif->gw)) {
-        user_dprintf("ip addr mismatch: " IPSTR, IP2STR(ipaddr));
-    }
-    return icmp_net_linkoutput(netif, p);
-}
-
 static struct icmp_net_config *root = NULL;
 
 err_t icmp_net_init(struct netif *netif) {
-    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT;
-    netif->output = icmp_net_output;
+    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
+    netif->output = etharp_output;
     netif->linkoutput = netif->linkoutput;
 
     struct icmp_net_config *config = netif->state;
     config->next = root;
     config->slave = netif_default;
     config->dhcp_bound_callback = NULL;
+    {
+        netif->hwaddr_len = 6;
+        static u8_t *last_hwaddr = NULL;
+        if (!last_hwaddr) {
+            last_hwaddr = netif->hwaddr;
+            wifi_get_macaddr(STATION_IF, last_hwaddr);
+            last_hwaddr[0] |= 2; // privately administered
+        } else {
+            int i = 6;
+            os_memcpy(netif->hwaddr, last_hwaddr, i);
+            last_hwaddr = netif->hwaddr;
+            // increment the MAC address
+            while (i--) {
+                if (++last_hwaddr[i]) {
+                    break;
+                }
+            }
+        }
+    }
+    const char name[2] = {'i', 'n'};
+    os_memcpy(netif->name, name, sizeof(name));
+    static u8_t if_num = 0;
+    netif->num = if_num++;
+    netif->mtu = 1400; // TODO discover
     root = config;
 
     user_dprintf("ccount: %u", ccount());
