@@ -119,6 +119,12 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
 	-Wl,-wrap,netif_set_up \
+	-Wl,-wrap,udp_new -Wl,-u,udp_new \
+	-Wl,-wrap,udp_remove -Wl,-u,udp_remove \
+	-Wl,-wrap,udp_bind -Wl,-u,udp_bind \
+	-Wl,-wrap,udp_connect -Wl,-u,udp_connect \
+	-Wl,-wrap,udp_recv -Wl,-u,udp_recv \
+	-Wl,-wrap,udp_sendto_if -Wl,-u,udp_sendto_if \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip

@@ -7,9 +7,10 @@
 #include "lwip/netif.h"
 
 struct icmp_net_config {
-    struct ip_addr bind_ip;
-    struct icmp_net_config *next;
+    struct ip_addr relay_ip;
     struct netif *slave;
+// private:
+    struct icmp_net_config *next;
     netif_status_callback_fn dhcp_bound_callback;
 };
 

@@ -16,6 +16,7 @@ static struct ip_info linklocal_info = {
 
 void wifi_handle_event_cb(System_Event_t *event) {
     user_dprintf("event={event=%d}", event->event);
+    struct netif *saved_default = NULL;
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:
             user_dprintf("ip=" IPSTR " mask=" IPSTR " gw=" IPSTR,
@@ -23,8 +24,17 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
 
-            icmp_config.bind_ip = event->event_info.got_ip.ip;
+            user_dprintf("route to " IPSTR ": %p", IP2STR(&event->event_info.got_ip.gw), ip_route(&event->event_info.got_ip.gw));
+            user_dprintf("route to " IPSTR ": %p", IP2STR(&icmp_config.relay_ip), ip_route(&icmp_config.relay_ip));
+            icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
+
+            assert(saved_default == NULL);
+            assert(netif_default != &icmp_tun);
+            saved_default = netif_default;
+            netif_default = &icmp_tun;
+
             err_t rc = dhcp_start(&icmp_tun);
+            user_dprintf("dhcp_start returned %d", (int)rc);
             if (rc != ERR_OK) {
                 user_dprintf("dhcp error: %d", rc);
             }
@@ -34,6 +44,11 @@ void wifi_handle_event_cb(System_Event_t *event) {
             user_dprintf("disconnected");
 
             dhcp_stop(&icmp_tun);
+
+            if (netif_default == &icmp_tun) {
+                netif_default = saved_default;
+                saved_default = NULL;
+            }
             break;
     }
 }
@@ -61,6 +76,8 @@ void user_init(void) {
     }
     wifi_station_set_auto_connect(1);
     wifi_station_set_reconnect_policy(true);
+
+    icmp_config.relay_ip.addr = ipaddr_addr("192.168.8.1");
 
     // Create the ICMP tunnel device and never delete it.
     if (!netif_add(
