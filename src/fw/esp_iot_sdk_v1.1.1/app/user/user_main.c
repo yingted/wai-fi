@@ -25,7 +25,6 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.gw));
 
             user_dprintf("route to " IPSTR ": %p", IP2STR(&event->event_info.got_ip.gw), ip_route(&event->event_info.got_ip.gw));
-            user_dprintf("route to " IPSTR ": %p", IP2STR(&icmp_config.relay_ip), ip_route(&icmp_config.relay_ip));
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
 
             assert(saved_default == NULL);

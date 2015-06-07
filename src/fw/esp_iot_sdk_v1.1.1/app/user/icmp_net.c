@@ -26,13 +26,11 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     if (pbuf_header(p, hlen)) {
         user_dprintf("resizing p to hold %u", (unsigned)(hlen + p->tot_len));
         struct pbuf *r = pbuf_alloc(PBUF_RAW, hlen + p->tot_len, PBUF_RAM);
-        user_dprintf("resized: %p", r);
         if (!r) {
             user_dprintf("no memory");
             pbuf_free(p);
             return ERR_MEM;
         }
-        user_dprintf("reserving header");
         if (pbuf_header(r, -hlen)) {
             user_dprintf("reserve header failed");
 err_buf:
@@ -40,22 +38,18 @@ err_buf:
             pbuf_free(p);
             return ERR_BUF;
         }
-        user_dprintf("copying");
         if (pbuf_copy(r, p) != ERR_OK) {
             user_dprintf("copy failed");
             goto err_buf;
         }
-        user_dprintf("moving to header");
         if (pbuf_header(r, hlen)) {
             user_dprintf("move to header failed");
             goto err_buf;
         }
 
-        user_dprintf("freeing old p");
         pbuf_free(p);
         p = r;
     }
-    user_dprintf("moving to icmp header");
     if (pbuf_header(p, -IP_HLEN)) {
         user_dprintf("move to icmp header failed");
         pbuf_free(p);
@@ -72,12 +66,12 @@ err_buf:
         icmphdr->chksum = inet_chksum(icmphdr, p->len);
     }
 
-    user_dprintf("writing out packet");
     {
         struct netif *slave = config->slave;
-        user_dprintf("writing to slave %p", slave);
         user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
+        user_dprintf("outputting to %p", slave->output);
         err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        user_dprintf("done", slave->output);
         if (rc != ERR_OK) {
             pbuf_free(p);
             return rc;
@@ -199,51 +193,18 @@ void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback
     config->dhcp_bound_callback = cb;
 }
 
-#include "lwip/udp.h"
-
-struct udp_pcb *__real_udp_new(void);
-struct udp_pcb *__wrap_udp_new(void) {
-    user_dprintf("wrap");
-    struct udp_pcb *ret = __real_udp_new();
-    user_dprintf("return");
-    return ret;
-}
-
-void __real_udp_remove(struct udp_pcb *pcb);
-void __wrap_udp_remove(struct udp_pcb *pcb) {
-    user_dprintf("wrap");
-    __real_udp_remove(pcb);
-    user_dprintf("return");
-}
-
-err_t __real_udp_bind(struct udp_pcb *pcb, ip_addr_t *ipaddr, u16_t port);
-err_t __wrap_udp_bind(struct udp_pcb *pcb, ip_addr_t *ipaddr, u16_t port) {
-    user_dprintf("wrap");
-    err_t ret = __real_udp_bind(pcb, ipaddr, port);
-    user_dprintf("return");
-    return ret;
-}
-
-err_t __real_udp_connect(struct udp_pcb *pcb, ip_addr_t *ipaddr, u16_t port);
-err_t __wrap_udp_connect(struct udp_pcb *pcb, ip_addr_t *ipaddr, u16_t port) {
-    user_dprintf("wrap");
-    err_t ret = __real_udp_connect(pcb, ipaddr, port);
-    user_dprintf("return");
-    return ret;
-}
-
-struct udp_pcb *__real_udp_recv(struct udp_pcb *pcb, udp_recv_fn recv, void *recv_arg);
-struct udp_pcb *__wrap_udp_recv(struct udp_pcb *pcb, udp_recv_fn recv, void *recv_arg) {
-    user_dprintf("wrap");
-    struct udp_pcb *ret = __real_udp_recv(pcb, recv, recv_arg);
-    user_dprintf("return");
-    return ret;
-}
-
-err_t __real_udp_sendto_if(struct udp_pcb *pcb, struct pbuf *p, ip_addr_t *dst_ip, u16_t dst_port, struct netif *netif);
-err_t __wrap_udp_sendto_if(struct udp_pcb *pcb, struct pbuf *p, ip_addr_t *dst_ip, u16_t dst_port, struct netif *netif) {
-    user_dprintf("wrap");
-    err_t ret = __real_udp_sendto_if(pcb, p, dst_ip, dst_port, netif);
-    user_dprintf("return");
+err_t __real_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
+err_t __wrap_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif) {
+    user_dprintf("");
+    pbuf_ref(p);
+    err_t ret = __real_ip_output_if(p, src, dest, ttl, tos, proto, netif);
+    user_dprintf("payload size %u", (unsigned)p->len);
+    os_printf("eth: ");
+    int i;
+    for (i = 0; i < p->len; ++i) {
+        os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
+    }
+    os_printf("\n");
+    pbuf_free(p);
     return ret;
 }
