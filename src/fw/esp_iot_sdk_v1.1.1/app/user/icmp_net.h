@@ -1,11 +1,18 @@
 #ifndef __ICMP_NET_H__
 #define __ICMP_NET_H__
 
-#include "lwip/pbuf.h"
+#include "user_config.h"
+#include "ip_addr.h"
+#include "lwip/err.h"
 
-void icmp_net_tx();
+//#include "lwip/netif.h"
+struct netif;
 
-void user_icmp_net_rx();
+struct icmp_net_config {
+    struct ip_addr bind_ip;
+};
+
+err_t icmp_net_init(struct netif *netif);
 
 #endif
 
