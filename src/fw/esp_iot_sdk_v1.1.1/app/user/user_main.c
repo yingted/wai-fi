@@ -1,10 +1,10 @@
 #include "ets_sys.h"
 #include "osapi.h"
 #include "mem.h"
-
 #include "user_interface.h"
+#include "icmp_net.h"
 
-void user_wifi(System_Event_t *event)
+void wifi_handle_event_cb(System_Event_t *event)
 {
     os_printf("event %x\n", event);
     switch (event->event) {
@@ -15,6 +15,10 @@ void user_wifi(System_Event_t *event)
                       IP2STR(&event->event_info.got_ip.gw));
             break;
     }
+}
+
+void user_icmp_net_rx() {
+    os_printf("user_icmp_net_rx()\n");
 }
 
 void user_rf_pre_init(void)
@@ -35,5 +39,5 @@ void user_init(void)
     wifi_station_set_auto_connect(1);
     wifi_station_set_reconnect_policy(true);
 
-    wifi_set_event_handler_cb(user_wifi);
+    wifi_set_event_handler_cb(wifi_handle_event_cb);
 }

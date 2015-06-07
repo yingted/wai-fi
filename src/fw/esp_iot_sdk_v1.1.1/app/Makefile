@@ -12,8 +12,8 @@
 #     a generated lib/image xxx.a ()
 #
 TARGET = eagle
-#FLAVOR = release
-FLAVOR = debug
+FLAVOR = release
+#FLAVOR = debug
 
 #EXTRA_CCFLAGS += -u
 
@@ -114,6 +114,17 @@ DDEFINES +=				\
 #
 
 INCLUDES := $(INCLUDES) -I $(PDIR)include
+
+# ICMP hook
+LINKFLAGS_eagle.app.v6 += \
+	-Wl,-wrap,icmp_input \
+	-Wl,--gc-sections -Wl,--print-gc-sections \
+
+INCLUDES += -I $(PDIR)../include/lwip
+INCLUDES += -I $(PDIR)../include/lwip/ipv4
+INCLUDES += -I $(PDIR)../include/lwip/ipv6
+
+
 PDIR := ../$(PDIR)
 sinclude $(PDIR)Makefile
 
