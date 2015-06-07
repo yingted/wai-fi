@@ -4,6 +4,8 @@
 #include "lwip/icmp.h"
 
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
+    os_printf("icmp_net_linkoutput()\n");
+    return ERR_OK;
 }
 
 static err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
