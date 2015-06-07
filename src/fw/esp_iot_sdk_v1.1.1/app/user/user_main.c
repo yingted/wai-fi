@@ -39,8 +39,10 @@ void user_rf_pre_init(void) {
 
 void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
+#ifndef NDEBUG
     os_delay_us(1000000);
-    os_printf("user_init()\n");
+    user_dprintf("user_init()\n");
+#endif
 
     wifi_set_opmode_current(STATION_MODE);
     {
