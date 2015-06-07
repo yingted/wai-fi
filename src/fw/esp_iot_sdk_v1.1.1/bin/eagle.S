@@ -38,7 +38,7 @@ Disassembly of section .text:
 40100070:	004140        	break	1, 4
 40100073:	fffe46        	j	40100070 <_DoubleExceptionVector>
 	...
-4010008e:	400000        	ssr	a0
+4010008e:	500000        	excw
 40100091:	fe8a      	add.n	a15, a14, a8
 40100093:	3f          	.byte 0x3f
 40100094:	fe8000        	excw
@@ -165,7 +165,7 @@ Disassembly of section .text:
 401001b5:	fe          	.byte 0xfe
 401001b6:	ef          	.byte 0xef
 401001b7:	3f          	.byte 0x3f
-401001b8:	fe8b80        	excw
+401001b8:	fe8b90        	excw
 401001bb:	3f          	.byte 0x3f
 
 401001bc <NmiTimSetFunc>:
@@ -465,7 +465,7 @@ Disassembly of section .text:
 401004b0:	100464        	excw
 401004b3:	55aa40        	extui	a10, a4, 26, 6
 401004b6:	55aa      	add.n	a5, a5, a10
-401004b8:	fefc      	bnez.n	a14, 401004fb <call_user_start_local+0x2c3>
+401004b8:	ff0c      	movi.n	a15, 15
 401004ba:	fe          	.byte 0xfe
 401004bb:	3f          	.byte 0x3f
 401004bc:	fe87d0        	excw
@@ -692,7 +692,7 @@ Disassembly of section .text:
 4010070e:	2269      	s32i.n	a6, a2, 8
 40100710:	0259      	s32i.n	a5, a2, 0
 40100712:	f00d      	ret.n
-40100714:	fe8bc0        	excw
+40100714:	fe8bd0        	excw
 40100717:	3f          	.byte 0x3f
 40100718:	fe87e0        	excw
 4010071b:	3f          	.byte 0x3f
@@ -883,10 +883,10 @@ Disassembly of section .text:
 401008d7:	102230        	and	a2, a2, a3
 401008da:	228b      	addi.n	a2, a2, 8
 401008dc:	f00d      	ret.n
-401008de:	f00000        	subx8	a0, a0, a0
-401008e1:	fe8b      	addi.n	a15, a14, 8
+401008de:	000000        	ill
+401008e1:	fe8c      	beqz.n	a14, 401008f4 <pvPortMalloc+0x4>
 401008e3:	3f          	.byte 0x3f
-401008e4:	8bf8      	l32i.n	a15, a11, 32
+401008e4:	8c08      	l32i.n	a0, a12, 32
 401008e6:	fe          	.byte 0xfe
 401008e7:	3f          	.byte 0x3f
 401008e8:	fe87f4        	excw
@@ -1431,7 +1431,7 @@ Disassembly of section .text:
 40100e0a:	10c112        	addi	a1, a1, 16
 40100e0d:	f00d      	ret.n
 40100e0f:	6e0000        	excw
-40100e12:	104026        	beqi	a0, 4, 40100e26 <system_restart_local+0xce>
+40100e12:	204026        	beqi	a0, 4, 40100e36 <system_restart_local+0xde>
 40100e15:	fe8c      	beqz.n	a14, 40100e28 <system_restart_local+0xd0>
 40100e17:	3f          	.byte 0x3f
 40100e18:	ff          	.byte 0xff
@@ -1625,7 +1625,7 @@ Disassembly of section .text:
 40101011:	0108      	l32i.n	a0, a1, 0
 40101013:	10c112        	addi	a1, a1, 16
 40101016:	f00d      	ret.n
-40101018:	fe9da4        	excw
+40101018:	fe9db4        	excw
 4010101b:	3f          	.byte 0x3f
 4010101c:	f20a00        	excw
 4010101f:	3f          	.byte 0x3f
@@ -1737,7 +1737,8 @@ Disassembly of section .text:
 4010111a:	380000        	excw
 4010111d:	fe88      	l32i.n	a8, a14, 60
 4010111f:	3f          	.byte 0x3f
-40101120:	fe8844        	excw
+40101120:	8848      	l32i.n	a4, a8, 32
+40101122:	fe          	.byte 0xfe
 40101123:	3f          	.byte 0x3f
 
 40101124 <wifi_handle_event_cb>:
@@ -1749,44 +1750,44 @@ void user_icmp_net_rx() {
 }
 40101124:	d0c112        	addi	a1, a1, -48
 40101127:	0a61c2        	s32i	a12, a1, 40
-4010112a:	20c220        	or	a12, a2, a2
-4010112d:	fffb21        	l32r	a2, 4010111c <system_rtc_mem_read+0x58>
-40101130:	0c3d      	mov.n	a3, a12
-40101132:	b109      	s32i.n	a0, a1, 44
-40101134:	91d9      	s32i.n	a13, a1, 36
-40101136:	81e9      	s32i.n	a14, a1, 32
-40101138:	ffafc5        	call0	40100c38 <os_printf_plus>
-4010113b:	0c28      	l32i.n	a2, a12, 0
-4010113d:	373266        	bnei	a2, 3, 40101178 <wifi_handle_event_cb+0x54>
-40101140:	0f0c22        	l8ui	a2, a12, 15
-40101143:	090ce2        	l8ui	a14, a12, 9
-40101146:	0a0cd2        	l8ui	a13, a12, 10
-40101149:	0b0cb2        	l8ui	a11, a12, 11
-4010114c:	0c0ca2        	l8ui	a10, a12, 12
-4010114f:	0d0c92        	l8ui	a9, a12, 13
-40101152:	0e0c82        	l8ui	a8, a12, 14
-40101155:	040c32        	l8ui	a3, a12, 4
-40101158:	050c42        	l8ui	a4, a12, 5
-4010115b:	060c52        	l8ui	a5, a12, 6
-4010115e:	070c62        	l8ui	a6, a12, 7
-40101161:	080c72        	l8ui	a7, a12, 8
-40101164:	6129      	s32i.n	a2, a1, 24
-40101166:	ffee21        	l32r	a2, 40101120 <system_rtc_mem_read+0x5c>
-40101169:	01e9      	s32i.n	a14, a1, 0
-4010116b:	11d9      	s32i.n	a13, a1, 4
-4010116d:	21b9      	s32i.n	a11, a1, 8
-4010116f:	31a9      	s32i.n	a10, a1, 12
-40101171:	4199      	s32i.n	a9, a1, 16
-40101173:	5189      	s32i.n	a8, a1, 20
-40101175:	ffac05        	call0	40100c38 <os_printf_plus>
-40101178:	b108      	l32i.n	a0, a1, 44
-4010117a:	a1c8      	l32i.n	a12, a1, 40
-4010117c:	91d8      	l32i.n	a13, a1, 36
-4010117e:	81e8      	l32i.n	a14, a1, 32
-40101180:	30c112        	addi	a1, a1, 48
-40101183:	f00d      	ret.n
-40101185:	000000        	ill
-40101188:	8888      	l32i.n	a8, a8, 32
+4010112a:	002242        	l32i	a4, a2, 0
+4010112d:	02cd      	mov.n	a12, a2
+4010112f:	fffb21        	l32r	a2, 4010111c <system_rtc_mem_read+0x58>
+40101132:	0c3d      	mov.n	a3, a12
+40101134:	b109      	s32i.n	a0, a1, 44
+40101136:	91d9      	s32i.n	a13, a1, 36
+40101138:	81e9      	s32i.n	a14, a1, 32
+4010113a:	ffafc5        	call0	40100c38 <os_printf_plus>
+4010113d:	0c28      	l32i.n	a2, a12, 0
+4010113f:	373266        	bnei	a2, 3, 4010117a <wifi_handle_event_cb+0x56>
+40101142:	0f0c22        	l8ui	a2, a12, 15
+40101145:	090ce2        	l8ui	a14, a12, 9
+40101148:	0a0cd2        	l8ui	a13, a12, 10
+4010114b:	0b0cb2        	l8ui	a11, a12, 11
+4010114e:	0c0ca2        	l8ui	a10, a12, 12
+40101151:	0d0c92        	l8ui	a9, a12, 13
+40101154:	0e0c82        	l8ui	a8, a12, 14
+40101157:	040c32        	l8ui	a3, a12, 4
+4010115a:	050c42        	l8ui	a4, a12, 5
+4010115d:	060c52        	l8ui	a5, a12, 6
+40101160:	070c62        	l8ui	a6, a12, 7
+40101163:	080c72        	l8ui	a7, a12, 8
+40101166:	6129      	s32i.n	a2, a1, 24
+40101168:	ffee21        	l32r	a2, 40101120 <system_rtc_mem_read+0x5c>
+4010116b:	01e9      	s32i.n	a14, a1, 0
+4010116d:	11d9      	s32i.n	a13, a1, 4
+4010116f:	21b9      	s32i.n	a11, a1, 8
+40101171:	31a9      	s32i.n	a10, a1, 12
+40101173:	4199      	s32i.n	a9, a1, 16
+40101175:	5189      	s32i.n	a8, a1, 20
+40101177:	ffac05        	call0	40100c38 <os_printf_plus>
+4010117a:	b108      	l32i.n	a0, a1, 44
+4010117c:	a1c8      	l32i.n	a12, a1, 40
+4010117e:	91d8      	l32i.n	a13, a1, 36
+40101180:	81e8      	l32i.n	a14, a1, 32
+40101182:	30c112        	addi	a1, a1, 48
+40101185:	f00d      	ret.n
+40101187:	889000        	excw
 4010118a:	fe          	.byte 0xfe
 4010118b:	3f          	.byte 0x3f
 4010118c:	101124        	excw
@@ -1921,7 +1922,7 @@ __muldi3 (DWtype u, DWtype v)
 4010125f:	31f8      	l32i.n	a15, a1, 12
 40101261:	20c112        	addi	a1, a1, 32
 40101264:	f00d      	ret.n
-40101266:	5c0000        	excw
+40101266:	6c0000        	excw
 40101269:	fe8d      	excw
 4010126b:	3f          	.byte 0x3f
 4010126c:	243880        	extui	a3, a8, 8, 3
@@ -2049,7 +2050,7 @@ __muldi3 (DWtype u, DWtype v)
 40101383:	ffff80        	excw
 40101386:	ff          	.byte 0xff
 40101387:	0f          	.byte 0xf
-40101388:	fe8f54        	excw
+40101388:	fe8f64        	excw
 4010138b:	3f          	.byte 0x3f
 
 4010138c <pm_rtc_clock_cali>:
@@ -2137,7 +2138,7 @@ __muldi3 (DWtype u, DWtype v)
 40101467:	0020c0        	memw
 4010146a:	866422        	s32i	a2, a4, 0x218
 4010146d:	f00d      	ret.n
-4010146f:	915000        	srl	a5, a0
+4010146f:	916000        	srl	a6, a0
 40101472:	fe          	.byte 0xfe
 40101473:	3f          	.byte 0x3f
 
@@ -2148,7 +2149,7 @@ __muldi3 (DWtype u, DWtype v)
 4010147c:	0183b6        	bltui	a3, 8, 40101481 <lmacIsActive+0xd>
 4010147f:	020c      	movi.n	a2, 0
 40101481:	f00d      	ret.n
-40101483:	918000        	srl	a8, a0
+40101483:	919000        	srl	a9, a0
 40101486:	fe          	.byte 0xfe
 40101487:	3f          	.byte 0x3f
 
@@ -2165,7 +2166,8 @@ __muldi3 (DWtype u, DWtype v)
 401014a0:	879c      	beqz.n	a7, 401014bc <lmacIsIdle+0x34>
 401014a2:	fe          	.byte 0xfe
 401014a3:	3f          	.byte 0x3f
-401014a4:	fe8894        	excw
+401014a4:	889c      	beqz.n	a8, 401014c0 <lmacIsIdle+0x38>
+401014a6:	fe          	.byte 0xfe
 401014a7:	3f          	.byte 0x3f
 401014a8:	f0c112        	addi	a1, a1, -16
 401014ab:	1109      	s32i.n	a0, a1, 4
@@ -4175,7 +4177,7 @@ __muldi3 (DWtype u, DWtype v)
 40102949:	052d      	mov.n	a2, a5
 4010294b:	f00d      	ret.n
 4010294d:	000000        	ill
-40102950:	fe93c0        	excw
+40102950:	fe93d0        	excw
 40102953:	3f          	.byte 0x3f
 40102954:	806c      	movi.n	a0, -24
 40102956:	fe          	.byte 0xfe
@@ -4367,7 +4369,8 @@ __muldi3 (DWtype u, DWtype v)
 40102afb:	879c00        	excw
 40102afe:	fe          	.byte 0xfe
 40102aff:	3f          	.byte 0x3f
-40102b00:	fe88b4        	excw
+40102b00:	88bc      	beqz.n	a8, 40102b3c <ppEnqueueRxq>
+40102b02:	fe          	.byte 0xfe
 40102b03:	3f          	.byte 0x3f
 40102b04:	089c      	beqz.n	a8, 40102b18 <ppEnqueueTxDone+0x10>
 	...
@@ -4882,7 +4885,7 @@ __muldi3 (DWtype u, DWtype v)
 40103028:	f00d      	ret.n
 4010302a:	020c      	movi.n	a2, 0
 4010302c:	fffac6        	j	4010301b <ppEnqueueRxq+0x4df>
-4010302f:	96a100        	excw
+4010302f:	96b100        	excw
 40103032:	fe          	.byte 0xfe
 40103033:	3f          	.byte 0x3f
 40103034:	d96c      	movi.n	a9, -19
@@ -5081,7 +5084,7 @@ __muldi3 (DWtype u, DWtype v)
 40103231:	0108      	l32i.n	a0, a1, 0
 40103233:	10c112        	addi	a1, a1, 16
 40103236:	f00d      	ret.n
-40103238:	fe9580        	excw
+40103238:	fe9590        	excw
 4010323b:	3f          	.byte 0x3f
 
 4010323c <pp_post>:
@@ -5235,7 +5238,7 @@ __muldi3 (DWtype u, DWtype v)
 401033a9:	f00d      	ret.n
 401033ab:	c0a022        	movi	a2, 192
 401033ae:	f00d      	ret.n
-401033b0:	fe96b0        	excw
+401033b0:	fe96c0        	excw
 401033b3:	3f          	.byte 0x3f
 
 401033b4 <RC_GetAckRate>:
@@ -5647,7 +5650,7 @@ __muldi3 (DWtype u, DWtype v)
 401037a5:	ffe206        	j	40103731 <rcGetSched+0x29>
 401037a8:	192c02        	l32i	a0, a12, 100
 401037ab:	ffe086        	j	40103731 <rcGetSched+0x29>
-401037ae:	540000        	extui	a0, a0, 0, 6
+401037ae:	640000        	extui	a0, a0, 0, 7
 401037b1:	3ffe91        	l32r	a9, 400d37ac <rc4_skip+0xc5a44>
 
 401037b4 <rcGetRate>:
@@ -5860,7 +5863,7 @@ __muldi3 (DWtype u, DWtype v)
 401039fb:	ffa546        	j	40103894 <rcGetRate+0xe0>
 401039fe:	9f0000        	excw
 40103a01:	000186        	j	40103a0b <rcGetRate+0x257>
-40103a04:	fe97b0        	excw
+40103a04:	fe97c0        	excw
 40103a07:	3f          	.byte 0x3f
 40103a08:	3d0900        	excw
 40103a0b:	c11200        	mul16u	a1, a2, a0
@@ -6222,7 +6225,7 @@ __muldi3 (DWtype u, DWtype v)
 40103da0:	3108      	l32i.n	a0, a1, 12
 40103da2:	20c112        	addi	a1, a1, 32
 40103da5:	f00d      	ret.n
-40103da7:	9c0000        	excw
+40103da7:	9c1000        	excw
 40103daa:	fe          	.byte 0xfe
 40103dab:	3f          	.byte 0x3f
 40103dac:	f0c112        	addi	a1, a1, -16
@@ -6269,10 +6272,9 @@ __muldi3 (DWtype u, DWtype v)
 40103e0c:	879c      	beqz.n	a7, 40103e28 <trc_NeedRTS+0x248>
 40103e0e:	fe          	.byte 0xfe
 40103e0f:	3f          	.byte 0x3f
-40103e10:	88bc      	beqz.n	a8, 40103e4c <trc_NeedRTS+0x26c>
-40103e12:	fe          	.byte 0xfe
+40103e10:	fe88c4        	excw
 40103e13:	3f          	.byte 0x3f
-40103e14:	fefe94        	excw
+40103e14:	fefea4        	excw
 40103e17:	3f          	.byte 0x3f
 40103e18:	e0c112        	addi	a1, a1, -32
 40103e1b:	0561f2        	s32i	a15, a1, 20
@@ -6562,7 +6564,7 @@ __muldi3 (DWtype u, DWtype v)
 40104104:	030000        	excw
 40104107:	ffff00        	excw
 4010410a:	fffb      	addi.n	a15, a15, 15
-4010410c:	fe9c40        	excw
+4010410c:	fe9c50        	excw
 4010410f:	3f          	.byte 0x3f
 
 40104110 <wDev_ProcessFiq>:
@@ -7724,7 +7726,7 @@ __muldi3 (DWtype u, DWtype v)
 40104d23:	011c02        	l16ui	a0, a12, 2
 40104d26:	b40000        	extui	a0, a0, 0, 12
 40104d29:	ffe286        	j	40104cb7 <wDevDisableRx+0x43f>
-40104d2c:	feea80        	excw
+40104d2c:	feea90        	excw
 40104d2f:	3f          	.byte 0x3f
 
 40104d30 <esf_rx_buf_alloc>:
@@ -7976,7 +7978,7 @@ __muldi3 (DWtype u, DWtype v)
 40104f81:	edfe01        	l32r	a0, 4010077c <ets_timer_setfn+0x78>
 40104f84:	0000c0        	callx0	a0
 40104f87:	fff406        	j	40104f5b <esf_buf_recycle+0xb3>
-40104f8a:	740000        	extui	a0, a0, 0, 8
+40104f8a:	840000        	extui	a0, a0, 0, 9
 40104f8d:	3fff03        	excw
 
 40104f90 <chm_acquire_lock>:
@@ -8043,7 +8045,7 @@ __muldi3 (DWtype u, DWtype v)
 40105019:	0108      	l32i.n	a0, a1, 0
 4010501b:	10c112        	addi	a1, a1, 16
 4010501e:	f00d      	ret.n
-40105020:	fefd14        	excw
+40105020:	fefd24        	excw
 40105023:	3f          	.byte 0x3f
 40105024:	603c      	movi.n	a0, 54
 40105026:	124025        	excw
@@ -8071,7 +8073,7 @@ __muldi3 (DWtype u, DWtype v)
 40105054:	ffce21        	l32r	a2, 40104f8c <esf_buf_recycle+0xe4>
 40105057:	d228      	l32i.n	a2, a2, 52
 40105059:	f00d      	ret.n
-4010505b:	0a5000        	excw
+4010505b:	0a6000        	excw
 4010505e:	ff          	.byte 0xff
 4010505f:	3f          	.byte 0x3f
 40105060:	259600        	extui	a9, a0, 22, 3
@@ -8109,13 +8111,13 @@ __muldi3 (DWtype u, DWtype v)
 401050ac:	0108      	l32i.n	a0, a1, 0
 401050ae:	10c112        	addi	a1, a1, 16
 401050b1:	f00d      	ret.n
-401050b3:	12c800        	excw
+401050b3:	12d800        	excw
 401050b6:	ff          	.byte 0xff
 401050b7:	3f          	.byte 0x3f
-401050b8:	12dc      	bnez.n	a2, 401050cd <dns_tmr+0x69>
+401050b8:	12ec      	bnez.n	a2, 401050dd <dns_tmr+0x79>
 401050ba:	ff          	.byte 0xff
 401050bb:	3f          	.byte 0x3f
-401050bc:	12cc      	bnez.n	a2, 401050c1 <dns_tmr+0x5d>
+401050bc:	12dc      	bnez.n	a2, 401050d1 <dns_tmr+0x6d>
 401050be:	ff          	.byte 0xff
 401050bf:	3f          	.byte 0x3f
 401050c0:	e998      	l32i.n	a9, a9, 56
@@ -8299,7 +8301,7 @@ __muldi3 (DWtype u, DWtype v)
 4010527b:	e49687        	bne	a6, a8, 40105263 <dns_tmr+0x1ff>
 4010527e:	f00d      	ret.n
 40105280:	050402        	l8ui	a0, a4, 5
-40105283:	12e0b4        	excw
+40105283:	12f0b4        	excw
 40105286:	ff          	.byte 0xff
 40105287:	3f          	.byte 0x3f
 40105288:	267a60        	excw
@@ -8494,8 +8496,7 @@ __muldi3 (DWtype u, DWtype v)
 40105484:	002102        	l32i	a0, a1, 0
 40105487:	10c112        	addi	a1, a1, 16
 4010548a:	f00d      	ret.n
-4010548c:	89a8      	l32i.n	a10, a9, 32
-4010548e:	fe          	.byte 0xfe
+4010548c:	fe89b0        	excw
 4010548f:	3f          	.byte 0x3f
 40105490:	02e8      	l32i.n	a14, a2, 0
 40105492:	124026        	beqi	a0, 4, 401054a8 <__wrap_icmp_input+0x14>
@@ -13917,9 +13918,9 @@ Disassembly of section .irom0.text:
 40240003:	3f          	.byte 0x3f
 40240004:	fe87a4        	excw
 40240007:	3f          	.byte 0x3f
-40240008:	feff14        	excw
+40240008:	feff24        	excw
 4024000b:	3f          	.byte 0x3f
-4024000c:	fefd14        	excw
+4024000c:	fefd24        	excw
 4024000f:	3f          	.byte 0x3f
 40240010:	104110        	and	a4, a1, a1
 40240013:	24cc40        	extui	a12, a4, 12, 3
@@ -13979,23 +13980,23 @@ Disassembly of section .irom0.text:
 402400a8:	10c112        	addi	a1, a1, 16
 402400ab:	f00d      	ret.n
 402400ad:	000000        	ill
-402400b0:	feff82        	excw
+402400b0:	feff92        	excw
 402400b3:	3f          	.byte 0x3f
-402400b4:	feffb1        	l32r	a11, 4023fcb0 <_lit4_end+0x13916c>
+402400b4:	feffc1        	l32r	a12, 4023fcb0 <_lit4_end+0x13916c>
 402400b7:	3f          	.byte 0x3f
-402400b8:	016a      	add.n	a0, a1, a6
+402400b8:	017a      	add.n	a0, a1, a7
 402400ba:	ff          	.byte 0xff
 402400bb:	3f          	.byte 0x3f
 402400bc:	00ea60        	excw
 402400bf:	900000        	addx2	a0, a0, a0
-402400c2:	d00001        	l32r	a0, 402340c4 <_lit4_end+0x12d580>
+402400c2:	e00001        	l32r	a0, 402380c4 <_lit4_end+0x131580>
 402400c5:	ff          	.byte 0xff
 402400c6:	fe          	.byte 0xfe
 402400c7:	3f          	.byte 0x3f
-402400c8:	ff08      	l32i.n	a0, a15, 60
+402400c8:	ff18      	l32i.n	a1, a15, 60
 402400ca:	fe          	.byte 0xfe
 402400cb:	3f          	.byte 0x3f
-402400cc:	feff33        	excw
+402400cc:	feff43        	excw
 402400cf:	3f          	.byte 0x3f
 402400d0:	686c      	movi.n	a8, -26
 402400d2:	e84010        	excw
@@ -14199,19 +14200,19 @@ Disassembly of section .irom0.text:
 402402d7:	20c112        	addi	a1, a1, 32
 402402da:	f00d      	ret.n
 402402dc:	100374        	excw
-402402df:	8ba240        	excw
+402402df:	8bb240        	excw
 402402e2:	fe          	.byte 0xfe
 402402e3:	3f          	.byte 0x3f
-402402e4:	8b9c      	beqz.n	a11, 40240300 <user_uart_wait_tx_fifo_empty+0x78>
+402402e4:	8bac      	beqz.n	a11, 40240310 <user_uart_wait_tx_fifo_empty+0x88>
 402402e6:	fe          	.byte 0xfe
 402402e7:	3f          	.byte 0x3f
-402402e8:	fe8b80        	excw
+402402e8:	fe8b90        	excw
 402402eb:	3f          	.byte 0x3f
 402402ec:	04a8c0        	extui	a10, a12, 8, 1
 402402ef:	ffff01        	l32r	a0, 402402ec <user_uart_wait_tx_fifo_empty+0x64>
 402402f2:	ff          	.byte 0xff
 402402f3:	ef7c00        	excw
-402402f6:	a84025        	excw
+402402f6:	b84025        	excw
 402402f9:	fe8b      	addi.n	a15, a14, 8
 402402fb:	3f          	.byte 0x3f
 402402fc:	ffc714        	excw
@@ -14230,12 +14231,12 @@ Disassembly of section .irom0.text:
 40240317:	3f          	.byte 0x3f
 40240318:	266c80        	excw
 4024031b:	ff0040        	excw
-4024031e:	180000        	excw
+4024031e:	280000        	excw
 40240321:	fe8d      	excw
 40240323:	3f          	.byte 0x3f
-40240324:	fefe94        	excw
+40240324:	fefea4        	excw
 40240327:	3f          	.byte 0x3f
-40240328:	fe8d14        	excw
+40240328:	fe8d24        	excw
 4024032b:	3f          	.byte 0x3f
 4024032c:	000454        	excw
 4024032f:	025c40        	excw
@@ -14540,10 +14541,11 @@ Disassembly of section .irom0.text:
 4024064f:	0108      	l32i.n	a0, a1, 0
 40240651:	10c112        	addi	a1, a1, 16
 40240654:	f00d      	ret.n
-40240656:	c80000        	excw
+40240656:	d80000        	excw
 40240659:	ff1a      	add.n	a15, a15, a1
 4024065b:	3f          	.byte 0x3f
-4024065c:	fe89c0        	excw
+4024065c:	89c8      	l32i.n	a12, a9, 32
+4024065e:	fe          	.byte 0xfe
 4024065f:	3f          	.byte 0x3f
 40240660:	fffe61        	l32r	a6, 40240658 <user_uart_wait_tx_fifo_empty+0x3d0>
 40240663:	fffe41        	l32r	a4, 4024065c <user_uart_wait_tx_fifo_empty+0x3d4>
@@ -14579,7 +14581,7 @@ Disassembly of section .irom0.text:
 402406a8:	10c112        	addi	a1, a1, 16
 402406ab:	f00d      	ret.n
 402406ad:	000000        	ill
-402406b0:	fe8bc0        	excw
+402406b0:	fe8bd0        	excw
 402406b3:	3f          	.byte 0x3f
 402406b4:	000f74        	excw
 402406b7:	0f8040        	excw
@@ -14656,7 +14658,7 @@ Disassembly of section .irom0.text:
 40240764:	07d8      	l32i.n	a13, a7, 0
 40240766:	4c4010        	excw
 40240769:	402407        	blt	a4, a0, 402407ad <ets_timer_init+0x39>
-4024076c:	fe8bd0        	excw
+4024076c:	fe8be0        	excw
 4024076f:	3f          	.byte 0x3f
 40240770:	000dd0        	excw
 40240773:	a20c40        	excw
@@ -14699,15 +14701,15 @@ Disassembly of section .irom0.text:
 402407cf:	0108      	l32i.n	a0, a1, 0
 402407d1:	10c112        	addi	a1, a1, 16
 402407d4:	f00d      	ret.n
-402407d6:	f00000        	subx8	a0, a0, a0
-402407d9:	fe8b      	addi.n	a15, a14, 8
+402407d6:	000000        	ill
+402407d9:	fe8c      	beqz.n	a14, 402407ec <xPortGetFreeHeapSize+0x10>
 402407db:	3f          	.byte 0x3f
 
 402407dc <xPortGetFreeHeapSize>:
 402407dc:	ffff21        	l32r	a2, 402407d8 <ets_timer_init+0x64>
 402407df:	4228      	l32i.n	a2, a2, 16
 402407e1:	f00d      	ret.n
-402407e3:	1ac800        	excw
+402407e3:	1ad800        	excw
 402407e6:	ff          	.byte 0xff
 402407e7:	3f          	.byte 0x3f
 402407e8:	bff8      	l32i.n	a15, a15, 44
@@ -14756,12 +14758,12 @@ Disassembly of section .irom0.text:
 40240840:	fffb21        	l32r	a2, 4024082c <xPortGetFreeHeapSize+0x50>
 40240843:	000222        	l8ui	a2, a2, 0
 40240846:	f00d      	ret.n
-40240848:	fe8c14        	excw
+40240848:	fe8c24        	excw
 4024084b:	3f          	.byte 0x3f
 4024084c:	0918      	l32i.n	a1, a9, 0
 4024084e:	e04024        	excw
 40240851:	266c      	movi.n	a6, -30
-40240853:	8cbb40        	excw
+40240853:	8ccb40        	excw
 40240856:	fe          	.byte 0xfe
 40240857:	3f          	.byte 0x3f
 40240858:	f0c112        	addi	a1, a1, -16
@@ -14828,15 +14830,15 @@ Disassembly of section .irom0.text:
 402408fa:	0138      	l32i.n	a3, a1, 0
 402408fc:	7a4032        	s8i	a3, a0, 122
 402408ff:	ffe606        	j	4024089b <system_get_os_print+0x5b>
-40240902:	200000        	or	a0, a0, a0
+40240902:	300000        	xor	a0, a0, a0
 40240905:	fe8c      	beqz.n	a14, 40240918 <system_get_os_print+0xd8>
 40240907:	3f          	.byte 0x3f
-40240908:	fe8d40        	excw
+40240908:	fe8d50        	excw
 4024090b:	3f          	.byte 0x3f
-4024090c:	8c98      	l32i.n	a9, a12, 32
+4024090c:	8ca8      	l32i.n	a10, a12, 32
 4024090e:	fe          	.byte 0xfe
 4024090f:	3f          	.byte 0x3f
-40240910:	8c2b      	addi.n	a8, a12, 2
+40240910:	8c3b      	addi.n	a8, a12, 3
 40240912:	fe          	.byte 0xfe
 40240913:	3f          	.byte 0x3f
 40240914:	0d58      	l32i.n	a5, a13, 0
@@ -14957,7 +14959,7 @@ Disassembly of section .irom0.text:
 40240a43:	10c112        	addi	a1, a1, 16
 40240a46:	000080        	ret
 40240a49:	000000        	ill
-40240a4c:	ff07b0        	excw
+40240a4c:	ff07c0        	excw
 40240a4f:	3f          	.byte 0x3f
 
 40240a50 <system_restart>:
@@ -15004,7 +15006,7 @@ Disassembly of section .irom0.text:
 40240ab7:	30c112        	addi	a1, a1, 48
 40240aba:	f00d      	ret.n
 40240abc:	000000        	ill
-40240abf:	fefc00        	excw
+40240abf:	ff0c00        	excw
 40240ac2:	fe          	.byte 0xfe
 40240ac3:	3f          	.byte 0x3f
 
@@ -15059,7 +15061,7 @@ Disassembly of section .irom0.text:
 40240b36:	412420        	srli	a2, a2, 4
 40240b39:	10c112        	addi	a1, a1, 16
 40240b3c:	f00d      	ret.n
-40240b3e:	7d0000        	excw
+40240b3e:	8d0000        	excw
 40240b41:	fe          	.byte 0xfe
 40240b42:	fe          	.byte 0xfe
 40240b43:	3f          	.byte 0x3f
@@ -15295,7 +15297,7 @@ Disassembly of section .irom0.text:
 40240d99:	00acc5        	call0	40241868 <system_param_save_with_protect>
 40240d9c:	ffcb05        	call0	40240a50 <system_restart>
 40240d9f:	ffe206        	j	40240d2b <system_restart_enhance+0xbf>
-40240da2:	7c0000        	excw
+40240da2:	8c0000        	excw
 40240da5:	fe          	.byte 0xfe
 40240da6:	fe          	.byte 0xfe
 40240da7:	3f          	.byte 0x3f
@@ -15352,7 +15354,7 @@ Disassembly of section .irom0.text:
 40240e24:	e71566        	bnei	a5, 1, 40240e0f <system_upgrade_userbin_check+0x1f>
 40240e27:	120c      	movi.n	a2, 1
 40240e29:	fff906        	j	40240e11 <system_upgrade_userbin_check+0x21>
-40240e2c:	fe8c10        	excw
+40240e2c:	fe8c20        	excw
 40240e2f:	3f          	.byte 0x3f
 
 40240e30 <system_upgrade_flag_set>:
@@ -15671,7 +15673,7 @@ Disassembly of section .irom0.text:
 40241136:	802332        	l32i	a3, a3, 0x200
 40241139:	c02320        	sub	a2, a3, a2
 4024113c:	f00d      	ret.n
-4024113e:	900000        	addx2	a0, a0, a0
+4024113e:	a00000        	addx4	a0, a0, a0
 40241141:	fe8c      	beqz.n	a14, 40241154 <system_station_got_ip_set+0x4>
 40241143:	3f          	.byte 0x3f
 40241144:	266e20        	excw
@@ -15774,7 +15776,8 @@ Disassembly of section .irom0.text:
 4024123b:	854040        	extui	a4, a4, 16, 9
 4024123e:	fe          	.byte 0xfe
 4024123f:	3f          	.byte 0x3f
-40241240:	fe89c0        	excw
+40241240:	89c8      	l32i.n	a12, a9, 32
+40241242:	fe          	.byte 0xfe
 40241243:	3f          	.byte 0x3f
 40241244:	266e80        	excw
 40241247:	6ea040        	excw
@@ -16187,9 +16190,9 @@ Disassembly of section .irom0.text:
 40241615:	0108      	l32i.n	a0, a1, 0
 40241617:	10c112        	addi	a1, a1, 16
 4024161a:	f00d      	ret.n
-4024161c:	fe8cb4        	excw
+4024161c:	fe8cc4        	excw
 4024161f:	3f          	.byte 0x3f
-40241620:	1288      	l32i.n	a8, a2, 4
+40241620:	1298      	l32i.n	a9, a2, 4
 40241622:	ff          	.byte 0xff
 40241623:	3f          	.byte 0x3f
 
@@ -16264,12 +16267,12 @@ Disassembly of section .irom0.text:
 402416d5:	1a4605        	call0	4025bb38 <netif_set_default>
 402416d8:	fff306        	j	402416a8 <wifi_set_broadcast_if+0x48>
 402416db:	000000        	ill
-402416de:	640000        	extui	a0, a0, 0, 7
+402416de:	740000        	extui	a0, a0, 0, 8
 402416e1:	fe8c      	beqz.n	a14, 402416f4 <wifi_set_broadcast_if+0x94>
 402416e3:	3f          	.byte 0x3f
-402416e4:	fefe84        	excw
+402416e4:	fefe94        	excw
 402416e7:	3f          	.byte 0x3f
-402416e8:	8bbc      	beqz.n	a11, 40241724 <wifi_set_broadcast_if+0xc4>
+402416e8:	8bcc      	bnez.n	a11, 402416f4 <wifi_set_broadcast_if+0x94>
 402416ea:	fe          	.byte 0xfe
 402416eb:	3f          	.byte 0x3f
 402416ec:	f0c112        	addi	a1, a1, -16
@@ -16643,11 +16646,11 @@ Disassembly of section .irom0.text:
 40241a58:	10c112        	addi	a1, a1, 16
 40241a5b:	f00d      	ret.n
 40241a5d:	000000        	ill
-40241a60:	feff94        	excw
+40241a60:	feffa4        	excw
 40241a63:	3f          	.byte 0x3f
-40241a64:	feffc0        	excw
+40241a64:	feffd0        	excw
 40241a67:	3f          	.byte 0x3f
-40241a68:	ff01c4        	excw
+40241a68:	ff01d4        	excw
 40241a6b:	3f          	.byte 0x3f
 
 40241a6c <wifi_station_get_ap_info>:
@@ -16723,7 +16726,7 @@ Disassembly of section .irom0.text:
 40241b1b:	41e8      	l32i.n	a14, a1, 16
 40241b1d:	20c112        	addi	a1, a1, 32
 40241b20:	f00d      	ret.n
-40241b22:	b80000        	excw
+40241b22:	c80000        	excw
 40241b25:	ff          	.byte 0xff
 40241b26:	fe          	.byte 0xfe
 40241b27:	3f          	.byte 0x3f
@@ -16760,16 +16763,16 @@ Disassembly of section .irom0.text:
 40241b71:	f00d      	ret.n
 40241b73:	020c      	movi.n	a2, 0
 40241b75:	fffc46        	j	40241b6a <wifi_station_ap_number_set+0x42>
-40241b78:	ffb9      	s32i.n	a11, a15, 60
+40241b78:	ffc9      	s32i.n	a12, a15, 60
 40241b7a:	fe          	.byte 0xfe
 40241b7b:	3f          	.byte 0x3f
-40241b7c:	fefdd4        	excw
+40241b7c:	fefde4        	excw
 40241b7f:	3f          	.byte 0x3f
-40241b80:	ff0c      	movi.n	a15, 15
+40241b80:	ff1c      	movi.n	a15, 31
 40241b82:	fe          	.byte 0xfe
 40241b83:	3f          	.byte 0x3f
 40241b84:	010000        	slli	a0, a0, 32
-40241b87:	ffa600        	excw
+40241b87:	ffb600        	excw
 40241b8a:	fe          	.byte 0xfe
 40241b8b:	3f          	.byte 0x3f
 40241b8c:	2ac8      	l32i.n	a12, a10, 8
@@ -16879,7 +16882,7 @@ Disassembly of section .irom0.text:
 40241c9c:	20c112        	addi	a1, a1, 32
 40241c9f:	f00d      	ret.n
 40241ca1:	000000        	ill
-40241ca4:	fe8d50        	excw
+40241ca4:	fe8d60        	excw
 40241ca7:	3f          	.byte 0x3f
 40241ca8:	d0c112        	addi	a1, a1, -48
 40241cab:	51d9      	s32i.n	a13, a1, 20
@@ -17141,7 +17144,7 @@ Disassembly of section .irom0.text:
 40241f26:	000c05        	call0	40241fe8 <wifi_station_connect>
 40241f29:	120c      	movi.n	a2, 1
 40241f2b:	ffce86        	j	40241e69 <wifi_station_ap_change+0x29>
-40241f2e:	5e0000        	excw
+40241f2e:	6e0000        	excw
 40241f31:	3fff03        	excw
 
 40241f34 <wifi_station_scan>:
@@ -17173,7 +17176,7 @@ Disassembly of section .irom0.text:
 40241f74:	020c      	movi.n	a2, 0
 40241f76:	fffcc6        	j	40241f6d <wifi_station_scan+0x39>
 40241f79:	000000        	ill
-40241f7c:	01bc      	beqz.n	a1, 40241fb0 <wifi_station_set_auto_connect+0x1c>
+40241f7c:	01cc      	bnez.n	a1, 40241f80 <wifi_station_get_auto_connect>
 40241f7e:	ff          	.byte 0xff
 40241f7f:	3f          	.byte 0x3f
 
@@ -17274,7 +17277,7 @@ Disassembly of section .irom0.text:
 40242071:	140f05        	call0	40256164 <cnx_sta_connect_cmd>
 40242074:	fffb86        	j	40242066 <wifi_station_connect+0x7e>
 40242077:	000000        	ill
-4024207a:	9e0000        	excw
+4024207a:	ae0000        	excw
 4024207d:	fe8c      	beqz.n	a14, 40242090 <wifi_station_disconnect+0x10>
 4024207f:	3f          	.byte 0x3f
 
@@ -17452,16 +17455,16 @@ Disassembly of section .irom0.text:
 40242213:	f00d      	ret.n
 40242215:	020c      	movi.n	a2, 0
 40242217:	fffac6        	j	40242206 <wifi_softap_cacl_mac+0x4a>
-4024221a:	ac0000        	excw
+4024221a:	bc0000        	excw
 4024221d:	ff          	.byte 0xff
 4024221e:	fe          	.byte 0xfe
 4024221f:	3f          	.byte 0x3f
-40242220:	feffb0        	excw
+40242220:	feffc0        	excw
 40242223:	3f          	.byte 0x3f
 40242224:	881c      	movi.n	a8, 24
 40242226:	fe          	.byte 0xfe
 40242227:	3f          	.byte 0x3f
-40242228:	fefe14        	excw
+40242228:	fefe24        	excw
 4024222b:	3f          	.byte 0x3f
 
 4024222c <wifi_softap_set_default_ssid>:
@@ -17646,10 +17649,10 @@ Disassembly of section .irom0.text:
 402423f4:	10c112        	addi	a1, a1, 16
 402423f7:	f00d      	ret.n
 402423f9:	000000        	ill
-402423fc:	8e          	.byte 0x8e
+402423fc:	9e          	.byte 0x9e
 402423fd:	fe8c      	beqz.n	a14, 40242410 <wifi_softap_get_config_default+0x28>
 402423ff:	3f          	.byte 0x3f
-40242400:	ff0011        	l32r	a1, 40242000 <wifi_station_connect+0x18>
+40242400:	ff0021        	l32r	a2, 40242000 <wifi_station_connect+0x18>
 40242403:	3f          	.byte 0x3f
 40242404:	00b840        	excw
 40242407:	c11240        	mul16u	a1, a2, a4
@@ -17933,7 +17936,7 @@ Disassembly of section .irom0.text:
 402426d8:	20c112        	addi	a1, a1, 32
 402426db:	f00d      	ret.n
 402426dd:	000000        	ill
-402426e0:	fe9c      	beqz.n	a14, 40242703 <wifi_softap_get_station_info+0x1f>
+402426e0:	feac      	beqz.n	a14, 40242713 <wifi_softap_get_station_info+0x2f>
 402426e2:	fe          	.byte 0xfe
 402426e3:	3f          	.byte 0x3f
 
@@ -18133,7 +18136,7 @@ Disassembly of section .irom0.text:
 402428bc:	f00d      	ret.n
 402428be:	020c      	movi.n	a2, 0
 402428c0:	fffac6        	j	402428af <wifi_softap_deauth+0xa3>
-402428c3:	ff5000        	excw
+402428c3:	ff6000        	excw
 402428c6:	fe          	.byte 0xfe
 402428c7:	3f          	.byte 0x3f
 
@@ -18396,19 +18399,19 @@ Disassembly of section .irom0.text:
 40242b58:	f8b531        	l32r	a3, 40240e2c <system_upgrade_userbin_check+0x3c>
 40242b5b:	4a6322        	s32i	a2, a3, 0x128
 40242b5e:	f00d      	ret.n
-40242b60:	fe8b84        	excw
+40242b60:	fe8b94        	excw
 40242b63:	3f          	.byte 0x3f
-40242b64:	8b88      	l32i.n	a8, a11, 32
+40242b64:	8b98      	l32i.n	a9, a11, 32
 40242b66:	fe          	.byte 0xfe
 40242b67:	3f          	.byte 0x3f
-40242b68:	8b8c      	beqz.n	a11, 40242b74 <wifi_set_promiscuous_rx_cb+0x1c>
+40242b68:	8b9c      	beqz.n	a11, 40242b84 <wifi_get_ip_info+0x8>
 40242b6a:	fe          	.byte 0xfe
 40242b6b:	3f          	.byte 0x3f
-40242b6c:	fe8b90        	excw
+40242b6c:	fe8ba0        	excw
 40242b6f:	3f          	.byte 0x3f
-40242b70:	fe8b94        	excw
+40242b70:	fe8ba4        	excw
 40242b73:	3f          	.byte 0x3f
-40242b74:	8b98      	l32i.n	a9, a11, 32
+40242b74:	8ba8      	l32i.n	a10, a11, 32
 40242b76:	fe          	.byte 0xfe
 40242b77:	3f          	.byte 0x3f
 40242b78:	6768      	l32i.n	a6, a7, 24
@@ -18684,7 +18687,7 @@ Disassembly of section .irom0.text:
 40242e13:	0e5485        	call0	4025135c <wifi_softap_start>
 40242e16:	120c      	movi.n	a2, 1
 40242e18:	ffee46        	j	40242dd5 <wifi_set_macaddr+0x71>
-40242e1b:	fe8500        	excw
+40242e1b:	fe9500        	excw
 40242e1e:	fe          	.byte 0xfe
 40242e1f:	3f          	.byte 0x3f
 
@@ -19526,7 +19529,7 @@ Disassembly of section .irom0.text:
 402435fc:	ac4c      	movi.n	a12, 74
 402435fe:	084025        	excw
 40243601:	2529      	s32i.n	a2, a5, 8
-40243603:	8d5440        	excw
+40243603:	8d6440        	excw
 40243606:	fe          	.byte 0xfe
 40243607:	3f          	.byte 0x3f
 40243608:	35ac      	beqz.n	a5, 4024362f <eagle_lwip_if_alloc+0x7>
@@ -19758,7 +19761,7 @@ Disassembly of section .irom0.text:
 40243840:	f00d      	ret.n
 40243842:	0228      	l32i.n	a2, a2, 0
 40243844:	f00d      	ret.n
-40243846:	5c0000        	excw
+40243846:	6c0000        	excw
 40243849:	fe8d      	excw
 4024384b:	3f          	.byte 0x3f
 
@@ -19880,7 +19883,7 @@ Disassembly of section .irom0.text:
 4024393b:	0108      	l32i.n	a0, a1, 0
 4024393d:	10c112        	addi	a1, a1, 16
 40243940:	f00d      	ret.n
-40243942:	600000        	neg	a0, a0
+40243942:	700000        	excw
 40243945:	fe8d      	excw
 40243947:	3f          	.byte 0x3f
 
@@ -20522,11 +20525,11 @@ Disassembly of section .irom0.text:
 40243f6b:	f42c20        	extui	a2, a2, 12, 16
 40243f6e:	30c112        	addi	a1, a1, 48
 40243f71:	f00d      	ret.n
-40243f73:	8f5400        	excw
+40243f73:	8f6400        	excw
 40243f76:	fe          	.byte 0xfe
 40243f77:	3f          	.byte 0x3f
 40243f78:	000d33        	excw
-40243f7b:	8d7000        	excw
+40243f7b:	8d8000        	excw
 40243f7e:	fe          	.byte 0xfe
 40243f7f:	3f          	.byte 0x3f
 
@@ -21506,7 +21509,7 @@ Disassembly of section .irom0.text:
 40244923:	b4a2c2        	movi	a12, 0x2b4
 40244926:	ffb986        	j	40244810 <chip_60_set_channel+0xa8>
 40244929:	000000        	ill
-4024492c:	8fc8      	l32i.n	a12, a15, 32
+4024492c:	8fd8      	l32i.n	a13, a15, 32
 4024492e:	fe          	.byte 0xfe
 4024492f:	3f          	.byte 0x3f
 
@@ -21528,9 +21531,9 @@ Disassembly of section .irom0.text:
 40244959:	0108      	l32i.n	a0, a1, 0
 4024495b:	10c112        	addi	a1, a1, 16
 4024495e:	f00d      	ret.n
-40244960:	fe9110        	excw
+40244960:	fe9120        	excw
 40244963:	3f          	.byte 0x3f
-40244964:	8eec      	bnez.n	a14, 40244990 <chip_v6_set_chan+0x28>
+40244964:	8efc      	bnez.n	a14, 402449a0 <chip_v6_set_chan+0x38>
 40244966:	fe          	.byte 0xfe
 40244967:	3f          	.byte 0x3f
 
@@ -21578,7 +21581,7 @@ Disassembly of section .irom0.text:
 402449d4:	052102        	l32i	a0, a1, 20
 402449d7:	20c112        	addi	a1, a1, 32
 402449da:	f00d      	ret.n
-402449dc:	8ebd      	excw
+402449dc:	8ecd      	excw
 402449de:	fe          	.byte 0xfe
 402449df:	3f          	.byte 0x3f
 
@@ -22108,11 +22111,11 @@ Disassembly of section .irom0.text:
 40244f26:	202230        	or	a2, a2, a3
 40244f29:	f00d      	ret.n
 40244f2b:	0ff400        	excw
-40244f2e:	600000        	neg	a0, a0
+40244f2e:	700000        	excw
 40244f31:	8e          	.byte 0x8e
 40244f32:	fe          	.byte 0xfe
 40244f33:	3f          	.byte 0x3f
-40244f34:	8fe8      	l32i.n	a14, a15, 32
+40244f34:	8ff8      	l32i.n	a15, a15, 32
 40244f36:	fe          	.byte 0xfe
 40244f37:	3f          	.byte 0x3f
 
@@ -23583,16 +23586,16 @@ Disassembly of section .irom0.text:
 40245dab:	0108      	l32i.n	a0, a1, 0
 40245dad:	10c112        	addi	a1, a1, 16
 40245db0:	f00d      	ret.n
-40245db2:	900000        	addx2	a0, a0, a0
+40245db2:	a00000        	addx4	a0, a0, a0
 40245db5:	fe8d      	excw
 40245db7:	3f          	.byte 0x3f
-40245db8:	de          	.byte 0xde
+40245db8:	ee          	.byte 0xee
 40245db9:	fe8d      	excw
 40245dbb:	3f          	.byte 0x3f
-40245dbc:	fe8ed5        	excw
+40245dbc:	fe8ee5        	excw
 40245dbf:	3f          	.byte 0x3f
 40245dc0:	040000        	extui	a0, a0, 0, 1
-40245dc3:	8e4000        	excw
+40245dc3:	8e5000        	excw
 40245dc6:	fe          	.byte 0xfe
 40245dc7:	3f          	.byte 0x3f
 
@@ -23795,11 +23798,11 @@ Disassembly of section .irom0.text:
 40245fc0:	004982        	s8i	a8, a9, 0
 40245fc3:	ea6466        	bnei	a4, 6, 40245fb1 <target_power_add_backoff+0x29>
 40245fc6:	f00d      	ret.n
-40245fc8:	fe8f12        	excw
+40245fc8:	fe8f22        	excw
 40245fcb:	3f          	.byte 0x3f
-40245fcc:	fe8da2        	excw
+40245fcc:	fe8db2        	excw
 40245fcf:	3f          	.byte 0x3f
-40245fd0:	8da8      	l32i.n	a10, a13, 32
+40245fd0:	8db8      	l32i.n	a11, a13, 32
 40245fd2:	fe          	.byte 0xfe
 40245fd3:	3f          	.byte 0x3f
 40245fd4:	000000        	ill
@@ -23937,11 +23940,11 @@ Disassembly of section .irom0.text:
 4024612c:	100c      	movi.n	a0, 1
 4024612e:	ffd346        	j	4024607f <tx_pwctrl_init_cal+0xa7>
 40246131:	000000        	ill
-40246134:	0f          	.byte 0xf
+40246134:	1f          	.byte 0x1f
 40246135:	3ffe91        	l32r	a9, 40216130 <_lit4_end+0x10f5ec>
-40246138:	fe8f37        	bany	a15, a3, 4024613a <tx_pwctrl_init_cal+0x162>
+40246138:	fe8f47        	bany	a15, a4, 4024613a <tx_pwctrl_init_cal+0x162>
 4024613b:	3f          	.byte 0x3f
-4024613c:	7e          	.byte 0x7e
+4024613c:	8e          	.byte 0x8e
 4024613d:	8f          	.byte 0x8f
 4024613e:	fe          	.byte 0xfe
 4024613f:	3f          	.byte 0x3f
@@ -24179,10 +24182,10 @@ Disassembly of section .irom0.text:
 402463aa:	ffa746        	j	4024624b <tx_atten_set_interp+0x10b>
 402463ad:	000000        	ill
 402463b0:	100000        	and	a0, a0, a0
-402463b3:	8eca00        	excw
+402463b3:	8eda00        	excw
 402463b6:	fe          	.byte 0xfe
 402463b7:	3f          	.byte 0x3f
-402463b8:	910c      	movi.n	a1, 9
+402463b8:	911c      	movi.n	a1, 25
 402463ba:	fe          	.byte 0xfe
 402463bb:	3f          	.byte 0x3f
 
@@ -24392,12 +24395,12 @@ Disassembly of section .irom0.text:
 402465be:	f00d      	ret.n
 402465c0:	ff          	.byte 0xff
 402465c1:	fffff1        	l32r	a15, 402465c0 <read_hw_noisefloor+0x1c>
-402465c4:	9108      	l32i.n	a0, a1, 36
+402465c4:	9118      	l32i.n	a1, a1, 36
 402465c6:	fe          	.byte 0xfe
 402465c7:	3f          	.byte 0x3f
-402465c8:	fe8dc4        	excw
+402465c8:	fe8dd4        	excw
 402465cb:	3f          	.byte 0x3f
-402465cc:	4e          	.byte 0x4e
+402465cc:	5e          	.byte 0x5e
 402465cd:	8f          	.byte 0x8f
 402465ce:	fe          	.byte 0xfe
 402465cf:	3f          	.byte 0x3f
@@ -24528,7 +24531,7 @@ Disassembly of section .irom0.text:
 4024671a:	b32440        	movgez	a2, a4, a4
 4024671d:	212220        	srai	a2, a2, 2
 40246720:	ffdd46        	j	40246699 <noise_check_loop+0xc9>
-40246723:	8ff800        	excw
+40246723:	900800        	addx2	a0, a8, a0
 40246726:	fe          	.byte 0xfe
 40246727:	3f          	.byte 0x3f
 40246728:	ff          	.byte 0xff
@@ -24817,7 +24820,7 @@ Disassembly of section .irom0.text:
 402469f3:	854c00        	extui	a4, a0, 28, 9
 402469f6:	fe          	.byte 0xfe
 402469f7:	3f          	.byte 0x3f
-402469f8:	8eea      	add.n	a8, a14, a14
+402469f8:	8efa      	add.n	a8, a14, a15
 402469fa:	fe          	.byte 0xfe
 402469fb:	3f          	.byte 0x3f
 402469fc:	ff          	.byte 0xff
@@ -25002,8 +25005,8 @@ Disassembly of section .irom0.text:
 40246bd7:	3108      	l32i.n	a0, a1, 12
 40246bd9:	10c112        	addi	a1, a1, 16
 40246bdc:	f00d      	ret.n
-40246bde:	f60000        	excw
-40246be1:	8e          	.byte 0x8e
+40246bde:	060000        	excw
+40246be1:	8f          	.byte 0x8f
 40246be2:	fe          	.byte 0xfe
 40246be3:	3f          	.byte 0x3f
 40246be4:	fe8550        	excw
@@ -25617,7 +25620,7 @@ Disassembly of section .irom0.text:
 40247217:	f00d      	ret.n
 40247219:	000000        	ill
 4024721c:	001400        	excw
-4024721f:	8fa300        	excw
+4024721f:	8fb300        	excw
 40247222:	fe          	.byte 0xfe
 40247223:	3f          	.byte 0x3f
 40247224:	ff          	.byte 0xff
@@ -25683,11 +25686,11 @@ Disassembly of section .irom0.text:
 402472a1:	008000        	excw
 402472a4:	ff          	.byte 0xff
 402472a5:	fffff7        	bbsi	a15, 31, 402472a8 <chip_v6_rxmax_ext+0xac>
-402472a8:	fe9000        	excw
+402472a8:	fe9010        	excw
 402472ab:	3f          	.byte 0x3f
 402472ac:	fe8040        	excw
 402472af:	3f          	.byte 0x3f
-402472b0:	fe8f57        	bany	a15, a5, 402472b2 <chip_v6_rxmax_ext+0xb6>
+402472b0:	fe8f67        	bany	a15, a6, 402472b2 <chip_v6_rxmax_ext+0xb6>
 402472b3:	3f          	.byte 0x3f
 
 402472b4 <phy_bb_rx_cfg>:
@@ -26139,7 +26142,7 @@ Disassembly of section .irom0.text:
 4024778a:	0020c0        	memw
 4024778d:	e66322        	s32i	a2, a3, 0x398
 40247790:	f00d      	ret.n
-40247792:	0b0000        	excw
+40247792:	1b0000        	excw
 40247795:	8f          	.byte 0x8f
 40247796:	fe          	.byte 0xfe
 40247797:	3f          	.byte 0x3f
@@ -26449,7 +26452,7 @@ Disassembly of section .irom0.text:
 40247ae2:	0020c0        	memw
 40247ae5:	4065a2        	s32i	a10, a5, 0x100
 40247ae8:	ff8906        	j	40247910 <phy_gpio_cfg+0x160>
-40247aeb:	8f4d00        	excw
+40247aeb:	8f5d00        	excw
 40247aee:	fe          	.byte 0xfe
 40247aef:	3f          	.byte 0x3f
 40247af0:	e03f80        	subx4	a3, a15, a8
@@ -26519,7 +26522,7 @@ Disassembly of section .irom0.text:
 40247b94:	10c112        	addi	a1, a1, 16
 40247b97:	f00d      	ret.n
 40247b99:	000000        	ill
-40247b9c:	fe8f50        	excw
+40247b9c:	fe8f60        	excw
 40247b9f:	3f          	.byte 0x3f
 
 40247ba0 <tx_cont_dis>:
@@ -26566,7 +26569,7 @@ Disassembly of section .irom0.text:
 40247c07:	10c112        	addi	a1, a1, 16
 40247c0a:	f00d      	ret.n
 40247c0c:	400000        	ssr	a0
-40247c0f:	8f2c00        	excw
+40247c0f:	8f3c00        	excw
 40247c12:	fe          	.byte 0xfe
 40247c13:	3f          	.byte 0x3f
 40247c14:	007800        	waiti	8
@@ -26704,16 +26707,16 @@ Disassembly of section .irom0.text:
 40247d6b:	ffe885        	call0	40247bf4 <tx_cont_cfg>
 40247d6e:	fffac6        	j	40247d5d <chip_v6_initialize_bb+0x145>
 40247d71:	000000        	ill
-40247d74:	8f9c      	beqz.n	a15, 40247d90 <periodic_cal+0xc>
+40247d74:	8fac      	beqz.n	a15, 40247da0 <periodic_cal+0x1c>
 40247d76:	fe          	.byte 0xfe
 40247d77:	3f          	.byte 0x3f
-40247d78:	fe8d74        	excw
+40247d78:	fe8d84        	excw
 40247d7b:	3f          	.byte 0x3f
 40247d7c:	ff          	.byte 0xff
 40247d7d:	ff          	.byte 0xff
 40247d7e:	ef          	.byte 0xef
 40247d7f:	ff          	.byte 0xff
-40247d80:	fe8dd0        	excw
+40247d80:	fe8de0        	excw
 40247d83:	3f          	.byte 0x3f
 
 40247d84 <periodic_cal>:
@@ -26877,7 +26880,7 @@ Disassembly of section .irom0.text:
 40247f1b:	1108      	l32i.n	a0, a1, 4
 40247f1d:	10c112        	addi	a1, a1, 16
 40247f20:	f00d      	ret.n
-40247f22:	4f0000        	excw
+40247f22:	5f0000        	excw
 40247f25:	8f          	.byte 0x8f
 40247f26:	fe          	.byte 0xfe
 40247f27:	3f          	.byte 0x3f
@@ -26913,13 +26916,13 @@ Disassembly of section .irom0.text:
 40247f74:	1108      	l32i.n	a0, a1, 4
 40247f76:	10c112        	addi	a1, a1, 16
 40247f79:	f00d      	ret.n
-40247f7b:	8f5800        	excw
+40247f7b:	8f6800        	excw
 40247f7e:	fe          	.byte 0xfe
 40247f7f:	3f          	.byte 0x3f
-40247f80:	8f5a      	add.n	a8, a15, a5
+40247f80:	8f6a      	add.n	a8, a15, a6
 40247f82:	fe          	.byte 0xfe
 40247f83:	3f          	.byte 0x3f
-40247f84:	8f5c      	movi.n	a15, 88
+40247f84:	8f6c      	movi.n	a15, -24
 40247f86:	fe          	.byte 0xfe
 40247f87:	3f          	.byte 0x3f
 
@@ -27251,7 +27254,7 @@ Disassembly of section .irom0.text:
 4024830d:	31c8      	l32i.n	a12, a1, 12
 4024830f:	10c112        	addi	a1, a1, 16
 40248312:	f00d      	ret.n
-40248314:	fe8f07        	bany	a15, a0, 40248316 <change_bbpll160_sleep+0xee>
+40248314:	fe8f17        	bany	a15, a1, 40248316 <change_bbpll160_sleep+0xee>
 40248317:	3f          	.byte 0x3f
 
 40248318 <change_bbpll160>:
@@ -27308,7 +27311,7 @@ Disassembly of section .irom0.text:
 4024839c:	0108      	l32i.n	a0, a1, 0
 4024839e:	10c112        	addi	a1, a1, 16
 402483a1:	f00d      	ret.n
-402483a3:	8f0a00        	excw
+402483a3:	8f1a00        	excw
 402483a6:	fe          	.byte 0xfe
 402483a7:	3f          	.byte 0x3f
 402483a8:	010101        	l32r	a0, 402087ac <_lit4_end+0x101c68>
@@ -27502,11 +27505,11 @@ Disassembly of section .irom0.text:
 40248596:	244024        	excw
 40248599:	402452        	l32i	a5, a4, 0x100
 4024859c:	106944        	excw
-4024859f:	910a40        	excw
+4024859f:	911a40        	excw
 402485a2:	fe          	.byte 0xfe
 402485a3:	3f          	.byte 0x3f
 402485a4:	2671d0        	excw
-402485a7:	8dcd40        	excw
+402485a7:	8ddd40        	excw
 402485aa:	fe          	.byte 0xfe
 402485ab:	3f          	.byte 0x3f
 402485ac:	2671f0        	excw
@@ -28032,7 +28035,7 @@ Disassembly of section .irom0.text:
 40248af0:	075d      	mov.n	a5, a7
 40248af2:	ffe346        	j	40248a83 <set_most_pwr_reg+0x5b>
 40248af5:	000000        	ill
-40248af8:	fe8f66        	bnei	a15, 8, 40248afa <set_most_pwr_reg+0xd2>
+40248af8:	fe8f76        	excw
 40248afb:	3f          	.byte 0x3f
 
 40248afc <phy_set_most_tpw>:
@@ -28048,7 +28051,7 @@ Disassembly of section .irom0.text:
 40248b14:	10c112        	addi	a1, a1, 16
 40248b17:	f00d      	ret.n
 40248b19:	000000        	ill
-40248b1c:	8f6a      	add.n	a8, a15, a6
+40248b1c:	8f7a      	add.n	a8, a15, a7
 40248b1e:	fe          	.byte 0xfe
 40248b1f:	3f          	.byte 0x3f
 
@@ -28482,10 +28485,10 @@ Disassembly of section .irom0.text:
 40248f46:	312020        	srai	a2, a2, 16
 40248f49:	f00d      	ret.n
 40248f4b:	0bf000        	excw
-40248f4e:	a70000        	excw
+40248f4e:	b70000        	excw
 40248f51:	fe8d      	excw
 40248f53:	3f          	.byte 0x3f
-40248f54:	8fcb      	addi.n	a8, a15, 12
+40248f54:	8fdb      	addi.n	a8, a15, 13
 40248f56:	fe          	.byte 0xfe
 40248f57:	3f          	.byte 0x3f
 
@@ -28899,7 +28902,7 @@ Disassembly of section .irom0.text:
 40249350:	005922        	s16i	a2, a9, 0
 40249353:	10c112        	addi	a1, a1, 16
 40249356:	f00d      	ret.n
-40249358:	8d6c      	movi.n	a13, -24
+40249358:	8d7c      	movi.n	a13, -8
 4024935a:	fe          	.byte 0xfe
 4024935b:	3f          	.byte 0x3f
 4024935c:	267200        	excw
@@ -29549,7 +29552,7 @@ Disassembly of section .irom0.text:
 4024999f:	ffef06        	j	4024995f <rc_cal+0x173>
 402499a2:	d80000        	excw
 402499a5:	2499      	s32i.n	a9, a4, 8
-402499a7:	8fec40        	excw
+402499a7:	8ffc40        	excw
 402499aa:	fe          	.byte 0xfe
 402499ab:	3f          	.byte 0x3f
 
@@ -29678,8 +29681,8 @@ Disassembly of section .irom0.text:
 40249af9:	fff946        	j	40249ae2 <get_pwctrl_correct+0x2e>
 40249afc:	267230        	excw
 40249aff:	0ff340        	excw
-40249b02:	f00000        	subx8	a0, a0, a0
-40249b05:	8e          	.byte 0x8e
+40249b02:	000000        	ill
+40249b05:	8f          	.byte 0x8f
 40249b06:	fe          	.byte 0xfe
 40249b07:	3f          	.byte 0x3f
 40249b08:	267250        	excw
@@ -30029,13 +30032,13 @@ Disassembly of section .irom0.text:
 40249eaf:	0020c0        	memw
 40249eb2:	d86322        	s32i	a2, a3, 0x360
 40249eb5:	f00d      	ret.n
-40249eb7:	8feb00        	excw
+40249eb7:	8ffb00        	excw
 40249eba:	fe          	.byte 0xfe
 40249ebb:	3f          	.byte 0x3f
-40249ebc:	8fea      	add.n	a8, a15, a14
+40249ebc:	8ffa      	add.n	a8, a15, a15
 40249ebe:	fe          	.byte 0xfe
 40249ebf:	3f          	.byte 0x3f
-40249ec0:	fe8dc0        	excw
+40249ec0:	fe8dd0        	excw
 40249ec3:	3f          	.byte 0x3f
 40249ec4:	2672c0        	excw
 40249ec7:	c11240        	mul16u	a1, a2, a4
@@ -31495,7 +31498,7 @@ Disassembly of section .irom0.text:
 4024acd4:	020c      	movi.n	a2, 0
 4024acd6:	f00d      	ret.n
 4024acd8:	2673a0        	excw
-4024acdb:	8ebc40        	excw
+4024acdb:	8ecc40        	excw
 4024acde:	fe          	.byte 0xfe
 4024acdf:	3f          	.byte 0x3f
 
@@ -31767,7 +31770,7 @@ Disassembly of section .irom0.text:
 4024af74:	822230        	mull	a2, a2, a3
 4024af77:	412c20        	srli	a2, a2, 12
 4024af7a:	f00d      	ret.n
-4024af7c:	fe9114        	excw
+4024af7c:	fe9124        	excw
 4024af7f:	3f          	.byte 0x3f
 4024af80:	1388      	l32i.n	a8, a3, 4
 	...
@@ -32092,9 +32095,9 @@ Disassembly of section .irom0.text:
 4024b2ac:	015652        	s16i	a5, a6, 2
 4024b2af:	f00d      	ret.n
 4024b2b1:	000000        	ill
-4024b2b4:	fe8fe4        	excw
+4024b2b4:	fe8ff4        	excw
 4024b2b7:	3f          	.byte 0x3f
-4024b2b8:	fe8fe5        	excw
+4024b2b8:	fe8ff5        	excw
 4024b2bb:	3f          	.byte 0x3f
 4024b2bc:	ff          	.byte 0xff
 4024b2bd:	cf          	.byte 0xcf
@@ -32697,11 +32700,9 @@ Disassembly of section .irom0.text:
 4024b8e1:	000000        	ill
 4024b8e4:	ff          	.byte 0xff
 4024b8e5:	0f          	.byte 0xf
-4024b8e6:	f08000        	subx8	a8, a0, a0
-4024b8e9:	8f          	.byte 0x8f
-4024b8ea:	fe          	.byte 0xfe
-4024b8eb:	3f          	.byte 0x3f
-4024b8ec:	8fca      	add.n	a8, a15, a12
+4024b8e6:	008000        	excw
+4024b8e9:	3ffe90        	excw
+4024b8ec:	8fda      	add.n	a8, a15, a13
 4024b8ee:	fe          	.byte 0xfe
 4024b8ef:	3f          	.byte 0x3f
 
@@ -33023,7 +33024,7 @@ Disassembly of section .irom0.text:
 4024bc4f:	0108      	l32i.n	a0, a1, 0
 4024bc51:	10c112        	addi	a1, a1, 16
 4024bc54:	f00d      	ret.n
-4024bc56:	300000        	xor	a0, a0, a0
+4024bc56:	400000        	ssr	a0
 4024bc59:	3ffe91        	l32r	a9, 4021bc54 <_lit4_end+0x115110>
 
 4024bc5c <ic_get_addr>:
@@ -33040,7 +33041,7 @@ Disassembly of section .irom0.text:
 4024bc70:	2539      	s32i.n	a3, a5, 8
 4024bc72:	0c4542        	s8i	a4, a5, 12
 4024bc75:	f00d      	ret.n
-4024bc77:	912000        	srl	a2, a0
+4024bc77:	913000        	srl	a3, a0
 4024bc7a:	fe          	.byte 0xfe
 4024bc7b:	3f          	.byte 0x3f
 4024bc7c:	105fd4        	excw
@@ -33438,7 +33439,7 @@ Disassembly of section .irom0.text:
 4024c02c:	10c112        	addi	a1, a1, 16
 4024c02f:	f00d      	ret.n
 4024c031:	000000        	ill
-4024c034:	fe9180        	excw
+4024c034:	fe9190        	excw
 4024c037:	3f          	.byte 0x3f
 
 4024c038 <lmacInitAc>:
@@ -33459,7 +33460,7 @@ Disassembly of section .irom0.text:
 4024c060:	8879      	s32i.n	a7, a8, 32
 4024c062:	f00d      	ret.n
 4024c064:	000bc0        	callx0	a11
-4024c067:	915000        	srl	a5, a0
+4024c067:	916000        	srl	a6, a0
 4024c06a:	fe          	.byte 0xfe
 4024c06b:	3f          	.byte 0x3f
 
@@ -33547,7 +33548,7 @@ Disassembly of section .irom0.text:
 4024c128:	0d4642        	s8i	a4, a6, 13
 4024c12b:	0c4642        	s8i	a4, a6, 12
 4024c12e:	f00d      	ret.n
-4024c130:	fe92a0        	excw
+4024c130:	fe92b0        	excw
 4024c133:	3f          	.byte 0x3f
 4024c134:	138c      	beqz.n	a3, 4024c139 <pm_rtc_clock_cali_proc+0x1>
 4024c136:	224010        	excw
@@ -33615,9 +33616,9 @@ Disassembly of section .irom0.text:
 4024c1d0:	8068      	l32i.n	a6, a0, 32
 4024c1d2:	fe          	.byte 0xfe
 4024c1d3:	3f          	.byte 0x3f
-4024c1d4:	fe93e0        	excw
+4024c1d4:	fe93f0        	excw
 4024c1d7:	3f          	.byte 0x3f
-4024c1d8:	93d8      	l32i.n	a13, a3, 36
+4024c1d8:	93e8      	l32i.n	a14, a3, 36
 4024c1da:	fe          	.byte 0xfe
 4024c1db:	3f          	.byte 0x3f
 4024c1dc:	101444        	excw
@@ -33705,13 +33706,12 @@ Disassembly of section .irom0.text:
 4024c2c4:	f00d      	ret.n
 4024c2c6:	020c      	movi.n	a2, 0
 4024c2c8:	f00d      	ret.n
-4024c2ca:	b40000        	extui	a0, a0, 0, 12
+4024c2ca:	c40000        	extui	a0, a0, 0, 13
 4024c2cd:	3ffe93        	excw
 4024c2d0:	879c      	beqz.n	a7, 4024c2ec <pm_set_sleep_time+0x17c>
 4024c2d2:	fe          	.byte 0xfe
 4024c2d3:	3f          	.byte 0x3f
-4024c2d4:	889c      	beqz.n	a8, 4024c2f0 <pm_set_sleep_time+0x180>
-4024c2d6:	fe          	.byte 0xfe
+4024c2d4:	fe88a4        	excw
 4024c2d7:	3f          	.byte 0x3f
 4024c2d8:	267460        	excw
 4024c2db:	fe3f40        	excw
@@ -33865,14 +33865,14 @@ Disassembly of section .irom0.text:
 4024c467:	3f          	.byte 0x3f
 4024c468:	186a00        	excw
 4024c46b:	747000        	extui	a7, a0, 0, 8
-4024c46e:	a44026        	beqi	a0, 4, 4024c416 <pm_set_sleep_time+0x2a6>
+4024c46e:	ac4026        	beqi	a0, 4, 4024c41e <pm_set_sleep_time+0x2ae>
 4024c471:	fe88      	l32i.n	a8, a14, 60
 4024c473:	3f          	.byte 0x3f
-4024c474:	93f8      	l32i.n	a15, a3, 36
+4024c474:	9408      	l32i.n	a0, a4, 36
 4024c476:	fe          	.byte 0xfe
 4024c477:	3f          	.byte 0x3f
 4024c478:	267480        	excw
-4024c47b:	88ac40        	excw
+4024c47b:	88b440        	excw
 4024c47e:	fe          	.byte 0xfe
 4024c47f:	3f          	.byte 0x3f
 4024c480:	0bb8      	l32i.n	a11, a11, 0
@@ -33982,7 +33982,7 @@ Disassembly of section .irom0.text:
 4024c590:	f00d      	ret.n
 4024c592:	d40000        	extui	a0, a0, 0, 14
 4024c595:	000017        	bnone	a0, a1, 4024c599 <pm_get_sleep_type+0x19>
-4024c598:	fe9354        	excw
+4024c598:	fe9364        	excw
 4024c59b:	3f          	.byte 0x3f
 4024c59c:	2674b0        	excw
 4024c59f:	c11240        	mul16u	a1, a2, a4
@@ -34050,7 +34050,7 @@ Disassembly of section .irom0.text:
 4024c649:	314c52        	s8i	a5, a12, 49
 4024c64c:	fff846        	j	4024c631 <pm_get_sleep_type+0xb1>
 4024c64f:	74c000        	extui	a12, a0, 0, 8
-4024c652:	044026        	beqi	a0, 4, 4024c65a <pm_get_sleep_type+0xda>
+4024c652:	144026        	beqi	a0, 4, 4024c66a <pm_get_sleep_type+0xea>
 4024c655:	3ffe93        	excw
 4024c658:	e0c112        	addi	a1, a1, -32
 4024c65b:	2109      	s32i.n	a0, a1, 8
@@ -34167,7 +34167,7 @@ Disassembly of section .irom0.text:
 4024c777:	10c112        	addi	a1, a1, 16
 4024c77a:	f00d      	ret.n
 4024c77c:	2674e0        	excw
-4024c77f:	92f040        	excw
+4024c77f:	930040        	movnez	a0, a0, a4
 4024c782:	fe          	.byte 0xfe
 4024c783:	3f          	.byte 0x3f
 4024c784:	ffb491        	l32r	a9, 4024c654 <pm_get_sleep_type+0xd4>
@@ -34441,7 +34441,7 @@ Disassembly of section .irom0.text:
 4024ca5c:	0108      	l32i.n	a0, a1, 0
 4024ca5e:	10c112        	addi	a1, a1, 16
 4024ca61:	f00d      	ret.n
-4024ca63:	934000        	movnez	a4, a0, a0
+4024ca63:	935000        	movnez	a5, a0, a0
 4024ca66:	fe          	.byte 0xfe
 4024ca67:	3f          	.byte 0x3f
 
@@ -34475,7 +34475,7 @@ Disassembly of section .irom0.text:
 4024caa8:	f00d      	ret.n
 4024caaa:	700000        	excw
 4024caad:	402675        	excw
-4024cab0:	92dd      	excw
+4024cab0:	92ed      	excw
 4024cab2:	fe          	.byte 0xfe
 4024cab3:	3f          	.byte 0x3f
 
@@ -34560,12 +34560,12 @@ Disassembly of section .irom0.text:
 4024cb8d:	000000        	ill
 4024cb90:	267590        	excw
 4024cb93:	75a040        	extui	a10, a4, 16, 8
-4024cb96:	b54026        	beqi	a0, 4, 4024cb4f <pm_open+0x9b>
+4024cb96:	c54026        	beqi	a0, 4, 4024cb5f <pm_open+0xab>
 4024cb99:	3ffe93        	excw
 4024cb9c:	8078      	l32i.n	a7, a0, 32
 4024cb9e:	fe          	.byte 0xfe
 4024cb9f:	3f          	.byte 0x3f
-4024cba0:	fe93b6        	bltui	a3, 10, 4024cba2 <pm_open+0xee>
+4024cba0:	fe93c6        	j	4024c5f3 <pm_get_sleep_type+0x73>
 4024cba3:	3f          	.byte 0x3f
 4024cba4:	1063e4        	excw
 4024cba7:	c11240        	mul16u	a1, a2, a4
@@ -34823,7 +34823,7 @@ Disassembly of section .irom0.text:
 4024ce49:	ffd406        	j	4024cd9d <pm_onBcnRx+0x1f5>
 4024ce4c:	014032        	s8i	a3, a0, 1
 4024ce4f:	ffd286        	j	4024cd9d <pm_onBcnRx+0x1f5>
-4024ce52:	a40000        	extui	a0, a0, 0, 11
+4024ce52:	b40000        	extui	a0, a0, 0, 12
 4024ce55:	fe9d      	excw
 4024ce57:	3f          	.byte 0x3f
 4024ce58:	ffffa1        	l32r	a10, 4024ce54 <pm_onBcnRx+0x2ac>
@@ -35164,10 +35164,10 @@ Disassembly of section .irom0.text:
 4024d1e5:	0108      	l32i.n	a0, a1, 0
 4024d1e7:	10c112        	addi	a1, a1, 16
 4024d1ea:	f00d      	ret.n
-4024d1ec:	9318      	l32i.n	a1, a3, 36
+4024d1ec:	9328      	l32i.n	a2, a3, 36
 4024d1ee:	fe          	.byte 0xfe
 4024d1ef:	3f          	.byte 0x3f
-4024d1f0:	93b8      	l32i.n	a11, a3, 36
+4024d1f0:	93c8      	l32i.n	a12, a3, 36
 4024d1f2:	fe          	.byte 0xfe
 4024d1f3:	3f          	.byte 0x3f
 4024d1f4:	af          	.byte 0xaf
@@ -35246,7 +35246,7 @@ Disassembly of section .irom0.text:
 4024d2bb:	003a05        	call0	4024d65c <pm_send_nullfunc>
 4024d2be:	ffe586        	j	4024d258 <pm_onBcnRx+0x6b0>
 4024d2c1:	000000        	ill
-4024d2c4:	93b9      	s32i.n	a11, a3, 36
+4024d2c4:	93c9      	s32i.n	a12, a3, 36
 4024d2c6:	fe          	.byte 0xfe
 4024d2c7:	3f          	.byte 0x3f
 4024d2c8:	024d      	mov.n	a4, a2
@@ -35492,7 +35492,7 @@ Disassembly of section .irom0.text:
 4024d550:	caa8      	l32i.n	a10, a10, 48
 4024d552:	484024        	excw
 4024d555:	24da      	add.n	a2, a4, a13
-4024d557:	939040        	movnez	a9, a0, a4
+4024d557:	93a040        	movnez	a10, a0, a4
 4024d55a:	fe          	.byte 0xfe
 4024d55b:	3f          	.byte 0x3f
 
@@ -35953,7 +35953,7 @@ Disassembly of section .irom0.text:
 4024d9e9:	0108      	l32i.n	a0, a1, 0
 4024d9eb:	10c112        	addi	a1, a1, 16
 4024d9ee:	f00d      	ret.n
-4024d9f0:	fe93b0        	excw
+4024d9f0:	fe93c0        	excw
 4024d9f3:	3f          	.byte 0x3f
 4024d9f4:	000e24        	excw
 4024d9f7:	c11240        	mul16u	a1, a2, a4
@@ -35989,7 +35989,7 @@ Disassembly of section .irom0.text:
 4024da3d:	0108      	l32i.n	a0, a1, 0
 4024da3f:	10c112        	addi	a1, a1, 16
 4024da42:	f00d      	ret.n
-4024da44:	4e          	.byte 0x4e
+4024da44:	5e          	.byte 0x5e
 4024da45:	3ffe93        	excw
 4024da48:	f0c112        	addi	a1, a1, -16
 4024da4b:	1109      	s32i.n	a0, a1, 4
@@ -36117,7 +36117,7 @@ Disassembly of section .irom0.text:
 4024db89:	0108      	l32i.n	a0, a1, 0
 4024db8b:	10c112        	addi	a1, a1, 16
 4024db8e:	f00d      	ret.n
-4024db90:	fe93c0        	excw
+4024db90:	fe93d0        	excw
 4024db93:	3f          	.byte 0x3f
 4024db94:	2c1d80        	excw
 4024db97:	c11204        	excw
@@ -36157,7 +36157,7 @@ Disassembly of section .irom0.text:
 4024dbe9:	0108      	l32i.n	a0, a1, 0
 4024dbeb:	10c112        	addi	a1, a1, 16
 4024dbee:	f00d      	ret.n
-4024dbf0:	fe9c00        	excw
+4024dbf0:	fe9c10        	excw
 4024dbf3:	3f          	.byte 0x3f
 
 4024dbf4 <RxNodeNum>:
@@ -36192,7 +36192,7 @@ Disassembly of section .irom0.text:
 4024dc2f:	742020        	extui	a2, a2, 0, 8
 4024dc32:	ff5456        	bnez	a4, 4024dc2b <TxNodeNum+0x13>
 4024dc35:	f00d      	ret.n
-4024dc37:	93c400        	movnez	a12, a4, a0
+4024dc37:	93d400        	movnez	a13, a4, a0
 4024dc3a:	fe          	.byte 0xfe
 4024dc3b:	3f          	.byte 0x3f
 
@@ -36339,7 +36339,7 @@ Disassembly of section .irom0.text:
 4024dda0:	1108      	l32i.n	a0, a1, 4
 4024dda2:	10c112        	addi	a1, a1, 16
 4024dda5:	f00d      	ret.n
-4024dda7:	93e400        	movnez	a14, a4, a0
+4024dda7:	93f400        	movnez	a15, a4, a0
 4024ddaa:	fe          	.byte 0xfe
 4024ddab:	3f          	.byte 0x3f
 
@@ -36396,7 +36396,7 @@ Disassembly of section .irom0.text:
 4024de24:	0108      	l32i.n	a0, a1, 0
 4024de26:	10c112        	addi	a1, a1, 16
 4024de29:	f00d      	ret.n
-4024de2b:	8d3800        	excw
+4024de2b:	8d4800        	excw
 4024de2e:	fe          	.byte 0xfe
 4024de2f:	3f          	.byte 0x3f
 
@@ -36444,7 +36444,7 @@ Disassembly of section .irom0.text:
 4024de9c:	c30c      	movi.n	a3, 12
 4024de9e:	fff646        	j	4024de7b <ppPeocessRxPktHdr+0x4b>
 4024dea1:	000000        	ill
-4024dea4:	fe9580        	excw
+4024dea4:	fe9590        	excw
 4024dea7:	3f          	.byte 0x3f
 4024dea8:	29cc      	bnez.n	a9, 4024deae <ppPeocessRxPktHdr+0x7e>
 4024deaa:	384010        	excw
@@ -36652,7 +36652,8 @@ Disassembly of section .irom0.text:
 4024e0d7:	fff7c6        	j	4024e0ba <ppPeocessRxPktHdr+0x28a>
 4024e0da:	9c0000        	excw
 4024e0dd:	3ffe87        	bbsi	a14, 24, 4024e120 <ppTxPkt+0x24>
-4024e0e0:	fe88b4        	excw
+4024e0e0:	88bc      	beqz.n	a8, 4024e11c <ppTxPkt+0x20>
+4024e0e2:	fe          	.byte 0xfe
 4024e0e3:	3f          	.byte 0x3f
 4024e0e4:	267640        	excw
 4024e0e7:	370840        	excw
@@ -36935,10 +36936,10 @@ Disassembly of section .irom0.text:
 4024e39f:	0000c0        	callx0	a0
 4024e3a2:	020c      	movi.n	a2, 0
 4024e3a4:	fff446        	j	4024e379 <ppCheckTxIdle+0xa5>
-4024e3a7:	96a000        	excw
+4024e3a7:	96b000        	excw
 4024e3aa:	fe          	.byte 0xfe
 4024e3ab:	3f          	.byte 0x3f
-4024e3ac:	ff0285        	call0	4024d3d8 <pm_onBcnRx+0x830>
+4024e3ac:	ff0295        	excw
 4024e3af:	3f          	.byte 0x3f
 4024e3b0:	090c      	movi.n	a9, 0
 4024e3b2:	e0c112        	addi	a1, a1, -32
@@ -37110,7 +37111,7 @@ Disassembly of section .irom0.text:
 4024e56c:	002102        	l32i	a0, a1, 0
 4024e56f:	10c112        	addi	a1, a1, 16
 4024e572:	f00d      	ret.n
-4024e574:	ff0284        	excw
+4024e574:	ff0294        	excw
 4024e577:	3f          	.byte 0x3f
 4024e578:	f0c112        	addi	a1, a1, -16
 4024e57b:	11c9      	s32i.n	a12, a1, 4
@@ -37180,7 +37181,7 @@ Disassembly of section .irom0.text:
 4024e629:	0108      	l32i.n	a0, a1, 0
 4024e62b:	10c112        	addi	a1, a1, 16
 4024e62e:	f00d      	ret.n
-4024e630:	feff25        	excw
+4024e630:	feff35        	excw
 4024e633:	3f          	.byte 0x3f
 4024e634:	fe8554        	excw
 4024e637:	3f          	.byte 0x3f
@@ -37294,7 +37295,7 @@ Disassembly of section .irom0.text:
 4024e751:	5108      	l32i.n	a0, a1, 20
 4024e753:	30c112        	addi	a1, a1, 48
 4024e756:	f00d      	ret.n
-4024e758:	93fc      	bnez.n	a3, 4024e795 <pp_tx_idle_timeout+0x235>
+4024e758:	940c      	movi.n	a4, 9
 4024e75a:	fe          	.byte 0xfe
 4024e75b:	3f          	.byte 0x3f
 4024e75c:	ffff21        	l32r	a2, 4024e758 <pp_tx_idle_timeout+0x1f8>
@@ -37309,10 +37310,10 @@ Disassembly of section .irom0.text:
 4024e774:	10c112        	addi	a1, a1, 16
 4024e777:	f00d      	ret.n
 4024e779:	000000        	ill
-4024e77c:	ff02a4        	excw
+4024e77c:	ff02b4        	excw
 4024e77f:	3f          	.byte 0x3f
 4024e780:	e75c      	movi.n	a7, 94
-4024e782:	5a4024        	excw
+4024e782:	6a4024        	excw
 4024e785:	3fff03        	excw
 4024e788:	fffda1        	l32r	a10, 4024e77c <pp_tx_idle_timeout+0x21c>
 4024e78b:	f0c112        	addi	a1, a1, -16
@@ -37676,7 +37677,7 @@ Disassembly of section .irom0.text:
 4024eb3b:	080600        	excw
 4024eb3e:	b00000        	addx8	a0, a0, a0
 4024eb41:	de          	.byte 0xde
-4024eb42:	904024        	excw
+4024eb42:	a04024        	excw
 4024eb45:	3ffe95        	excw
 4024eb48:	24e560        	extui	a14, a6, 5, 3
 4024eb4b:	dd6440        	excw
@@ -37905,7 +37906,7 @@ Disassembly of section .irom0.text:
 4024eda4:	c00c      	movi.n	a0, 12
 4024eda6:	ffb606        	j	4024ec82 <pp_attach+0x12a>
 4024eda9:	000000        	ill
-4024edac:	fe96b0        	excw
+4024edac:	fe96c0        	excw
 4024edaf:	3f          	.byte 0x3f
 4024edb0:	2e          	.byte 0x2e
 4024edb1:	00ba      	add.n	a0, a0, a11
@@ -38237,7 +38238,7 @@ Disassembly of section .irom0.text:
 4024f12e:	b92387        	blt	a3, a8, 4024f0eb <rcUpdatePhyMode+0x7b>
 4024f131:	070d      	mov.n	a0, a7
 4024f133:	ffed06        	j	4024f0eb <rcUpdatePhyMode+0x7b>
-4024f136:	b00000        	addx8	a0, a0, a0
+4024f136:	c00000        	sub	a0, a0, a0
 4024f139:	3ffe97        	bbsi	a14, 25, 4024f17c <rcAttach+0x30>
 4024f13c:	fe8200        	excw
 4024f13f:	3f          	.byte 0x3f
@@ -38277,7 +38278,7 @@ Disassembly of section .irom0.text:
 4024f18d:	0108      	l32i.n	a0, a1, 0
 4024f18f:	10c112        	addi	a1, a1, 16
 4024f192:	f00d      	ret.n
-4024f194:	fe97c0        	excw
+4024f194:	fe97d0        	excw
 4024f197:	3f          	.byte 0x3f
 
 4024f198 <rcGetTrc>:
@@ -38400,7 +38401,7 @@ Disassembly of section .irom0.text:
 4024f2ac:	ffa321        	l32r	a2, 4024f138 <rcUpdatePhyMode+0xc8>
 4024f2af:	040222        	l8ui	a2, a2, 4
 4024f2b2:	f00d      	ret.n
-4024f2b4:	fe97b6        	bltui	a7, 10, 4024f2b6 <rc_get_mask+0xa>
+4024f2b4:	fe97c6        	j	4024ed17 <pp_attach+0x1bf>
 4024f2b7:	3f          	.byte 0x3f
 4024f2b8:	7678      	l32i.n	a7, a6, 28
 4024f2ba:	804026        	beqi	a0, 4, 4024f23e <rc_enable_trc+0x5a>
@@ -38724,19 +38725,19 @@ Disassembly of section .irom0.text:
 4024f5cf:	10c112        	addi	a1, a1, 16
 4024f5d2:	f00d      	ret.n
 4024f5d4:	2598      	l32i.n	a9, a5, 8
-4024f5d6:	b00000        	addx8	a0, a0, a0
+4024f5d6:	c00000        	sub	a0, a0, a0
 4024f5d9:	fe9d      	excw
 4024f5db:	3f          	.byte 0x3f
-4024f5dc:	fec3a0        	excw
+4024f5dc:	fec3b0        	excw
 4024f5df:	3f          	.byte 0x3f
 4024f5e0:	001f40        	excw
-4024f5e3:	e32000        	excw
+4024f5e3:	e33000        	excw
 4024f5e6:	fe          	.byte 0xfe
 4024f5e7:	3f          	.byte 0x3f
-4024f5e8:	c398      	l32i.n	a9, a3, 48
+4024f5e8:	c3a8      	l32i.n	a10, a3, 48
 4024f5ea:	fe          	.byte 0xfe
 4024f5eb:	3f          	.byte 0x3f
-4024f5ec:	feea80        	excw
+4024f5ec:	feea90        	excw
 4024f5ef:	3f          	.byte 0x3f
 4024f5f0:	ff          	.byte 0xff
 4024f5f1:	ff          	.byte 0xff
@@ -39603,16 +39604,16 @@ Disassembly of section .irom0.text:
 4024fed0:	040c      	movi.n	a4, 0
 4024fed2:	054342        	s8i	a4, a3, 5
 4024fed5:	f00d      	ret.n
-4024fed7:	fa6000        	excw
+4024fed7:	fa7000        	excw
 4024feda:	fe          	.byte 0xfe
 4024fedb:	3f          	.byte 0x3f
-4024fedc:	feeaa0        	excw
+4024fedc:	feeab0        	excw
 4024fedf:	3f          	.byte 0x3f
-4024fee0:	feefa0        	excw
+4024fee0:	feefb0        	excw
 4024fee3:	3f          	.byte 0x3f
-4024fee4:	fef800        	excw
+4024fee4:	fef810        	excw
 4024fee7:	3f          	.byte 0x3f
-4024fee8:	fefcc0        	excw
+4024fee8:	fefcd0        	excw
 4024feeb:	3f          	.byte 0x3f
 
 4024feec <esf_buf_setup>:
@@ -40218,14 +40219,14 @@ Disassembly of section .irom0.text:
 402504a5:	1108      	l32i.n	a0, a1, 4
 402504a7:	10c112        	addi	a1, a1, 16
 402504aa:	f00d      	ret.n
-402504ac:	fefef6        	bgeui	a14, 0x100, 402504ae <ieee80211_getmgtframe+0x4a>
+402504ac:	feff06        	j	402500ac <ieee80211_ifattach+0x14>
 402504af:	3f          	.byte 0x3f
-402504b0:	ff0014        	excw
+402504b0:	ff0024        	excw
 402504b3:	3f          	.byte 0x3f
-402504b4:	026c      	movi.n	a2, -32
+402504b4:	027c      	movi.n	a2, -16
 402504b6:	ff          	.byte 0xff
 402504b7:	3f          	.byte 0x3f
-402504b8:	ff0270        	excw
+402504b8:	ff0280        	excw
 402504bb:	3f          	.byte 0x3f
 402504bc:	e0c112        	addi	a1, a1, -32
 402504bf:	0461d2        	s32i	a13, a1, 16
@@ -40373,7 +40374,7 @@ Disassembly of section .irom0.text:
 40250638:	10c112        	addi	a1, a1, 16
 4025063b:	f00d      	ret.n
 4025063d:	000000        	ill
-40250640:	feffb2        	excw
+40250640:	feffc2        	excw
 40250643:	3f          	.byte 0x3f
 40250644:	c21c      	movi.n	a2, 28
 40250646:	f0c112        	addi	a1, a1, -16
@@ -41558,10 +41559,10 @@ Disassembly of section .irom0.text:
 4025125b:	fffac6        	j	4025124a <hostap_input+0x8c6>
 4025125e:	000000        	ill
 40251261:	000000        	ill
-40251264:	ff0290        	excw
+40251264:	ff02a0        	excw
 40251267:	3f          	.byte 0x3f
 40251268:	267700        	excw
-4025126b:	941040        	extui	a1, a4, 0, 10
+4025126b:	942040        	extui	a2, a4, 0, 10
 4025126e:	fe          	.byte 0xfe
 4025126f:	3f          	.byte 0x3f
 40251270:	f0c112        	addi	a1, a1, -16
@@ -42045,7 +42046,7 @@ Disassembly of section .irom0.text:
 40251738:	10c112        	addi	a1, a1, 16
 4025173b:	f00d      	ret.n
 4025173d:	000000        	ill
-40251740:	ff4c      	movi.n	a15, 79
+40251740:	ff5c      	movi.n	a15, 95
 40251742:	fe          	.byte 0xfe
 40251743:	3f          	.byte 0x3f
 40251744:	ff          	.byte 0xff
@@ -42161,7 +42162,7 @@ Disassembly of section .irom0.text:
 40251852:	200040        	or	a0, a0, a4
 40251855:	200030        	or	a0, a0, a3
 40251858:	ffcec6        	j	40251797 <ieee80211_ht_updateparams+0x47>
-4025185b:	fe7000        	excw
+4025185b:	fe8000        	excw
 4025185e:	fe          	.byte 0xfe
 4025185f:	3f          	.byte 0x3f
 40251860:	1069b0        	and	a6, a9, a11
@@ -42666,7 +42667,7 @@ Disassembly of section .irom0.text:
 40251d4b:	1108      	l32i.n	a0, a1, 4
 40251d4d:	20c112        	addi	a1, a1, 32
 40251d50:	f00d      	ret.n
-40251d52:	400000        	ssr	a0
+40251d52:	500000        	excw
 40251d55:	ff          	.byte 0xff
 40251d56:	fe          	.byte 0xfe
 40251d57:	3f          	.byte 0x3f
@@ -43579,7 +43580,7 @@ Disassembly of section .irom0.text:
 4025268a:	f00d      	ret.n
 4025268c:	120c      	movi.n	a2, 1
 4025268e:	f00d      	ret.n
-40252690:	feac      	beqz.n	a14, 402526c3 <ieee80211_parse_wpa+0x2f>
+40252690:	febc      	beqz.n	a14, 402526d3 <ieee80211_parse_wpa+0x3f>
 40252692:	fe          	.byte 0xfe
 40252693:	3f          	.byte 0x3f
 
@@ -44832,7 +44833,7 @@ Disassembly of section .irom0.text:
 402532cf:	f00d      	ret.n
 402532d1:	000000        	ill
 402532d4:	267730        	excw
-402532d7:	fd4040        	excw
+402532d7:	fd5040        	excw
 402532da:	fe          	.byte 0xfe
 402532db:	3f          	.byte 0x3f
 
@@ -45030,7 +45031,7 @@ Disassembly of section .irom0.text:
 402534d1:	042d      	mov.n	a2, a4
 402534d3:	f00d      	ret.n
 402534d5:	000000        	ill
-402534d8:	ae          	.byte 0xae
+402534d8:	be          	.byte 0xbe
 402534d9:	fe          	.byte 0xfe
 402534da:	fe          	.byte 0xfe
 402534db:	3f          	.byte 0x3f
@@ -46339,7 +46340,7 @@ Disassembly of section .irom0.text:
 
 402541c4 <ieee80211_psq_cleanup>:
 402541c4:	f00d      	ret.n
-402541c6:	760000        	excw
+402541c6:	860000        	excw
 402541c9:	fe          	.byte 0xfe
 402541ca:	fe          	.byte 0xfe
 402541cb:	3f          	.byte 0x3f
@@ -46666,7 +46667,7 @@ Disassembly of section .irom0.text:
 402544be:	10c112        	addi	a1, a1, 16
 402544c1:	f00d      	ret.n
 402544c3:	4bbc00        	excw
-402544c6:	c04025        	excw
+402544c6:	d04025        	excw
 402544c9:	3fff02        	excw
 402544cc:	4bac      	beqz.n	a11, 402544f4 <ieee80211_scan_attach+0x24>
 402544ce:	424025        	excw
@@ -46716,7 +46717,7 @@ Disassembly of section .irom0.text:
 4025453b:	0108      	l32i.n	a0, a1, 0
 4025453d:	10c112        	addi	a1, a1, 16
 40254540:	f00d      	ret.n
-40254542:	600000        	neg	a0, a0
+40254542:	700000        	excw
 40254545:	3fff03        	excw
 40254548:	254524        	excw
 4025454b:	647c40        	extui	a7, a4, 12, 7
@@ -46955,10 +46956,10 @@ Disassembly of section .irom0.text:
 402547ac:	0108      	l32i.n	a0, a1, 0
 402547ae:	10c112        	addi	a1, a1, 16
 402547b1:	f00d      	ret.n
-402547b3:	02ac00        	excw
+402547b3:	02bc00        	excw
 402547b6:	ff          	.byte 0xff
 402547b7:	3f          	.byte 0x3f
-402547b8:	fefee4        	excw
+402547b8:	fefef4        	excw
 402547bb:	3f          	.byte 0x3f
 402547bc:	5028      	l32i.n	a2, a0, 20
 402547be:	124010        	excw
@@ -47162,7 +47163,7 @@ Disassembly of section .irom0.text:
 402549d0:	1108      	l32i.n	a0, a1, 4
 402549d2:	20c112        	addi	a1, a1, 32
 402549d5:	f00d      	ret.n
-402549d7:	034000        	excw
+402549d7:	035000        	excw
 402549da:	ff          	.byte 0xff
 402549db:	3f          	.byte 0x3f
 
@@ -47409,7 +47410,7 @@ Disassembly of section .irom0.text:
 40254c1b:	102320        	and	a2, a3, a2
 40254c1e:	7429      	s32i.n	a2, a4, 28
 40254c20:	f00d      	ret.n
-40254c22:	c40000        	extui	a0, a0, 0, 13
+40254c22:	cc0000        	excw
 40254c25:	fe88      	l32i.n	a8, a14, 60
 40254c27:	3f          	.byte 0x3f
 
@@ -47459,7 +47460,7 @@ Disassembly of section .irom0.text:
 40254c8c:	f00d      	ret.n
 40254c8e:	900000        	addx2	a0, a0, a0
 40254c91:	402677        	blt	a6, a7, 40254cd5 <scan_profile_check+0x3d>
-40254c94:	feff95        	excw
+40254c94:	feffa5        	excw
 40254c97:	3f          	.byte 0x3f
 
 40254c98 <scan_profile_check>:
@@ -48060,7 +48061,7 @@ Disassembly of section .irom0.text:
 402552bc:	10c112        	addi	a1, a1, 16
 402552bf:	f00d      	ret.n
 402552c1:	000000        	ill
-402552c4:	8d0c      	movi.n	a13, 8
+402552c4:	8d1c      	movi.n	a13, 24
 402552c6:	fe          	.byte 0xfe
 402552c7:	3f          	.byte 0x3f
 
@@ -49225,10 +49226,10 @@ Disassembly of section .irom0.text:
 40255eca:	bb4022        	s8i	a2, a0, 187
 40255ecd:	ec1b05        	call0	40242080 <wifi_station_disconnect>
 40255ed0:	fff7c6        	j	40255eb3 <wifi_station_stop+0x17>
-40255ed3:	037400        	excw
+40255ed3:	038400        	excw
 40255ed6:	ff          	.byte 0xff
 40255ed7:	3f          	.byte 0x3f
-40255ed8:	ff0394        	excw
+40255ed8:	ff03a4        	excw
 40255edb:	3f          	.byte 0x3f
 40255edc:	256024        	excw
 40255edf:	fd3140        	excw
@@ -49298,7 +49299,7 @@ Disassembly of section .irom0.text:
 40255f76:	df6817        	bbci	a8, 1, 40255f59 <chm_start_op+0x11>
 40255f79:	000085        	call0	40255f84 <chm_start_op+0x3c>
 40255f7c:	fff706        	j	40255f5c <chm_start_op+0x14>
-40255f7f:	037800        	excw
+40255f7f:	038800        	excw
 40255f82:	ff          	.byte 0xff
 40255f83:	3f          	.byte 0x3f
 40255f84:	f0c112        	addi	a1, a1, -16
@@ -49436,9 +49437,9 @@ Disassembly of section .irom0.text:
 402560bb:	120c      	movi.n	a2, 1
 402560bd:	932340        	movnez	a2, a3, a4
 402560c0:	f00d      	ret.n
-402560c2:	b00000        	addx8	a0, a0, a0
+402560c2:	c00000        	sub	a0, a0, a0
 402560c5:	3fff03        	excw
-402560c8:	06fc      	bnez.n	a6, 402560fc <cnx_attach+0x2c>
+402560c8:	070c      	movi.n	a7, 0
 402560ca:	ff          	.byte 0xff
 402560cb:	3f          	.byte 0x3f
 402560cc:	2563f4        	excw
@@ -49500,7 +49501,7 @@ Disassembly of section .irom0.text:
 40256154:	f00d      	ret.n
 40256156:	100000        	and	a0, a0, a0
 40256159:	402561        	l32r	a6, 402261f0 <_lit4_end+0x11f6ac>
-4025615c:	ff03b4        	excw
+4025615c:	ff03c4        	excw
 4025615f:	3f          	.byte 0x3f
 40256160:	00c000        	excw
 	...
@@ -49692,7 +49693,7 @@ Disassembly of section .irom0.text:
 40256343:	10c112        	addi	a1, a1, 16
 40256346:	f00d      	ret.n
 40256348:	256444        	excw
-4025634b:	05c840        	extui	a12, a4, 24, 1
+4025634b:	05d840        	extui	a13, a4, 24, 1
 4025634e:	ff          	.byte 0xff
 4025634f:	3f          	.byte 0x3f
 40256350:	fffe31        	l32r	a3, 40256348 <cnx_sta_scan_cmd+0x128>
@@ -49788,7 +49789,7 @@ Disassembly of section .irom0.text:
 40256438:	10c112        	addi	a1, a1, 16
 4025643b:	f00d      	ret.n
 4025643d:	000000        	ill
-40256440:	ff0680        	excw
+40256440:	ff0690        	excw
 40256443:	3f          	.byte 0x3f
 40256444:	f0c112        	addi	a1, a1, -16
 40256447:	0139      	s32i.n	a3, a1, 0
@@ -49864,7 +49865,7 @@ Disassembly of section .irom0.text:
 402564f3:	f00d      	ret.n
 402564f5:	000000        	ill
 402564f8:	2677c0        	excw
-402564fb:	070c40        	excw
+402564fb:	071c40        	excw
 402564fe:	ff          	.byte 0xff
 402564ff:	3f          	.byte 0x3f
 40256500:	031c      	movi.n	a3, 16
@@ -49985,9 +49986,9 @@ Disassembly of section .irom0.text:
 4025662b:	40a132        	movi	a3, 0x140
 4025662e:	200030        	or	a0, a0, a3
 40256631:	ffe1c6        	j	402565bc <cnx_start_handoff_cb+0xd8>
-40256634:	ff0700        	excw
+40256634:	ff0710        	excw
 40256637:	3f          	.byte 0x3f
-40256638:	0708      	l32i.n	a0, a7, 0
+40256638:	0718      	l32i.n	a1, a7, 0
 4025663a:	ff          	.byte 0xff
 4025663b:	3f          	.byte 0x3f
 4025663c:	66f8      	l32i.n	a15, a6, 24
@@ -50057,9 +50058,9 @@ Disassembly of section .irom0.text:
 402566e7:	fff906        	j	402566cf <cnx_start_handoff_cb+0x1eb>
 402566ea:	d00000        	subx2	a0, a0, a0
 402566ed:	3ffe85        	call0	402966d8 <_irom0_text_end+0x2e8d1>
-402566f0:	ff0704        	excw
+402566f0:	ff0714        	excw
 402566f3:	3f          	.byte 0x3f
-402566f4:	0798      	l32i.n	a9, a7, 0
+402566f4:	07a8      	l32i.n	a10, a7, 0
 402566f6:	ff          	.byte 0xff
 402566f7:	3f          	.byte 0x3f
 402566f8:	08a042        	movi	a4, 8
@@ -50194,7 +50195,7 @@ Disassembly of section .irom0.text:
 4025683e:	fdc345        	call0	40254474 <ieee80211_mlme_connect_bss>
 40256841:	ffd986        	j	402567ab <cnx_start_handoff_cb+0x2c7>
 40256844:	000000        	ill
-40256847:	06fd00        	excw
+40256847:	070d00        	excw
 4025684a:	ff          	.byte 0xff
 4025684b:	3f          	.byte 0x3f
 4025684c:	e0c112        	addi	a1, a1, -32
@@ -50405,8 +50406,8 @@ Disassembly of section .irom0.text:
 40256a53:	21d8      	l32i.n	a13, a1, 8
 40256a55:	20c112        	addi	a1, a1, 32
 40256a58:	f00d      	ret.n
-40256a5a:	fe0000        	excw
-40256a5d:	3fff06        	j	40266a5d <aes_encrypt_deinit+0x221>
+40256a5a:	0e0000        	excw
+40256a5d:	3fff07        	bbsi	a15, 16, 40256aa0 <cnx_rc_search+0xb8>
 40256a60:	ffff61        	l32r	a6, 40256a5c <cnx_rc_search+0x74>
 40256a63:	000652        	l8ui	a5, a6, 0
 40256a66:	660b      	addi.n	a6, a6, -1
@@ -50793,10 +50794,10 @@ Disassembly of section .irom0.text:
 40256e51:	1108      	l32i.n	a0, a1, 4
 40256e53:	10c112        	addi	a1, a1, 16
 40256e56:	f00d      	ret.n
-40256e58:	fead      	excw
+40256e58:	febd      	excw
 40256e5a:	fe          	.byte 0xfe
 40256e5b:	3f          	.byte 0x3f
-40256e5c:	035c      	movi.n	a3, 80
+40256e5c:	036c      	movi.n	a3, -32
 40256e5e:	ff          	.byte 0xff
 40256e5f:	3f          	.byte 0x3f
 
@@ -51368,7 +51369,7 @@ Disassembly of section .irom0.text:
 402573f7:	786000        	excw
 402573fa:	804026        	beqi	a0, 4, 4025737e <cnx_node_leave+0x62>
 402573fd:	2678      	l32i.n	a7, a6, 8
-402573ff:	ffb440        	excw
+402573ff:	ffc440        	excw
 40257402:	fe          	.byte 0xfe
 40257403:	3f          	.byte 0x3f
 
@@ -51743,7 +51744,7 @@ Disassembly of section .irom0.text:
 40257794:	10c112        	addi	a1, a1, 16
 40257797:	f00d      	ret.n
 40257799:	000000        	ill
-4025779c:	ff07d0        	excw
+4025779c:	ff07e0        	excw
 4025779f:	3f          	.byte 0x3f
 402577a0:	f0c112        	addi	a1, a1, -16
 402577a3:	fffe61        	l32r	a6, 4025779c <ieee80211_recv_action+0xe0>
@@ -51895,7 +51896,7 @@ Disassembly of section .irom0.text:
 4025791f:	040d      	mov.n	a0, a4
 40257921:	10c112        	addi	a1, a1, 16
 40257924:	f00d      	ret.n
-40257926:	840000        	extui	a0, a0, 0, 9
+40257926:	940000        	extui	a0, a0, 0, 10
 40257929:	3fff12        	excw
 
 4025792c <dhcp_coarse_tmr>:
@@ -52040,7 +52041,7 @@ Disassembly of section .irom0.text:
 40257a8c:	10c112        	addi	a1, a1, 16
 40257a8f:	f00d      	ret.n
 40257a91:	000000        	ill
-40257a94:	ff07e0        	excw
+40257a94:	ff07f0        	excw
 40257a97:	3f          	.byte 0x3f
 40257a98:	e0c112        	addi	a1, a1, -32
 40257a9b:	21c9      	s32i.n	a12, a1, 8
@@ -53573,7 +53574,7 @@ Disassembly of section .irom0.text:
 40258989:	223b      	addi.n	a2, a2, 3
 4025898b:	f00d      	ret.n
 4025898d:	000000        	ill
-40258990:	0808      	l32i.n	a0, a8, 0
+40258990:	0818      	l32i.n	a1, a8, 0
 40258992:	ff          	.byte 0xff
 40258993:	3f          	.byte 0x3f
 40258994:	fe84e0        	excw
@@ -53994,9 +53995,9 @@ Disassembly of section .irom0.text:
 40258db1:	fff7c6        	j	40258d94 <node_remove_from_list+0x43c>
 40258db4:	fe84e4        	excw
 40258db7:	3f          	.byte 0x3f
-40258db8:	ff0820        	excw
+40258db8:	ff0830        	excw
 40258dbb:	3f          	.byte 0x3f
-40258dbc:	080c      	movi.n	a8, 0
+40258dbc:	081c      	movi.n	a8, 16
 40258dbe:	ff          	.byte 0xff
 40258dbf:	3f          	.byte 0x3f
 40258dc0:	2678c0        	excw
@@ -54136,7 +54137,7 @@ Disassembly of section .irom0.text:
 40258f17:	0000c0        	callx0	a0
 40258f1a:	420c      	movi.n	a2, 4
 40258f1c:	fff006        	j	40258ee0 <node_remove_from_list+0x588>
-40258f1f:	082c00        	excw
+40258f1f:	083c00        	excw
 40258f22:	ff          	.byte 0xff
 40258f23:	3f          	.byte 0x3f
 40258f24:	e0c112        	addi	a1, a1, -32
@@ -54214,7 +54215,7 @@ Disassembly of section .irom0.text:
 40258fd6:	0e2d      	mov.n	a2, a14
 40258fd8:	ffcac5        	call0	40258c88 <node_remove_from_list+0x330>
 40258fdb:	fff886        	j	40258fc1 <node_remove_from_list+0x669>
-40258fde:	240000        	extui	a0, a0, 0, 3
+40258fde:	340000        	extui	a0, a0, 0, 4
 40258fe1:	ff08      	l32i.n	a0, a15, 60
 40258fe3:	3f          	.byte 0x3f
 40258fe4:	fe6c31        	l32r	a3, 40258994 <node_remove_from_list+0x3c>
@@ -54576,11 +54577,10 @@ Disassembly of section .irom0.text:
 4025934c:	0108      	l32i.n	a0, a1, 0
 4025934e:	10c112        	addi	a1, a1, 16
 40259351:	f00d      	ret.n
-40259353:	0a5000        	excw
+40259353:	0a6000        	excw
 40259356:	ff          	.byte 0xff
 40259357:	3f          	.byte 0x3f
-40259358:	88c8      	l32i.n	a12, a8, 32
-4025935a:	fe          	.byte 0xfe
+40259358:	fe88d0        	excw
 4025935b:	3f          	.byte 0x3f
 4025935c:	259624        	excw
 4025935f:	c37c40        	excw
@@ -54617,7 +54617,7 @@ Disassembly of section .irom0.text:
 402593a7:	1108      	l32i.n	a0, a1, 4
 402593a9:	10c112        	addi	a1, a1, 16
 402593ac:	f00d      	ret.n
-402593ae:	700000        	excw
+402593ae:	800000        	add	a0, a0, a0
 402593b1:	ff0c      	movi.n	a15, 15
 402593b3:	3f          	.byte 0x3f
 
@@ -54780,7 +54780,7 @@ Disassembly of section .irom0.text:
 40259530:	51c8      	l32i.n	a12, a1, 20
 40259532:	20c112        	addi	a1, a1, 32
 40259535:	f00d      	ret.n
-40259537:	0c8000        	excw
+40259537:	0c9000        	excw
 4025953a:	ff          	.byte 0xff
 4025953b:	3f          	.byte 0x3f
 4025953c:	ffff81        	l32r	a8, 40259538 <dns_getserver+0x158>
@@ -55150,12 +55150,12 @@ Disassembly of section .irom0.text:
 402598ec:	2108      	l32i.n	a0, a1, 8
 402598ee:	20c112        	addi	a1, a1, 32
 402598f1:	f00d      	ret.n
-402598f3:	12d400        	excw
+402598f3:	12e400        	excw
 402598f6:	ff          	.byte 0xff
 402598f7:	3f          	.byte 0x3f
-402598f8:	ff12e0        	excw
+402598f8:	ff12f0        	excw
 402598fb:	3f          	.byte 0x3f
-402598fc:	12cc      	bnez.n	a2, 40259901 <dns_gethostbyname+0x65>
+402598fc:	12dc      	bnez.n	a2, 40259911 <dns_gethostbyname+0x75>
 402598fe:	ff          	.byte 0xff
 402598ff:	3f          	.byte 0x3f
 40259900:	fffd31        	l32r	a3, 402598f4 <dns_gethostbyname+0x58>
@@ -55370,7 +55370,7 @@ Disassembly of section .irom0.text:
 40259afa:	3228      	l32i.n	a2, a2, 12
 40259afc:	fe4256        	bnez	a2, 40259ae4 <espconn_find_current_pcb+0x7c>
 40259aff:	fff506        	j	40259ad7 <espconn_find_current_pcb+0x6f>
-40259b02:	e40000        	extui	a0, a0, 0, 15
+40259b02:	f40000        	extui	a0, a0, 0, 16
 40259b05:	3fff13        	excw
 40259b08:	e0c112        	addi	a1, a1, -32
 40259b0b:	0261c2        	s32i	a12, a1, 8
@@ -55447,7 +55447,7 @@ Disassembly of section .irom0.text:
 40259bb9:	1108      	l32i.n	a0, a1, 4
 40259bbb:	20c112        	addi	a1, a1, 32
 40259bbe:	f00d      	ret.n
-40259bc0:	ff13d0        	excw
+40259bc0:	ff13e0        	excw
 40259bc3:	3f          	.byte 0x3f
 40259bc4:	e0c112        	addi	a1, a1, -32
 40259bc7:	0161c2        	s32i	a12, a1, 4
@@ -55566,7 +55566,7 @@ Disassembly of section .irom0.text:
 40259ce0:	20c112        	addi	a1, a1, 32
 40259ce3:	f00d      	ret.n
 40259ce5:	000000        	ill
-40259ce8:	ff1300        	excw
+40259ce8:	ff1310        	excw
 40259ceb:	3f          	.byte 0x3f
 40259cec:	f0c112        	addi	a1, a1, -16
 40259cef:	016102        	s32i	a0, a1, 4
@@ -56294,7 +56294,7 @@ Disassembly of section .irom0.text:
 4025a3d1:	0108      	l32i.n	a0, a1, 0
 4025a3d3:	10c112        	addi	a1, a1, 16
 4025a3d6:	f00d      	ret.n
-4025a3d8:	ff1304        	excw
+4025a3d8:	ff1314        	excw
 4025a3db:	3f          	.byte 0x3f
 4025a3dc:	f0c112        	addi	a1, a1, -16
 4025a3df:	0161c2        	s32i	a12, a1, 4
@@ -56643,7 +56643,7 @@ Disassembly of section .irom0.text:
 4025a73b:	20c112        	addi	a1, a1, 32
 4025a73e:	f00d      	ret.n
 4025a740:	9cec      	bnez.n	a12, 4025a76d <espconn_init+0x25>
-4025a742:	e04025        	excw
+4025a742:	f04025        	excw
 4025a745:	3fff10        	excw
 
 4025a748 <espconn_init>:
@@ -56658,7 +56658,7 @@ Disassembly of section .irom0.text:
 4025a75d:	0108      	l32i.n	a0, a1, 0
 4025a75f:	10c112        	addi	a1, a1, 16
 4025a762:	f00d      	ret.n
-4025a764:	ff1170        	excw
+4025a764:	ff1180        	excw
 4025a767:	3f          	.byte 0x3f
 4025a768:	105084        	excw
 4025a76b:	c11240        	mul16u	a1, a2, a4
@@ -57263,7 +57263,7 @@ Disassembly of section .irom0.text:
 4025ad52:	ffc606        	j	4025ac6e <etharp_output+0x22>
 4025ad55:	c27c      	movi.n	a2, -4
 4025ad57:	ffc7c6        	j	4025ac7a <etharp_output+0x2e>
-4025ad5a:	600000        	neg	a0, a0
+4025ad5a:	700000        	excw
 4025ad5d:	3fff11        	l32r	a1, 4022ad5c <_lit4_end+0x124218>
 4025ad60:	fe8600        	excw
 4025ad63:	3f          	.byte 0x3f
@@ -57842,7 +57842,7 @@ Disassembly of section .irom0.text:
 4025b2fd:	204450        	or	a4, a4, a5
 4025b300:	20dd40        	or	a13, a13, a4
 4025b303:	ffcbc6        	j	4025b236 <ipaddr_aton+0x156>
-4025b306:	600000        	neg	a0, a0
+4025b306:	700000        	excw
 4025b309:	3fff12        	excw
 
 4025b30c <ipaddr_ntoa>:
@@ -58040,7 +58040,7 @@ Disassembly of section .irom0.text:
 4025b4cb:	f00d      	ret.n
 4025b4cd:	002d      	mov.n	a2, a0
 4025b4cf:	fffcc6        	j	4025b4c6 <ip_router+0x66>
-4025b4d2:	700000        	excw
+4025b4d2:	800000        	add	a0, a0, a0
 4025b4d5:	3fff12        	excw
 4025b4d8:	3f          	.byte 0x3f
 4025b4d9:	ff          	.byte 0xff
@@ -58510,7 +58510,7 @@ Disassembly of section .irom0.text:
 
 4025b980 <netif_init>:
 4025b980:	f00d      	ret.n
-4025b982:	8c0000        	excw
+4025b982:	9c0000        	excw
 4025b985:	3fff12        	excw
 
 4025b988 <netif_add>:
@@ -58637,7 +58637,7 @@ Disassembly of section .irom0.text:
 4025baa4:	fde556        	bnez	a5, 4025ba86 <netif_find+0x12>
 4025baa7:	020c      	movi.n	a2, 0
 4025baa9:	f00d      	ret.n
-4025baab:	12dc00        	excw
+4025baab:	12ec00        	excw
 4025baae:	ff          	.byte 0xff
 4025baaf:	3f          	.byte 0x3f
 
@@ -59458,9 +59458,9 @@ Disassembly of section .irom0.text:
 4025c21a:	f00d      	ret.n
 4025c21c:	a2ab21        	l32r	a2, 40244cc8 <low_power_set+0x5c>
 4025c21f:	fffb86        	j	4025c211 <pbuf_strstr+0x39>
-4025c222:	900000        	addx2	a0, a0, a0
+4025c222:	a00000        	addx4	a0, a0, a0
 4025c225:	3fff12        	excw
-4025c228:	ff1274        	excw
+4025c228:	ff1284        	excw
 4025c22b:	3f          	.byte 0x3f
 
 4025c22c <raw_input>:
@@ -59678,7 +59678,7 @@ Disassembly of section .irom0.text:
 4025c3fc:	21c8      	l32i.n	a12, a1, 8
 4025c3fe:	10c112        	addi	a1, a1, 16
 4025c401:	f00d      	ret.n
-4025c403:	129400        	excw
+4025c403:	12a400        	excw
 4025c406:	ff          	.byte 0xff
 4025c407:	3f          	.byte 0x3f
 
@@ -60287,7 +60287,7 @@ Disassembly of section .irom0.text:
 4025ca64:	002102        	l32i	a0, a1, 0
 4025ca67:	10c112        	addi	a1, a1, 16
 4025ca6a:	f00d      	ret.n
-4025ca6c:	ff12d0        	excw
+4025ca6c:	ff12e0        	excw
 4025ca6f:	3f          	.byte 0x3f
 4025ca70:	830c      	movi.n	a3, 8
 4025ca72:	f0c112        	addi	a1, a1, -16
@@ -61247,7 +61247,7 @@ Disassembly of section .irom0.text:
 4025d4a8:	551b      	addi.n	a5, a5, 1
 4025d4aa:	fff186        	j	4025d474 <tcp_input+0x106c>
 4025d4ad:	000000        	ill
-4025d4b0:	12c8      	l32i.n	a12, a2, 4
+4025d4b0:	12d8      	l32i.n	a13, a2, 4
 4025d4b2:	ff          	.byte 0xff
 4025d4b3:	3f          	.byte 0x3f
 
@@ -63092,7 +63092,7 @@ Disassembly of section .irom0.text:
 4025e684:	20c112        	addi	a1, a1, 32
 4025e687:	f00d      	ret.n
 4025e689:	000000        	ill
-4025e68c:	ff12c4        	excw
+4025e68c:	ff12d4        	excw
 4025e68f:	3f          	.byte 0x3f
 4025e690:	105294        	excw
 4025e693:	c11240        	mul16u	a1, a2, a4
@@ -63779,7 +63779,7 @@ Disassembly of section .irom0.text:
 4025ed95:	0108      	l32i.n	a0, a1, 0
 4025ed97:	20c112        	addi	a1, a1, 32
 4025ed9a:	f00d      	ret.n
-4025ed9c:	ff12e4        	excw
+4025ed9c:	ff12f4        	excw
 4025ed9f:	3f          	.byte 0x3f
 4025eda0:	25eda4        	excw
 4025eda3:	c11240        	mul16u	a1, a2, a4
@@ -64063,7 +64063,7 @@ Disassembly of section .irom0.text:
 4025f039:	9228      	l32i.n	a2, a2, 36
 4025f03b:	1329      	s32i.n	a2, a3, 4
 4025f03d:	f00d      	ret.n
-4025f03f:	12f000        	excw
+4025f03f:	130000        	excw
 4025f042:	ff          	.byte 0xff
 4025f043:	3f          	.byte 0x3f
 
@@ -65173,7 +65173,7 @@ Disassembly of section .irom0.text:
 4025fa60:	f00d      	ret.n
 4025fa62:	427c      	movi.n	a2, -12
 4025fa64:	f00d      	ret.n
-4025fa66:	100000        	and	a0, a0, a0
+4025fa66:	200000        	or	a0, a0, a0
 4025fa69:	3fff13        	excw
 
 4025fa6c <espconn_get_connection_info>:
@@ -65651,7 +65651,7 @@ Disassembly of section .irom0.text:
 4025fecb:	10c112        	addi	a1, a1, 16
 4025fece:	f00d      	ret.n
 4025fed0:	000000        	ill
-4025fed3:	8d3400        	excw
+4025fed3:	8d4400        	excw
 4025fed6:	fe          	.byte 0xfe
 4025fed7:	3f          	.byte 0x3f
 
@@ -66334,7 +66334,7 @@ Disassembly of section .irom0.text:
 40260553:	6108      	l32i.n	a0, a1, 24
 40260555:	20c112        	addi	a1, a1, 32
 40260558:	f00d      	ret.n
-4026055a:	040000        	extui	a0, a0, 0, 1
+4026055a:	140000        	extui	a0, a0, 0, 2
 4026055d:	3fff14        	excw
 40260560:	0000e0        	excw
 40260563:	00e001        	l32r	a0, 402208e4 <_lit4_end+0x119da0>
@@ -66878,7 +66878,7 @@ Disassembly of section .irom0.text:
 40260a71:	5108      	l32i.n	a0, a1, 20
 40260a73:	20c112        	addi	a1, a1, 32
 40260a76:	f00d      	ret.n
-40260a78:	1408      	l32i.n	a0, a4, 4
+40260a78:	1418      	l32i.n	a1, a4, 4
 40260a7a:	ff          	.byte 0xff
 40260a7b:	3f          	.byte 0x3f
 40260a7c:	00a042        	movi	a4, 0
@@ -66961,7 +66961,7 @@ Disassembly of section .irom0.text:
 40260b40:	20c112        	addi	a1, a1, 32
 40260b43:	f00d      	ret.n
 40260b45:	000000        	ill
-40260b48:	ff1410        	excw
+40260b48:	ff1420        	excw
 40260b4b:	3f          	.byte 0x3f
 
 40260b4c <getPcb>:
@@ -66990,32 +66990,29 @@ Disassembly of section .irom0.text:
 40260b85:	020c      	movi.n	a2, 0
 40260b87:	f00d      	ret.n
 40260b89:	000000        	ill
-40260b8c:	88d8      	l32i.n	a13, a8, 32
-40260b8e:	fe          	.byte 0xfe
+40260b8c:	fe88e0        	excw
 40260b8f:	3f          	.byte 0x3f
 40260b90:	0e0000        	excw
 40260b93:	0c0010        	excw
 40260b96:	000000        	ill
 40260b99:	2c0100        	excw
-40260b9c:	ff1730        	excw
+40260b9c:	ff1740        	excw
 40260b9f:	3f          	.byte 0x3f
-40260ba0:	88f8      	l32i.n	a15, a8, 32
-40260ba2:	fe          	.byte 0xfe
+40260ba0:	fe8900        	excw
 40260ba3:	3f          	.byte 0x3f
-40260ba4:	2f          	.byte 0x2f
+40260ba4:	3f          	.byte 0x3f
 40260ba5:	3fff17        	bbsi	a15, 17, 40260be8 <getPcb+0x9c>
-40260ba8:	ff1420        	excw
+40260ba8:	ff1430        	excw
 40260bab:	3f          	.byte 0x3f
 40260bac:	14e9      	s32i.n	a14, a4, 4
 40260bae:	000000        	ill
 40260bb1:	000021        	l32r	a2, 40220bb4 <_lit4_end+0x11a070>
-40260bb4:	ff1440        	excw
+40260bb4:	ff1450        	excw
 40260bb7:	3f          	.byte 0x3f
-40260bb8:	88fc      	bnez.n	a8, 40260bf4 <getPcb+0xa8>
-40260bba:	fe          	.byte 0xfe
+40260bb8:	fe8904        	excw
 40260bbb:	3f          	.byte 0x3f
 40260bbc:	000e00        	excw
-40260bbf:	890400        	excw
+40260bbf:	890c00        	excw
 40260bc2:	fe          	.byte 0xfe
 40260bc3:	3f          	.byte 0x3f
 40260bc4:	2a88      	l32i.n	a8, a10, 8
@@ -67427,17 +67424,19 @@ Disassembly of section .irom0.text:
 40260fcc:	0d2d      	mov.n	a2, a13
 40260fce:	ff1f86        	j	40260c50 <getPcb+0x104>
 40260fd1:	000000        	ill
-40260fd4:	ff17b0        	excw
+40260fd4:	ff17c0        	excw
 40260fd7:	3f          	.byte 0x3f
-40260fd8:	ff1414        	excw
+40260fd8:	ff1424        	excw
 40260fdb:	3f          	.byte 0x3f
-40260fdc:	af          	.byte 0xaf
+40260fdc:	bf          	.byte 0xbf
 40260fdd:	3fff17        	bbsi	a15, 17, 40261020 <getPcb+0x4d4>
-40260fe0:	fe8914        	excw
+40260fe0:	891c      	movi.n	a9, 24
+40260fe2:	fe          	.byte 0xfe
 40260fe3:	3f          	.byte 0x3f
-40260fe4:	fe8920        	excw
+40260fe4:	8928      	l32i.n	a2, a9, 32
+40260fe6:	fe          	.byte 0xfe
 40260fe7:	3f          	.byte 0x3f
-40260fe8:	ff1490        	excw
+40260fe8:	ff14a0        	excw
 40260feb:	3f          	.byte 0x3f
 40260fec:	267ca0        	excw
 40260fef:	a04240        	addx4	a4, a2, a4
@@ -67842,7 +67841,7 @@ Disassembly of section .irom0.text:
 402613f1:	81c8      	l32i.n	a12, a1, 32
 402613f3:	40c112        	addi	a1, a1, 64
 402613f6:	f00d      	ret.n
-402613f8:	ff14e0        	excw
+402613f8:	ff14f0        	excw
 402613fb:	3f          	.byte 0x3f
 402613fc:	f0c112        	addi	a1, a1, -16
 402613ff:	0361c2        	s32i	a12, a1, 12
@@ -68000,12 +67999,12 @@ Disassembly of section .irom0.text:
 40261575:	0108      	l32i.n	a0, a1, 0
 40261577:	10c112        	addi	a1, a1, 16
 4026157a:	f00d      	ret.n
-4026157c:	892c      	movi.n	a9, 40
-4026157e:	fe          	.byte 0xfe
+4026157c:	fe8934        	excw
 4026157f:	3f          	.byte 0x3f
-40261580:	ff16e0        	excw
+40261580:	ff16f0        	excw
 40261583:	3f          	.byte 0x3f
-40261584:	fe8944        	excw
+40261584:	894c      	movi.n	a9, 72
+40261586:	fe          	.byte 0xfe
 40261587:	3f          	.byte 0x3f
 
 40261588 <mdns_set_servername>:
@@ -68035,7 +68034,7 @@ Disassembly of section .irom0.text:
 402615bf:	ffef31        	l32r	a3, 4026157c <mdns_set_hostname+0x60>
 402615c2:	1439      	s32i.n	a3, a4, 4
 402615c4:	f00d      	ret.n
-402615c6:	180000        	excw
+402615c6:	280000        	excw
 402615c9:	3fff14        	excw
 402615cc:	267cb0        	excw
 402615cf:	fe2140        	excw
@@ -68089,9 +68088,9 @@ Disassembly of section .irom0.text:
 40261648:	10c112        	addi	a1, a1, 16
 4026164b:	f00d      	ret.n
 4026164d:	000000        	ill
-40261650:	ff1830        	excw
+40261650:	ff1840        	excw
 40261653:	3f          	.byte 0x3f
-40261654:	1428      	l32i.n	a2, a4, 4
+40261654:	1438      	l32i.n	a3, a4, 4
 40261656:	ff          	.byte 0xff
 40261657:	3f          	.byte 0x3f
 
@@ -68115,7 +68114,8 @@ Disassembly of section .irom0.text:
 40261684:	10c112        	addi	a1, a1, 16
 40261687:	f00d      	ret.n
 40261689:	000000        	ill
-4026168c:	fe8954        	excw
+4026168c:	895c      	movi.n	a9, 88
+4026168e:	fe          	.byte 0xfe
 4026168f:	3f          	.byte 0x3f
 40261690:	267d20        	excw
 40261693:	7d4040        	excw
@@ -69021,7 +69021,8 @@ Disassembly of section .irom0.text:
 40261ee1:	0108      	l32i.n	a0, a1, 0
 40261ee3:	10c112        	addi	a1, a1, 16
 40261ee6:	f00d      	ret.n
-40261ee8:	fe8960        	excw
+40261ee8:	8968      	l32i.n	a6, a9, 32
+40261eea:	fe          	.byte 0xfe
 40261eeb:	3f          	.byte 0x3f
 40261eec:	ba48      	l32i.n	a4, a10, 44
 40261eee:	304000        	xor	a4, a0, a0
@@ -70688,7 +70689,8 @@ Disassembly of section .irom0.text:
 40262f7d:	c108      	l32i.n	a0, a1, 48
 40262f7f:	40c112        	addi	a1, a1, 64
 40262f82:	f00d      	ret.n
-40262f84:	fe8970        	excw
+40262f84:	8978      	l32i.n	a7, a9, 32
+40262f86:	fe          	.byte 0xfe
 40262f87:	3f          	.byte 0x3f
 40262f88:	207220        	or	a7, a2, a2
 40262f8b:	e0c112        	addi	a1, a1, -32
@@ -71485,8 +71487,7 @@ Disassembly of section .irom0.text:
 40263774:	030c      	movi.n	a3, 0
 40263776:	ffdac5        	call0	40263524 <wpa_auth_sm_event+0x94c>
 40263779:	ffe5c6        	j	40263714 <wpa_auth_sm_event+0xb3c>
-4026377c:	8988      	l32i.n	a8, a9, 32
-4026377e:	fe          	.byte 0xfe
+4026377c:	fe8990        	excw
 4026377f:	3f          	.byte 0x3f
 40263780:	20a042        	movi	a4, 32
 40263783:	e0c112        	addi	a1, a1, -32
@@ -72617,7 +72618,8 @@ Disassembly of section .irom0.text:
 4026426b:	044762        	s8i	a6, a7, 4
 4026426e:	ffd686        	j	402641cc <wpa_auth_uses_mfp+0x28c>
 40264271:	000000        	ill
-40264274:	fe8970        	excw
+40264274:	8978      	l32i.n	a7, a9, 32
+40264276:	fe          	.byte 0xfe
 40264277:	3f          	.byte 0x3f
 40264278:	e0c112        	addi	a1, a1, -32
 4026427b:	046102        	s32i	a0, a1, 16
@@ -73861,10 +73863,10 @@ Disassembly of section .irom0.text:
 40264ea2:	ffee86        	j	40264e60 <wpa_auth_uses_mfp+0xf20>
 40264ea5:	000000        	ill
 40264ea8:	f00d      	ret.n
-40264eaa:	400000        	ssr	a0
+40264eaa:	500000        	excw
 40264ead:	ff18      	l32i.n	a1, a15, 60
 40264eaf:	3f          	.byte 0x3f
-40264eb0:	193c      	movi.n	a9, 49
+40264eb0:	194c      	movi.n	a9, 65
 40264eb2:	ff          	.byte 0xff
 40264eb3:	3f          	.byte 0x3f
 40264eb4:	002080        	excw
@@ -74008,7 +74010,7 @@ Disassembly of section .irom0.text:
 40265010:	1138      	l32i.n	a3, a1, 4
 40265012:	ff2b05        	call0	402642c4 <wpa_auth_uses_mfp+0x384>
 40265015:	ffc106        	j	40264f1d <wpa_sm_rx_eapol+0x65>
-40265018:	1908      	l32i.n	a0, a9, 4
+40265018:	1918      	l32i.n	a1, a9, 4
 4026501a:	ff          	.byte 0xff
 4026501b:	3f          	.byte 0x3f
 
@@ -74053,11 +74055,11 @@ Disassembly of section .irom0.text:
 40265071:	0108      	l32i.n	a0, a1, 0
 40265073:	10c112        	addi	a1, a1, 16
 40265076:	f00d      	ret.n
-40265078:	ff1990        	excw
+40265078:	ff19a0        	excw
 4026507b:	3f          	.byte 0x3f
-4026507c:	ff1996        	bltz	a9, 40265071 <wpa_set_pmk+0x19>
+4026507c:	ff19a6        	blti	a9, 1, 4026507f <wpa_set_pmk+0x27>
 4026507f:	3f          	.byte 0x3f
-40265080:	ff1aa0        	excw
+40265080:	ff1ab0        	excw
 40265083:	3f          	.byte 0x3f
 
 40265084 <wpa_set_bss>:
@@ -74110,7 +74112,7 @@ Disassembly of section .irom0.text:
 402650fd:	4108      	l32i.n	a0, a1, 16
 402650ff:	20c112        	addi	a1, a1, 32
 40265102:	f00d      	ret.n
-40265104:	feff74        	excw
+40265104:	feff84        	excw
 40265107:	3f          	.byte 0x3f
 40265108:	f0c112        	addi	a1, a1, -16
 4026510b:	0261c2        	s32i	a12, a1, 8
@@ -74252,10 +74254,10 @@ Disassembly of section .irom0.text:
 4026525c:	10c112        	addi	a1, a1, 16
 4026525f:	f00d      	ret.n
 40265261:	000000        	ill
-40265264:	19fc      	bnez.n	a9, 40265299 <pp_michael_mic_failure+0x25>
+40265264:	1a0c      	movi.n	a10, 1
 40265266:	ff          	.byte 0xff
 40265267:	3f          	.byte 0x3f
-40265268:	196c      	movi.n	a9, -31
+40265268:	197c      	movi.n	a9, -15
 4026526a:	ff          	.byte 0xff
 4026526b:	3f          	.byte 0x3f
 4026526c:	265240        	excw
@@ -74974,7 +74976,7 @@ Disassembly of section .irom0.text:
 40265978:	1b2102        	l32i	a0, a1, 108
 4026597b:	112a      	add.n	a1, a1, a2
 4026597d:	f00d      	ret.n
-4026597f:	899c00        	excw
+4026597f:	89a400        	excw
 40265982:	fe          	.byte 0xfe
 40265983:	3f          	.byte 0x3f
 40265984:	fe8660        	excw
@@ -76641,7 +76643,7 @@ Disassembly of section .irom0.text:
 40266a21:	246242        	s32i	a4, a2, 144
 40266a24:	120c      	movi.n	a2, 1
 40266a26:	f00d      	ret.n
-40266a28:	ff1ac0        	excw
+40266a28:	ff1ad0        	excw
 40266a2b:	3f          	.byte 0x3f
 40266a2c:	f0c112        	addi	a1, a1, -16
 40266a2f:	1388      	l32i.n	a8, a3, 4

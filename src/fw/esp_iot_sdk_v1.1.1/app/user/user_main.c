@@ -6,14 +6,16 @@
 
 void wifi_handle_event_cb(System_Event_t *event)
 {
-    os_printf("event %x\n", event);
+    os_printf("wifi_handle_event_cb(event={event=%d})\n", event, event->event);
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:
-            os_printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR "\n",
+            os_printf("wifi_handle_event_cb: ip=" IPSTR " mask=" IPSTR " gw=" IPSTR "\n",
                       IP2STR(&event->event_info.got_ip.ip),
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
             break;
+        default:
+            os_printf("wifi_handle_event_cb: disconnected\n");
     }
 }
 
