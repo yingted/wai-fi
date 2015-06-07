@@ -73,7 +73,7 @@ err_buf:
         user_dprintf("outputting to %p", slave->output);
         user_dprintf("%p %p %p", slave, config, ip_output_if);
         err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
-        user_dprintf("done", slave->output);
+        user_dprintf("done");
         if (rc != ERR_OK) {
             pbuf_free(p);
             return rc;
