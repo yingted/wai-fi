@@ -5,13 +5,14 @@
 #include "lwip/ip.h"
 
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
-    os_printf("icmp_net_linkoutput()\n");
+    user_dprintf("icmp_net_linkoutput()\n");
+    // TODO
     return ERR_OK;
 }
 
 static err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     if (!ip_addr_cmp(ipaddr, &netif->gw)) {
-        os_printf("ip addr mismatch: " IPSTR "\n", IP2STR(ipaddr));
+        user_dprintf("ip addr mismatch: " IPSTR "\n", IP2STR(ipaddr));
     }
     return icmp_net_linkoutput(netif, p);
 }
@@ -35,26 +36,35 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("icmp_input()\n");
 
     struct ip_hdr *iphdr = p->payload;
-    s16_t hlen = IPH_HL(iphdr) * 4;
-    if (p->tot_len < hlen + sizeof(u16_t) * 2) {
-        user_dprintf("invalid ICMP: %d bytes\n", p->tot_len);
+    s16_t ip_hlen = IPH_HL(iphdr) * 4;
+    const static s16_t icmp_hlen = sizeof(u32_t) * 2;
+    if (p->tot_len < ip_hlen + icmp_hlen) {
+        user_dprintf("icmp_input: short: %d bytes\n", p->tot_len);
         return;
     }
 
-    u8_t type = ((u8_t *)p->payload)[hlen];
+    u8_t type = ((u8_t *)p->payload)[ip_hlen];
+    u16_t header = ((u32_t *)(((u8_t *)p->payload) + ip_hlen))[1];
 
     if (type == ICMP_ER) {
-        pbuf_header(p, -hlen);
+        pbuf_header(p, -ip_hlen);
+        if (!inet_chksum_pbuf(p)) {
+            user_dprintf("icmp_input: checksum failed\n");
+            goto end;
+        }
 
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
             extern ip_addr_t current_iphdr_src;
 
-            user_dprintf("config=%p\n", config);
+            user_dprintf("icmp_input: config=%p\n", config);
             if (ip_addr_cmp(&current_iphdr_src, &config->netif->gw)) {
-                user_dprintf("match\n");
+                user_dprintf("icmp_input: match: header=%u len=%u\n", header, p->tot_len);
+                // TODO
             }
         }
+
+end:
         pbuf_free(p);
         return;
     }
