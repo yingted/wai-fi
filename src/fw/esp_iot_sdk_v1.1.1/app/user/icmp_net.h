@@ -10,9 +10,11 @@ struct icmp_net_config {
     struct ip_addr bind_ip;
     struct icmp_net_config *next;
     struct netif *slave;
+    netif_status_callback_fn dhcp_bound_callback;
 };
 
 err_t icmp_net_init(struct netif *netif);
+void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb);
 
 #endif
 

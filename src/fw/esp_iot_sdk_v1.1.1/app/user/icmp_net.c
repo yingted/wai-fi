@@ -16,30 +16,30 @@ static inline unsigned long ccount() {
 
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
-    user_dprintf("icmp_net_linkoutput()\n");
+    user_dprintf("");
 
     const static u16_t hlen = IP_HLEN + sizeof(struct icmp_echo_hdr);
     if (pbuf_header(p, hlen)) {
-        user_dprintf("icmp_net_linkoutput: resizing p\n");
+        user_dprintf("resizing p");
         struct pbuf *r = pbuf_alloc(PBUF_RAW, hlen + p->tot_len, PBUF_RAM);
         if (!r) {
-            user_dprintf("icmp_net_linkoutput: no memory\n");
+            user_dprintf("no memory");
             pbuf_free(p);
             return ERR_MEM;
         }
         if (pbuf_header(r, -hlen)) {
-            user_dprintf("icmp_net_linkoutput: reserve header failed\n");
+            user_dprintf("reserve header failed");
 err_buf:
             pbuf_free(r);
             pbuf_free(p);
             return ERR_BUF;
         }
         if (pbuf_copy(r, p) != ERR_OK) {
-            user_dprintf("icmp_net_linkoutput: copy failed");
+            user_dprintf("copy failed");
             goto err_buf;
         }
         if (pbuf_header(r, hlen)) {
-            user_dprintf("icmp_net_linkoutput: move to header failed\n");
+            user_dprintf("move to header failed");
             goto err_buf;
         }
 
@@ -67,7 +67,7 @@ err_buf:
 
 static err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     if (!ip_addr_cmp(ipaddr, &netif->gw)) {
-        user_dprintf("ip addr mismatch: " IPSTR "\n", IP2STR(ipaddr));
+        user_dprintf("ip addr mismatch: " IPSTR, IP2STR(ipaddr));
     }
     return icmp_net_linkoutput(netif, p);
 }
@@ -82,22 +82,23 @@ err_t icmp_net_init(struct netif *netif) {
     struct icmp_net_config *config = netif->state;
     config->next = root;
     config->slave = netif_default;
+    config->dhcp_bound_callback = NULL;
     root = config;
 
-    user_dprintf("icmp_net_init: ccount: %u\n", ccount());
+    user_dprintf("ccount: %u", ccount());
 
     return ERR_OK;
 }
 
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
-    user_dprintf("icmp_input()\n");
-    user_dprintf("icmp_input: ccount: %u\n", ccount());
+    user_dprintf("icmp_input()");
+    user_dprintf("ccount: %u", ccount());
 
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
     const static s16_t icmp_hlen = sizeof(u32_t) * 2;
     if (p->tot_len < ip_hlen + icmp_hlen) {
-        user_dprintf("icmp_input: short: %d bytes\n", p->tot_len);
+        user_dprintf("short: %d bytes", p->tot_len);
         return;
     }
 
@@ -108,7 +109,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     if (type == ICMP_ER) {
         pbuf_header(p, -ip_hlen);
         if (!inet_chksum_pbuf(p)) {
-            user_dprintf("icmp_input: checksum failed\n");
+            user_dprintf("checksum failed");
             goto end;
         }
 
@@ -116,9 +117,9 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         for (config = root; config; config = config->next) {
             extern ip_addr_t current_iphdr_src;
 
-            user_dprintf("icmp_input: config=%p\n", config);
+            user_dprintf("config=%p", config);
             if (ip_addr_cmp(&current_iphdr_src, &config->slave->gw)) {
-                user_dprintf("icmp_input: match: header=%u delay=%u freq=%u len=%u\n", header, ccount() - header, (unsigned int)system_get_cpu_freq(), p->tot_len);
+                user_dprintf("match: header=%u delay=%u freq=%u len=%u", header, ccount() - header, (unsigned int)system_get_cpu_freq(), p->tot_len);
                 // TODO check header retransmission, delay
                 (*config->slave->input)(p, config->slave);
             }
@@ -130,4 +131,23 @@ end:
     }
 
     __real_icmp_input(p, inp);
+}
+
+void __wrap_netif_set_up(struct netif *netif) {
+    bool do_callback = !(netif->flags & NETIF_FLAG_UP);
+    __real_netif_set_up(netif);
+    if (do_callback) {
+        struct icmp_net_config *config;
+        for (config = root; config; config = config->next) {
+            if (config == netif->state && config->dhcp_bound_callback) {
+                (*config->dhcp_bound_callback)(netif);
+                break;
+            }
+        }
+    }
+}
+
+void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb) {
+    struct icmp_net_config *config = netif->state;
+    config->dhcp_bound_callback = cb;
 }
