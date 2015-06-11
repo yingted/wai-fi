@@ -10,6 +10,33 @@
 // from user_interface.h:
 #define STATION_IF      0x00
 
+ICACHE_FLASH_ATTR
+err_t __real_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
+ICACHE_FLASH_ATTR
+err_t __wrap_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif) {
+    user_dprintf("sending");
+    int i;
+    pbuf_ref(p);
+    {
+        os_printf("sending, payload size %u:", (unsigned)p->len);
+        for (i = 0; i < p->len; ++i) {
+            os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
+        }
+        os_printf("\n");
+    }
+    err_t ret = __real_ip_output_if(p, src, dest, ttl, tos, proto, netif);
+    {
+        os_printf("sent, payload size %u:", (unsigned)p->len);
+        for (i = 0; i < p->len; ++i) {
+            os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
+        }
+        os_printf("\n");
+    }
+    pbuf_free(p);
+    return ret;
+}
+
+
 static inline unsigned long ccount() {
     register unsigned long ccount;
     asm(
@@ -19,6 +46,7 @@ static inline unsigned long ccount() {
     return ccount;
 }
 
+ICACHE_FLASH_ATTR
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     user_dprintf("");
@@ -72,8 +100,27 @@ err_buf:
         user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
         user_dprintf("outputting to %p", slave->output);
         user_dprintf("%p %p %p", slave, config, ip_output_if);
-        err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        //err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        err_t rc = __wrap_ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        if (rc != ERR_OK) {
+            user_dprintf("error: %d", rc);
+        }
         user_dprintf("done");
+
+{
+    pbuf_header(p, -IP_HLEN);
+    pbuf_ref(p);
+    icmp_dest_unreach(p, 0);
+    {
+        os_printf("===== eth: ");
+        int i;
+        for (i = 0; i < p->len; ++i)
+            os_printf("%02x", ((u8_t *)p->payload)[i]);
+        os_printf("\n");
+        pbuf_free(p);
+    }
+}
+
         if (rc != ERR_OK) {
             pbuf_free(p);
             return rc;
@@ -85,6 +132,7 @@ err_buf:
     return ERR_OK;
 }
 
+ICACHE_FLASH_ATTR
 static err_t icmp_net_output(struct netif *netif, struct pbuf *p, struct ip_addr *dst) {
     return icmp_net_linkoutput(netif, p);
     user_dprintf("");
@@ -93,6 +141,7 @@ static err_t icmp_net_output(struct netif *netif, struct pbuf *p, struct ip_addr
 
 static struct icmp_net_config *root = NULL;
 
+ICACHE_FLASH_ATTR
 err_t icmp_net_init(struct netif *netif) {
     netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
     //netif->output = etharp_output;
@@ -136,6 +185,7 @@ err_t icmp_net_init(struct netif *netif) {
     return ERR_OK;
 }
 
+ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("icmp_input()");
     user_dprintf("ccount: %u", ccount());
@@ -179,6 +229,7 @@ end:
     __real_icmp_input(p, inp);
 }
 
+ICACHE_FLASH_ATTR
 void __wrap_netif_set_up(struct netif *netif) {
     bool do_callback = !(netif->flags & NETIF_FLAG_UP);
     __real_netif_set_up(netif);
@@ -193,6 +244,7 @@ void __wrap_netif_set_up(struct netif *netif) {
     }
 }
 
+ICACHE_FLASH_ATTR
 void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb) {
     struct icmp_net_config *config = netif->state;
     config->dhcp_bound_callback = cb;

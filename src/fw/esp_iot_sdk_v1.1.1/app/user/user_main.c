@@ -28,10 +28,12 @@ void wifi_handle_event_cb(System_Event_t *event) {
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
             user_dprintf("route via " IPSTR, IP2STR(&icmp_config.slave->ip_addr));
 
+#if 0
             assert(saved_default == NULL);
             assert(netif_default != &icmp_tun);
             saved_default = netif_default;
             netif_default = &icmp_tun;
+#endif
 
             err_t rc = dhcp_start(&icmp_tun);
             user_dprintf("dhcp_start returned %d", (int)rc);
@@ -45,16 +47,18 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
             dhcp_stop(&icmp_tun);
 
+#if 0
             if (netif_default == &icmp_tun) {
                 netif_default = saved_default;
                 saved_default = NULL;
             }
+#endif
             break;
     }
 }
 
 void icmp_tun_dhcp_bound_cb(struct netif *netif) {
-    user_dprintf("ip_addr: " IPSTR "", IP2STR(&netif->ip_addr));
+    user_dprintf("ip_addr: " IPSTR, IP2STR(&netif->ip_addr));
 }
 
 void user_rf_pre_init(void) {
