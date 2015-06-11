@@ -27,7 +27,6 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     const static u16_t l2_hlen = PBUF_LINK_HLEN + IP_HLEN;
     const static u16_t hlen = l2_hlen + sizeof(struct icmp_echo_hdr);
     if (pbuf_header(p, hlen)) {
-        user_dprintf("resizing p to hold %u", (unsigned)(hlen + p->tot_len));
         struct pbuf *r = pbuf_alloc(PBUF_RAW, hlen + p->tot_len, PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
@@ -79,8 +78,6 @@ err_buf:
     {
         struct netif *slave = config->slave;
         user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
-        user_dprintf("outputting to %p", slave->output);
-        user_dprintf("%p %p %p", slave, config, ip_output_if);
         err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
 
         if (rc != ERR_OK) {
@@ -89,7 +86,6 @@ err_buf:
             return rc;
         }
     }
-    user_dprintf("freeing p");
     pbuf_free(p);
     user_dprintf("done");
     return ERR_OK;
@@ -151,7 +147,6 @@ err_t icmp_net_init(struct netif *netif) {
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("icmp_input()");
-    user_dprintf("ccount: %u", ccount());
 
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
@@ -167,7 +162,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     // Intercept ICMP echo replies.
     if (type == ICMP_ER) {
         pbuf_header(p, -ip_hlen);
-        if (!inet_chksum_pbuf(p)) {
+        if (inet_chksum_pbuf(p)) {
             user_dprintf("checksum failed");
             goto end;
         }
