@@ -72,8 +72,8 @@ err_buf:
         iecho->code = 0;
         iecho->chksum = 0;
         union ccount_header x = { .header = ccount() };
-        iecho->id = x.icmp.id;
-        iecho->seqno = x.icmp.seqno;
+        iecho->id = htons(x.icmp.id);
+        iecho->seqno = htons(x.icmp.seqno);
         iecho->chksum = inet_chksum(iecho, p->len);
     }
 
@@ -168,7 +168,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         }
 
         struct icmp_echo_hdr *iecho = p->payload;
-        union ccount_header x = { .icmp = { .id = iecho->id, .seqno = iecho->seqno } };
+        union ccount_header x = { .icmp = { .id = ntohs(iecho->id), .seqno = ntohs(iecho->seqno) } };
         user_dprintf("echo reply: %u ms", (ccount() - x.header) / 1000 / (unsigned)system_get_cpu_freq());
 
         struct icmp_net_config *config;
