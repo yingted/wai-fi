@@ -119,7 +119,6 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
 	-Wl,-wrap,netif_set_up \
-	-Wl,-wrap,ip_output_if,-u,ip_output_if \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip

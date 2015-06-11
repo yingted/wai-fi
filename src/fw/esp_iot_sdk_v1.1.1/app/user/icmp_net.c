@@ -10,33 +10,6 @@
 // from user_interface.h:
 #define STATION_IF      0x00
 
-ICACHE_FLASH_ATTR
-err_t __real_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
-ICACHE_FLASH_ATTR
-err_t __wrap_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto, struct netif *netif) {
-    user_dprintf("sending");
-    int i;
-    pbuf_ref(p);
-    {
-        os_printf("sending, payload size %u:", (unsigned)p->len);
-        for (i = 0; i < p->len; ++i) {
-            os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
-        }
-        os_printf("\n");
-    }
-    err_t ret = __real_ip_output_if(p, src, dest, ttl, tos, proto, netif);
-    {
-        os_printf("sent (%d), payload size %u:", ret, (unsigned)p->len);
-        for (i = 0; i < p->len; ++i) {
-            os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
-        }
-        os_printf("\n");
-    }
-    pbuf_free(p);
-    return ret;
-}
-
-
 static inline unsigned long ccount() {
     register unsigned long ccount;
     asm(
@@ -108,9 +81,7 @@ err_buf:
         user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
         user_dprintf("outputting to %p", slave->output);
         user_dprintf("%p %p %p", slave, config, ip_output_if);
-        //err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
-        //err_t rc = __wrap_ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
-        err_t rc = __wrap_ip_output_if(p, NULL, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
 
         if (rc != ERR_OK) {
             user_dprintf("error: %d", rc);
