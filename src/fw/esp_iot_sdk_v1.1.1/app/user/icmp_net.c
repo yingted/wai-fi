@@ -1,6 +1,7 @@
 #include "user_config.h"
 #include "osapi.h"
 #include "private_api.h"
+#include "c_types.h"
 #include "icmp_net.h"
 #include "lwip/icmp.h"
 #include "lwip/ip.h"
@@ -18,6 +19,14 @@ static inline unsigned long ccount() {
     );
     return ccount;
 }
+
+union ccount_header {
+    u32_t header;
+    struct packed_icmp {
+        __packed u16_t id;
+        __packed u16_t seqno;
+    } icmp;
+};
 
 ICACHE_FLASH_ATTR
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
@@ -59,20 +68,16 @@ err_buf:
     }
 
     {
-        struct icmp_echo_hdr *icmphdr = (struct icmp_echo_hdr *)p->payload;
-        user_dprintf("writing icmp header %p", icmphdr);
-        icmphdr->type = ICMP_ECHO;
-        icmphdr->code = 0;
-        icmphdr->chksum = 0;
-        union {
-            u32_t header;
-            struct {
-                u16_t id, seqno;
-            } icmp;
-        } x = { .header = ccount() };
-        icmphdr->id = x.icmp.id;
-        icmphdr->seqno = x.icmp.seqno;
-        icmphdr->chksum = inet_chksum(icmphdr, p->len);
+        struct icmp_echo_hdr *iecho = (struct icmp_echo_hdr *)p->payload;
+        user_dprintf("writing icmp header %p", iecho);
+        iecho->type = ICMP_ECHO;
+        iecho->code = 0;
+        iecho->chksum = 0;
+        union ccount_header x = { .header = ccount() };
+        iecho->id = x.icmp.id;
+        iecho->seqno = x.icmp.seqno;
+        iecho->chksum = inet_chksum(iecho, p->len);
+        user_dprintf("wrote id=%u seqno=%u header=%u", x.icmp.id, x.icmp.seqno, x.header);
     }
 
     {
@@ -157,7 +162,6 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     }
 
     u8_t type = ((u8_t *)p->payload)[ip_hlen];
-    u16_t header = ((u32_t *)(((u8_t *)p->payload) + ip_hlen))[1];
 
     // Intercept ICMP echo replies.
     if (type == ICMP_ER) {
@@ -167,13 +171,17 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
             goto end;
         }
 
+        struct icmp_echo_hdr *iecho = p->payload;
+        union ccount_header x = { .icmp = { .id = iecho->id, .seqno = iecho->seqno } };
+        user_dprintf("echo reply: %u ms", (ccount() - x.header) / 1000 / (unsigned)system_get_cpu_freq());
+
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
             extern ip_addr_t current_iphdr_src;
 
             user_dprintf("config=%p", config);
             if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
-                user_dprintf("match: header=%u delay=%u freq=%u len=%u", header, ccount() - header, (unsigned int)system_get_cpu_freq(), p->tot_len);
+                user_dprintf("match: len=%u", p->tot_len);
                 // TODO check header retransmission, delay
                 (*config->slave->input)(p, config->slave);
             }
