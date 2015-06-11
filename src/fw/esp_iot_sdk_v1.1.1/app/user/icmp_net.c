@@ -26,7 +26,7 @@ err_t __wrap_ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t 
     }
     err_t ret = __real_ip_output_if(p, src, dest, ttl, tos, proto, netif);
     {
-        os_printf("sent, payload size %u:", (unsigned)p->len);
+        os_printf("sent (%d), payload size %u:", ret, (unsigned)p->len);
         for (i = 0; i < p->len; ++i) {
             os_printf("%02x", (unsigned)((u8_t *)p->payload)[i]);
         }
@@ -51,7 +51,8 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     user_dprintf("");
 
-    const static u16_t hlen = IP_HLEN + sizeof(struct icmp_echo_hdr);
+    const static u16_t l2_hlen = PBUF_LINK_HLEN + IP_HLEN;
+    const static u16_t hlen = l2_hlen + sizeof(struct icmp_echo_hdr);
     if (pbuf_header(p, hlen)) {
         user_dprintf("resizing p to hold %u", (unsigned)(hlen + p->tot_len));
         struct pbuf *r = pbuf_alloc(PBUF_RAW, hlen + p->tot_len, PBUF_RAM);
@@ -79,7 +80,7 @@ err_buf:
         pbuf_free(p);
         p = r;
     }
-    if (pbuf_header(p, -IP_HLEN)) {
+    if (pbuf_header(p, -l2_hlen)) {
         user_dprintf("move to icmp header failed");
         pbuf_free(p);
         return ERR_BUF;
@@ -91,7 +92,14 @@ err_buf:
         icmphdr->type = ICMP_ECHO;
         icmphdr->code = 0;
         icmphdr->chksum = 0;
-        ((u32_t *)icmphdr)[1] = ccount();
+        union {
+            u32_t header;
+            struct {
+                u16_t id, seqno;
+            } icmp;
+        } x = { .header = ccount() };
+        icmphdr->id = x.icmp.id;
+        icmphdr->seqno = x.icmp.seqno;
         icmphdr->chksum = inet_chksum(icmphdr, p->len);
     }
 
@@ -101,27 +109,11 @@ err_buf:
         user_dprintf("outputting to %p", slave->output);
         user_dprintf("%p %p %p", slave, config, ip_output_if);
         //err_t rc = ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
-        err_t rc = __wrap_ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        //err_t rc = __wrap_ip_output_if(p, &slave->ip_addr, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        err_t rc = __wrap_ip_output_if(p, NULL, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+
         if (rc != ERR_OK) {
             user_dprintf("error: %d", rc);
-        }
-        user_dprintf("done");
-
-{
-    pbuf_header(p, -IP_HLEN);
-    pbuf_ref(p);
-    icmp_dest_unreach(p, 0);
-    {
-        os_printf("===== eth: ");
-        int i;
-        for (i = 0; i < p->len; ++i)
-            os_printf("%02x", ((u8_t *)p->payload)[i]);
-        os_printf("\n");
-        pbuf_free(p);
-    }
-}
-
-        if (rc != ERR_OK) {
             pbuf_free(p);
             return rc;
         }
