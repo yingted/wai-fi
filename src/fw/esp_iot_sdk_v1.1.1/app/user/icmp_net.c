@@ -31,7 +31,6 @@ union ccount_header {
 ICACHE_FLASH_ATTR
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
-    user_dprintf("");
 
     const static u16_t l2_hlen = PBUF_LINK_HLEN + IP_HLEN;
     const static u16_t hlen = l2_hlen + sizeof(struct icmp_echo_hdr);
@@ -69,7 +68,6 @@ err_buf:
 
     {
         struct icmp_echo_hdr *iecho = (struct icmp_echo_hdr *)p->payload;
-        user_dprintf("writing icmp header %p", iecho);
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
         iecho->chksum = 0;
@@ -77,12 +75,11 @@ err_buf:
         iecho->id = x.icmp.id;
         iecho->seqno = x.icmp.seqno;
         iecho->chksum = inet_chksum(iecho, p->len);
-        user_dprintf("wrote id=%u seqno=%u header=%u", x.icmp.id, x.icmp.seqno, x.header);
     }
 
     {
         struct netif *slave = config->slave;
-        user_dprintf("writing %p from " IPSTR " to " IPSTR " ttl %u to %p", p, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), (unsigned)ICMP_TTL, slave);
+        user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
         err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
 
         if (rc != ERR_OK) {
@@ -92,7 +89,6 @@ err_buf:
         }
     }
     pbuf_free(p);
-    user_dprintf("done");
     return ERR_OK;
 }
 
