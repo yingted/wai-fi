@@ -6,7 +6,7 @@
 #include "icmp_net.h"
 #include "lwip/ip4.h"
 
-static struct netif icmp_tun;
+static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
 static struct ip_info linklocal_info = {
     .ip = { IPADDR_ANY },
@@ -28,36 +28,32 @@ void wifi_handle_event_cb(System_Event_t *event) {
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
             user_dprintf("route via " IPSTR, IP2STR(&icmp_config.slave->ip_addr));
 
-#if 0
             assert(saved_default == NULL);
-            assert(netif_default != &icmp_tun);
+            assert(netif_default != &icmp_tap);
             saved_default = netif_default;
-            netif_default = &icmp_tun;
-#endif
+            netif_default = &icmp_tap;
 
-            err_t rc = dhcp_start(&icmp_tun);
+            err_t rc = dhcp_start(&icmp_tap);
             user_dprintf("dhcp_start returned %d", (int)rc);
             if (rc != ERR_OK) {
                 user_dprintf("dhcp error: %d", rc);
             }
-            user_dprintf("dhcp: %p", icmp_tun.dhcp);
+            user_dprintf("dhcp: %p", icmp_tap.dhcp);
             break;
         default:
             user_dprintf("disconnected");
 
-            dhcp_stop(&icmp_tun);
+            dhcp_stop(&icmp_tap);
 
-#if 0
-            if (netif_default == &icmp_tun) {
+            if (netif_default == &icmp_tap) {
                 netif_default = saved_default;
                 saved_default = NULL;
             }
-#endif
             break;
     }
 }
 
-void icmp_tun_dhcp_bound_cb(struct netif *netif) {
+void icmp_tap_dhcp_bound_cb(struct netif *netif) {
     user_dprintf("ip_addr: " IPSTR, IP2STR(&netif->ip_addr));
 }
 
@@ -83,9 +79,9 @@ void user_init(void) {
 
     icmp_config.relay_ip.addr = ipaddr_addr("192.168.8.1");
 
-    // Create the ICMP tunnel device and never delete it.
+    // Create the ICMP tap device and never delete it.
     if (!netif_add(
-            &icmp_tun,
+            &icmp_tap,
             &linklocal_info.ip,
             &linklocal_info.netmask,
             &linklocal_info.gw,
@@ -96,7 +92,7 @@ void user_init(void) {
         user_dprintf("netif_add failed");
     }
 
-    icmp_net_set_dhcp_bound_callback(&icmp_tun, icmp_tun_dhcp_bound_cb);
+    icmp_net_set_dhcp_bound_callback(&icmp_tap, icmp_tap_dhcp_bound_cb);
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 }
