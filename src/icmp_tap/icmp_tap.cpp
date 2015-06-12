@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
 		}
 		// Step 2: Collect data from the tap fd and update the outgoing queue.
 		if (FD_ISSET(tap_fd, &fds)) {
-			ssize_t len = recv(raw_fd, buf, sizeof(buf), MSG_DONTWAIT);
+			ssize_t len = read(tap_fd, buf, sizeof(buf));
 			if (len < 0) {
 				perror("recv tap");
 			} else {
@@ -164,6 +164,9 @@ int main(int argc, char *argv[]) {
 			int packets = (to_write + mtu - 1) / mtu;
 			unsigned char queued = max<unsigned char>(0, min<unsigned long>(UCHAR_MAX, packets - conn.replies.size()));
 			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {
+				if (conn.pos == tot_recv) {
+					break; // queue is empty
+				}
 				const icmp_reply &reply = *it;
 				printf("id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 				assert(conn.pos < tot_recv);
