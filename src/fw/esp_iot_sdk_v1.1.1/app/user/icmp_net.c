@@ -11,6 +11,8 @@
 // from user_interface.h:
 #define STATION_IF      0x00
 
+static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
+
 static inline unsigned long ccount() {
     register unsigned long ccount;
     asm(
@@ -20,13 +22,29 @@ static inline unsigned long ccount() {
     return ccount;
 }
 
-union ccount_header {
-    u32_t header;
-    struct packed_icmp {
-        __packed u16_t id;
-        __packed u16_t seqno;
-    } icmp;
-};
+static inline unsigned short timestamp() {
+    return ccount() >> 16U;
+}
+
+/**
+ * Drop recv_i.
+ * Increment recv_i and process packets starting from recv_i.
+ * config must be locked.
+ */
+static void drop_echo_reply(struct icmp_net_config *config) {
+    assert(0 < ICMP_NET_CONFIG_QLEN(config));
+    assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
+    struct pbuf *p;
+    while (config->recv_i != config->send_i && (p = config->queue[++config->recv_i])) {
+        if (p == NULL) {
+            break;
+        }
+        process_pbuf(config, p);
+
+        ICMP_NET_CONFIG_UNLOCK(config);
+        ICMP_NET_CONFIG_LOCK(config);
+    }
+}
 
 ICACHE_FLASH_ATTR
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
@@ -71,9 +89,16 @@ err_buf:
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
         iecho->chksum = 0;
-        union ccount_header x = { .header = ccount() };
-        iecho->id = htons(x.icmp.id);
-        iecho->seqno = htons(x.icmp.seqno);
+        iecho->id = htons(timestamp());
+        ICMP_NET_CONFIG_LOCK(config);
+        if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
+            user_dprintf("dropping packet #%u", config->recv_i);
+            drop_echo_reply(config);
+        }
+        config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
+        short seqno = config->send_i++;
+        ICMP_NET_CONFIG_UNLOCK(config);
+        iecho->seqno = htons(seqno);
         iecho->chksum = inet_chksum(iecho, p->len);
     }
 
@@ -101,6 +126,23 @@ static err_t icmp_net_output(struct netif *netif, struct pbuf *p, struct ip_addr
 
 static struct icmp_net_config *root = NULL;
 
+/**
+ * Process an input ping in pbuf.
+ * config must be locked.
+ */
+static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
+    extern ip_addr_t current_iphdr_src;
+
+    user_dprintf("config=%p", config);
+    if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
+        user_dprintf("match: len=%u", p->tot_len);
+        // TODO check header retransmission, delay
+        (*config->slave->input)(p, config->slave);
+    }
+
+    pbuf_free(p);
+}
+
 ICACHE_FLASH_ATTR
 err_t icmp_net_init(struct netif *netif) {
     netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
@@ -112,6 +154,7 @@ err_t icmp_net_init(struct netif *netif) {
     config->next = root;
     config->slave = NULL;
     config->dhcp_bound_callback = NULL;
+    config->send_i = config->recv_i = 0;
     {
         netif->hwaddr_len = 6;
         static u8_t *last_hwaddr = NULL;
@@ -168,19 +211,24 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         }
 
         struct icmp_echo_hdr *iecho = p->payload;
-        union ccount_header x = { .icmp = { .id = ntohs(iecho->id), .seqno = ntohs(iecho->seqno) } };
-        user_dprintf("echo reply: %u ms", (ccount() - x.header) / 1000 / (unsigned)system_get_cpu_freq());
+        uint16_t seqno = ntohs(iecho->seqno);
+        user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
 
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
-            extern ip_addr_t current_iphdr_src;
+            ICMP_NET_CONFIG_LOCK(config);
 
-            user_dprintf("config=%p", config);
-            if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
-                user_dprintf("match: len=%u", p->tot_len);
-                // TODO check header retransmission, delay
-                (*config->slave->input)(p, config->slave);
+            if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
+                if (config->recv_i == seqno) {
+                    process_pbuf(config, p);
+                    drop_echo_reply(config);
+                } else {
+                    pbuf_ref(p);
+                    config->queue[seqno] = p;
+                }
             }
+
+            ICMP_NET_CONFIG_UNLOCK(config);
         }
 
 end:

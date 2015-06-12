@@ -6,13 +6,34 @@
 #include "lwip/err.h"
 #include "lwip/netif.h"
 
+// Must be a power of 2
+#define ICMP_NET_QSIZE 32
+
 struct icmp_net_config {
     struct ip_addr relay_ip;
     struct netif *slave;
 // private:
     struct icmp_net_config *next;
     netif_status_callback_fn dhcp_bound_callback;
+    // recv_i <= send_i
+    uint16_t recv_i, send_i;
+    /**
+     * The packet queue is stored in:
+     * queue[i % ICMP_NET_QSIZE] for i = (next_recv_seqno + 1) ... (next_send_seqno - 1)
+     * The invariant is: next_send_seqno - next_recv_seqno
+     * Other values are undefined.
+     * The pipe is given by:
+     * next_send_seqno - next_recv_seqno
+     * The queue size is given by:
+     * next_send_seqno - (next_recv_seqno + 1)
+     * Where the next_recv_seqno is the lowest-index packet still not received.
+     */
+    struct pbuf *queue[ICMP_NET_QSIZE];
 };
+
+#define ICMP_NET_CONFIG_QLEN(config) ((config)->send_i - (config)->recv_i)
+#define ICMP_NET_CONFIG_LOCK(config) ets_intr_lock()
+#define ICMP_NET_CONFIG_UNLOCK(config) ets_intr_unlock()
 
 err_t icmp_net_init(struct netif *netif);
 void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb);
