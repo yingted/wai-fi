@@ -5,6 +5,7 @@
 #include "user_interface.h"
 #include "icmp_net.h"
 #include "lwip/ip4.h"
+#include "espressif/esp8266/uart_register.h"
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -77,7 +78,7 @@ void user_init(void) {
     wifi_station_set_auto_connect(1);
     wifi_station_set_reconnect_policy(true);
 
-    icmp_config.relay_ip.addr = ipaddr_addr("192.168.8.1");
+    icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
 
     // Create the ICMP tap device and never delete it.
     if (!netif_add(

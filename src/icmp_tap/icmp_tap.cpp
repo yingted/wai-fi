@@ -29,6 +29,8 @@ struct icmp_reply {
 	struct timespec time;
 };
 
+typedef __be32 connection_id;
+
 struct connection {
 	boost::circular_buffer<char>::size_type pos;
 	set<icmp_reply> replies;
@@ -54,14 +56,18 @@ bool operator<(const icmp_reply &a, const icmp_reply &b) {
 }
 
 int main(int argc, char *argv[]) {
-	char dev[IFNAMSIZ] = "icmp0";
+	char dev[IFNAMSIZ + 1] = "icmp0";
+	dev[IFNAMSIZ] = '\0';
+	if (argc == 2) {
+		strncpy(dev, argv[1], IFNAMSIZ);
+	}
 	char buf[64 * 1024]; // max IPv4 packet size
 	int tap_fd, raw_fd, fd_max;
 	boost::circular_buffer<char> outq(1024 * 1024);
 	boost::circular_buffer<char>::size_type tot_recv = 0; // represents outq.end()
 	fd_set fds;
 
-	map<__be32, connection> conns;
+	map<connection_id, connection> conns;
 
 	if ((tap_fd = tun_alloc(dev, IFF_TAP)) < 0) {
 		perror("tun_alloc");
@@ -90,6 +96,11 @@ int main(int argc, char *argv[]) {
 
 	printf("Opened tunnel on %.*s\n", IFNAMSIZ, dev);
 
+	{
+		string cmd = "ip link set dev " + string(dev) + " up";
+		system(cmd.c_str());
+	}
+
 	for (;;) {
 		FD_ZERO(&fds);
 		FD_SET(tap_fd, &fds);
@@ -106,6 +117,9 @@ int main(int argc, char *argv[]) {
 			if (len < 0) {
 				perror("recv ip");
 			} else {
+				if (len == sizeof(buf)) {
+					printf("Warning: buffer full (%u bytes)\n", len);
+				}
 				ssize_t ip_hlen = ip->ihl * 4;
 				struct icmphdr *icmp = (struct icmphdr *)(((char *)ip) + ip_hlen);
 				unsigned short tot_len = ntohs(ip->tot_len);
@@ -121,9 +135,10 @@ int main(int argc, char *argv[]) {
 						reply.seq = ntohs(icmp->un.echo.sequence);
 						reply.addr = ip->saddr;
 						clock_gettime(CLOCK_MONOTONIC, &reply.time);
-						printf("id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
-						bool new_conn = !conns.count(reply.addr);
-						connection &conn = conns[reply.addr];
+						printf("received id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
+						connection_id cid = reply.addr;
+						bool new_conn = !conns.count(cid);
+						connection &conn = conns[cid];
 						if (new_conn) {
 							printf("new connection to %s\n", inet_ntoa(*(in_addr *)&reply.addr));
 							conn.pos = tot_recv;
@@ -146,6 +161,10 @@ int main(int argc, char *argv[]) {
 			if (len < 0) {
 				perror("recv tap");
 			} else {
+				if (len == sizeof(buf)) {
+					printf("Warning: buffer full (%u bytes)\n", len);
+				}
+				printf("tap: read %d bytes\n", len);
 				copy(buf, buf + len, back_inserter(outq));
 				tot_recv += len;
 			}
@@ -168,15 +187,29 @@ int main(int argc, char *argv[]) {
 					break; // queue is empty
 				}
 				const icmp_reply &reply = *it;
-				printf("id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
+				printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 				assert(conn.pos < tot_recv);
-				ssize_t send_len = max<long>(mtu, tot_recv - conn.pos);
-				assert(send_len <= to_write);
+				ssize_t to_send = min<ssize_t>(mtu, tot_recv - conn.pos);
+				assert(to_send <= to_write);
 
-				buf[0] = queued;
-				copy(outq.end() - to_write, outq.end() - (to_write - send_len), buf + 1);
-				to_write -= send_len;
-				send_len += 1;
+				char *out = buf;
+
+				struct icmphdr *icmp = (struct icmphdr *)out;
+				{
+					out += sizeof(*icmp);
+					icmp->type = ICMP_ECHOREPLY;
+					icmp->code = 0;
+					icmp->un.echo.id = htons(reply.id);
+					icmp->un.echo.sequence = htons(reply.seq);
+					icmp->checksum = 0;
+				}
+
+				*out++ = queued;
+
+				out = copy(outq.end() - to_write, outq.end() - (to_write - to_send), out);
+				to_write -= to_send;
+
+				//icmp->checksum = in_cksum(icmp, out);//XXX
 
 				struct sockaddr_in dst = {
 					.sin_family = AF_INET,
@@ -185,6 +218,8 @@ int main(int argc, char *argv[]) {
 						.s_addr = reply.addr,
 					},
 				};
+				ssize_t send_len = out - buf;
+				assert(send_len <= sizeof(buf));
 				ssize_t sent = sendto(raw_fd, buf, send_len, MSG_DONTWAIT, (struct sockaddr *)&dst, sizeof(dst));
 				if (sent < 0) {
 					perror("sendto");
