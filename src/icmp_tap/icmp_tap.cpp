@@ -1,5 +1,6 @@
 #include <algorithm>
-#include <vector>
+#include <map>
+#include <set>
 
 using namespace std;
 
@@ -16,8 +17,30 @@ using namespace std;
 #include <linux/ip.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "tuntap.h"
+
+struct icmp_reply {
+	__be32 addr;
+	unsigned short id, seq;
+	struct timespec time;
+};
+
+static bool lt_seq(const icmp_reply &a, const icmp_reply &b) {
+	return a.seq < b.seq;
+}
+
+static bool lt_time(const icmp_reply &a, const icmp_reply &b) {
+	if (a.time.tv_sec != b.time.tv_sec) {
+		return a.time.tv_sec < b.time.tv_sec;
+	}
+	return a.time.tv_nsec < b.time.tv_nsec;
+}
+
+bool operator<(const icmp_reply &a, const icmp_reply &b) {
+	return lt_seq(a, b);
+}
 
 int main(int argc, char *argv[]) {
 	char dev[IFNAMSIZ] = "icmp0";
@@ -25,9 +48,18 @@ int main(int argc, char *argv[]) {
 	int tap_fd, raw_fd, fd_max;
 	fd_set fds;
 
+	map<__be32, set<icmp_reply> > replies;
+
 	if ((tap_fd = tun_alloc(dev, IFF_TAP)) < 0) {
 		perror("tun_alloc");
 		return -1;
+	}
+
+	{
+		int flags = fcntl(tap_fd, F_GETFL, 0);
+		if (fcntl(tap_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+			perror("fcntl: nonblock");
+		}
 	}
 
 	if ((raw_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
@@ -69,12 +101,23 @@ int main(int argc, char *argv[]) {
 				printf("Expected tot_len=%d, got tot_len=%d\n", len, tot_len);
 			} else {
 				char *data = ((char *)icmp) + sizeof(*icmp);
-				size_t data_len = buf + len - data;
-				printf("got %d bytes, %d\n", data_len, icmp->type);
+				ssize_t data_len = buf + len - data;
 
 				if (icmp->type == ICMP_ECHO) {
-					printf("id=%d seq=%d saddr=%u\n", ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence), ip->saddr);
-					// XXX enqueue these
+					icmp_reply reply;
+					reply.id = ntohs(icmp->un.echo.id);
+					reply.seq = ntohs(icmp->un.echo.sequence);
+					reply.addr = ip->saddr;
+					clock_gettime(CLOCK_MONOTONIC, &reply.time);
+					printf("id=%d seq=%d saddr=%u\n", reply.id, reply.seq, reply.addr);
+					replies[reply.addr].insert(reply);
+
+					ssize_t written = write(tap_fd, data, data_len);
+					if (written < 0) {
+						perror("write");
+					} else if (written != data_len) {
+						printf("wrote %d instead of %d\n", written, data_len);
+					}
 				}
 			}
 		}
