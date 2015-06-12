@@ -7,13 +7,13 @@
 #include "lwip/netif.h"
 
 // Must be a power of 2
-#define ICMP_NET_QSIZE 32U
-#define ICMP_NET_MAX_KEEPALIVE 16U
+#define ICMP_NET_QSIZE 4U
+#define ICMP_NET_MAX_KEEPALIVE 2U
 #define ICMP_NET_MIN_KEEPALIVE 1U
 
 struct icmp_net_config {
     struct ip_addr relay_ip;
-    struct netif *slave;
+    struct netif *slave, *netif;
 // private:
     struct icmp_net_config *next;
     netif_status_callback_fn dhcp_bound_callback;

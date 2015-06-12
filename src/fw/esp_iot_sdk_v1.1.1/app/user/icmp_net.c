@@ -34,6 +34,7 @@ static inline unsigned short timestamp() {
     return ccount() >> 16U;
 }
 
+ICACHE_FLASH_ATTR
 static err_t send_keepalive(struct netif *netif) {
     ICMP_NET_CONFIG_UNLOCK(config);
     struct pbuf *p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
@@ -48,7 +49,8 @@ static err_t send_keepalive(struct netif *netif) {
  * Increment recv_i and process packets starting from recv_i.
  * config must be locked.
  */
-static void drop_echo_reply(struct netif *netif, struct icmp_net_config *config) {
+ICACHE_FLASH_ATTR
+static void drop_echo_reply(struct icmp_net_config *config) {
     assert(0 < ICMP_NET_CONFIG_QLEN(config));
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     struct pbuf *p;
@@ -57,15 +59,10 @@ static void drop_echo_reply(struct netif *netif, struct icmp_net_config *config)
             break;
         }
         process_pbuf(config, p);
+        pbuf_free(p);
 
         ICMP_NET_CONFIG_UNLOCK(config);
         ICMP_NET_CONFIG_LOCK(config);
-    }
-    while (0 && ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
-        if (send_keepalive(netif)) {
-            user_dprintf("keepalive failed");
-            break;
-        }
     }
 }
 
@@ -100,6 +97,8 @@ err_buf:
         pbuf_free(p);
         p = r;
     }
+
+send:
     if (pbuf_header(p, -L2_HLEN)) {
         user_dprintf("move to icmp header failed");
         pbuf_free(p);
@@ -115,7 +114,7 @@ err_buf:
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
             user_dprintf("dropping packet #%u", config->recv_i);
-            drop_echo_reply(netif, config);
+            drop_echo_reply(config);
         }
         config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
         short seqno = config->send_i++;
@@ -136,7 +135,12 @@ err_buf:
         }
     }
     pbuf_free(p);
-    assert(config->slave);
+
+    if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
+        p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
+        goto send;
+    }
+
     return ERR_OK;
 }
 
@@ -153,6 +157,7 @@ static struct icmp_net_config *root = NULL;
  * Process an input ping in pbuf.
  * config must be locked.
  */
+ICACHE_FLASH_ATTR
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert(config->slave);
     extern ip_addr_t current_iphdr_src;
@@ -162,8 +167,6 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
         // TODO check header retransmission, delay
         (*config->slave->input)(p, config->slave);
     }
-
-    pbuf_free(p);
 }
 
 ICACHE_FLASH_ATTR
@@ -174,6 +177,7 @@ err_t icmp_net_init(struct netif *netif) {
     netif->linkoutput = icmp_net_linkoutput;
 
     struct icmp_net_config *config = netif->state;
+    config->netif = netif;
     config->next = root;
     config->slave = NULL;
     config->dhcp_bound_callback = NULL;
@@ -220,7 +224,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     const static s16_t icmp_hlen = sizeof(u32_t) * 2;
     if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_hdr)) {
         user_dprintf("short: %d bytes", p->tot_len);
-        return;
+        goto end;
     }
 
     u8_t type = ((u8_t *)p->payload)[ip_hlen];
@@ -245,23 +249,27 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
             ICMP_NET_CONFIG_LOCK(config);
-            unsigned char queued = ihdr->queued;
-            while (queued-- && ICMP_NET_CONFIG_CAN_KEEPALIVE((struct icmp_net_config *)inp->state)) {
-                if (send_keepalive(inp)) {
-                    user_dprintf("fetch queued: error");
-                    break;
+            if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
+                if (config->recv_i == seqno) {
+                    process_pbuf(config, p);
+                    drop_echo_reply(config);
+                } else {
+                    pbuf_ref(p);
+                    config->queue[seqno % ICMP_NET_QSIZE] = p;
                 }
             }
             ICMP_NET_CONFIG_UNLOCK(config);
 
             ICMP_NET_CONFIG_LOCK(config);
-            if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
-                if (config->recv_i == seqno) {
-                    process_pbuf(config, p);
-                    drop_echo_reply(inp, config);
-                } else {
-                    pbuf_ref(p);
-                    config->queue[seqno % ICMP_NET_QSIZE] = p;
+            int queued = seqno + ihdr->queued + 1 - config->send_i;
+            user_dprintf("q len: %d, seqno: %d, queued: %d, send_i: %d", ICMP_NET_CONFIG_QLEN(config), seqno, queued, config->send_i);
+            while (ICMP_NET_CONFIG_MUST_KEEPALIVE(config) || (queued && ICMP_NET_CONFIG_CAN_KEEPALIVE(config))) {
+                if (queued) {
+                    --queued;
+                }
+                if (send_keepalive(config->netif)) {
+                    user_dprintf("fetch queued: error");
+                    break;
                 }
             }
             ICMP_NET_CONFIG_UNLOCK(config);
