@@ -37,7 +37,7 @@ static inline unsigned short timestamp() {
 ICACHE_FLASH_ATTR
 static err_t send_keepalive(struct netif *netif) {
     ICMP_NET_CONFIG_UNLOCK(config);
-    user_dprintf("sending keepalive");
+    user_dprintf("sending keepalive"); // TODO timeout
     struct pbuf *p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
     pbuf_header(p, (s16_t)-L3_HLEN);
     err_t ret = icmp_net_linkoutput(netif, p);
@@ -60,7 +60,6 @@ static void drop_echo_reply(struct icmp_net_config *config) {
             break;
         }
         process_pbuf(config, p);
-        user_dprintf("freeing %p with refcnt %u", p, p->ref);
         pbuf_free(p);
 
         ICMP_NET_CONFIG_UNLOCK(config);
@@ -148,13 +147,6 @@ send:
     return ERR_OK;
 }
 
-ICACHE_FLASH_ATTR
-static err_t icmp_net_output(struct netif *netif, struct pbuf *p, struct ip_addr *dst) {
-    return icmp_net_linkoutput(netif, p);
-    user_dprintf("");
-    return etharp_output(netif, p, dst);
-}
-
 static struct icmp_net_config *root = NULL;
 
 /**
@@ -177,7 +169,7 @@ ICACHE_FLASH_ATTR
 err_t icmp_net_init(struct netif *netif) {
     netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
     //netif->output = etharp_output;
-    netif->output = icmp_net_output;
+    netif->output = etharp_output;
     netif->linkoutput = icmp_net_linkoutput;
 
     struct icmp_net_config *config = netif->state;
@@ -213,8 +205,6 @@ err_t icmp_net_init(struct netif *netif) {
     netif->num = if_num++;
     netif->mtu = 1400; // TODO discover
     root = config;
-
-    user_dprintf("ccount: %u", ccount());
 
     return ERR_OK;
 }
@@ -263,7 +253,6 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
                         user_dprintf("duplicate packet %u", seqno);
                     } else {
                         pbuf_ref(p);
-                        user_dprintf("saved %p with refcnt %u", p, p->ref);
                         *dst = p;
                     }
                 }
