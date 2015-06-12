@@ -37,6 +37,7 @@ static inline unsigned short timestamp() {
 ICACHE_FLASH_ATTR
 static err_t send_keepalive(struct netif *netif) {
     ICMP_NET_CONFIG_UNLOCK(config);
+    user_dprintf("sending keepalive");
     struct pbuf *p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
     pbuf_header(p, (s16_t)-L3_HLEN);
     err_t ret = icmp_net_linkoutput(netif, p);
