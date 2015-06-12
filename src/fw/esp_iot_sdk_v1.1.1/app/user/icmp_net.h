@@ -7,7 +7,7 @@
 #include "lwip/netif.h"
 
 // Must be a power of 2
-#define ICMP_NET_QSIZE 4U
+#define ICMP_NET_QSIZE 2U
 #define ICMP_NET_MAX_KEEPALIVE 2U
 #define ICMP_NET_MIN_KEEPALIVE 1U
 

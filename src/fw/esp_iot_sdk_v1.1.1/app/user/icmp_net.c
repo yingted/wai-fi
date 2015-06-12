@@ -60,6 +60,7 @@ static void drop_echo_reply(struct icmp_net_config *config) {
             break;
         }
         process_pbuf(config, p);
+        user_dprintf("freeing %p with refcnt %u", p, p->ref);
         pbuf_free(p);
 
         ICMP_NET_CONFIG_UNLOCK(config);
@@ -117,6 +118,7 @@ send:
             user_dprintf("dropping packet #%u", config->recv_i);
             drop_echo_reply(config);
         }
+        assert(ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_QSIZE);
         config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
@@ -138,6 +140,7 @@ send:
     pbuf_free(p);
 
     if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
+        user_dprintf("sending keepalive");
         p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
         goto send;
     }
@@ -255,8 +258,14 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
                     process_pbuf(config, p);
                     drop_echo_reply(config);
                 } else {
-                    pbuf_ref(p);
-                    config->queue[seqno % ICMP_NET_QSIZE] = p;
+                    struct pbuf **dst = &config->queue[seqno % ICMP_NET_QSIZE];
+                    if (*dst) {
+                        user_dprintf("duplicate packet %u", seqno);
+                    } else {
+                        pbuf_ref(p);
+                        user_dprintf("saved %p with refcnt %u", p, p->ref);
+                        *dst = p;
+                    }
                 }
             }
             ICMP_NET_CONFIG_UNLOCK(config);
