@@ -13,6 +13,10 @@
 
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 
+struct icmp_net_hdr {
+    unsigned char queued;
+};
+
 static inline unsigned long ccount() {
     register unsigned long ccount;
     asm(
@@ -46,20 +50,22 @@ static void drop_echo_reply(struct icmp_net_config *config) {
     }
 }
 
+#define L2_HLEN (PBUF_LINK_HLEN + IP_HLEN)
+#define L3_HLEN (L2_HLEN + sizeof(struct icmp_echo_hdr))
+
 ICACHE_FLASH_ATTR
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
+    assert(config->slave);
 
-    const static u16_t l2_hlen = PBUF_LINK_HLEN + IP_HLEN;
-    const static u16_t hlen = l2_hlen + sizeof(struct icmp_echo_hdr);
-    if (pbuf_header(p, hlen)) {
-        struct pbuf *r = pbuf_alloc(PBUF_RAW, hlen + p->tot_len, PBUF_RAM);
+    if (pbuf_header(p, L3_HLEN)) {
+        struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
             pbuf_free(p);
             return ERR_MEM;
         }
-        if (pbuf_header(r, -hlen)) {
+        if (pbuf_header(r, (s16_t)-L3_HLEN)) {
             user_dprintf("reserve header failed");
 err_buf:
             pbuf_free(r);
@@ -70,7 +76,7 @@ err_buf:
             user_dprintf("copy failed");
             goto err_buf;
         }
-        if (pbuf_header(r, hlen)) {
+        if (pbuf_header(r, L3_HLEN)) {
             user_dprintf("move to header failed");
             goto err_buf;
         }
@@ -78,7 +84,7 @@ err_buf:
         pbuf_free(p);
         p = r;
     }
-    if (pbuf_header(p, -l2_hlen)) {
+    if (pbuf_header(p, -L2_HLEN)) {
         user_dprintf("move to icmp header failed");
         pbuf_free(p);
         return ERR_BUF;
@@ -133,7 +139,6 @@ static struct icmp_net_config *root = NULL;
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     extern ip_addr_t current_iphdr_src;
 
-    user_dprintf("config=%p", config);
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
         // TODO check header retransmission, delay
@@ -195,7 +200,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
     const static s16_t icmp_hlen = sizeof(u32_t) * 2;
-    if (p->tot_len < ip_hlen + icmp_hlen) {
+    if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_hdr)) {
         user_dprintf("short: %d bytes", p->tot_len);
         return;
     }
@@ -211,8 +216,23 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         }
 
         struct icmp_echo_hdr *iecho = p->payload;
+        pbuf_header(p, -icmp_hlen);
         uint16_t seqno = ntohs(iecho->seqno);
         user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
+
+        {
+            struct icmp_net_hdr *ihdr = p->payload;
+            assert(sizeof(*ihdr) == 1);
+            pbuf_header(p, (s16_t)-sizeof(*ihdr));
+
+            unsigned char queued = ihdr->queued;
+            while (queued-- && ICMP_NET_CONFIG_KEEPALIVE((struct icmp_net_config *)inp->state)) {
+                if (icmp_net_linkoutput(inp, pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM))) {
+                    user_dprintf("fetch queued: error");
+                    break;
+                }
+            }
+        }
 
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
