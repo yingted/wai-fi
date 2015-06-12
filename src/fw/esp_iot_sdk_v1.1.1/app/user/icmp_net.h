@@ -8,7 +8,8 @@
 
 // Must be a power of 2
 #define ICMP_NET_QSIZE 32U
-#define ICMP_NET_KEEPALIVE_COUNT 16U
+#define ICMP_NET_MAX_KEEPALIVE 16U
+#define ICMP_NET_MIN_KEEPALIVE 1U
 
 struct icmp_net_config {
     struct ip_addr relay_ip;
@@ -33,7 +34,8 @@ struct icmp_net_config {
 };
 
 #define ICMP_NET_CONFIG_QLEN(config) ((config)->send_i - (config)->recv_i)
-#define ICMP_NET_CONFIG_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_KEEPALIVE_COUNT)
+#define ICMP_NET_CONFIG_CAN_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_MAX_KEEPALIVE)
+#define ICMP_NET_CONFIG_MUST_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_MIN_KEEPALIVE)
 #define ICMP_NET_CONFIG_LOCK(config) ets_intr_lock()
 #define ICMP_NET_CONFIG_UNLOCK(config) ets_intr_unlock()
 

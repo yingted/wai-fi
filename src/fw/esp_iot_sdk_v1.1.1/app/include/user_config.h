@@ -6,7 +6,7 @@
 #define assert(...)
 #else
 #define user_dprintf(...) do { \
-    os_printf("%s: ", __func__); \
+    os_printf("%s:%d %s: ", __FILE__, __LINE__, __func__); \
     os_printf(__VA_ARGS__); \
     os_printf("\n"); \
 } while (0)

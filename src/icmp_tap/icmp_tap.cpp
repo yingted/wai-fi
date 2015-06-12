@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 		// Subscribe any active connections to the stream.
 		// Assume that writing to tap is non-blocking.
 		if (FD_ISSET(raw_fd, &fds)) {
-			l = read(raw_fd, buf, sizeof(buf));
+			ssize_t len = recv(raw_fd, buf, sizeof(...), MSG_DONTWAIT | MSG_WAITALL);
 		}
 		// Step 2: Collect data from the tap fd and update the outgoing queues.
 		if (FD_ISSET(tap_fd, &fds)) {
