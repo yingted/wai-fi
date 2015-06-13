@@ -261,7 +261,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 
             ICMP_NET_CONFIG_LOCK(config);
             int queued = seqno + ihdr->queued + 1 - config->send_i;
-            user_dprintf("q len: %d, seqno: %d, queued: %d, send_i: %d", ICMP_NET_CONFIG_QLEN(config), seqno, queued, config->send_i);
+            user_dprintf("qlen: %d, seqno: %d, queued: %d, send_i: %d", ICMP_NET_CONFIG_QLEN(config), seqno, queued, config->send_i);
             while (ICMP_NET_CONFIG_MUST_KEEPALIVE(config) || (queued && ICMP_NET_CONFIG_CAN_KEEPALIVE(config))) {
                 if (queued) {
                     --queued;

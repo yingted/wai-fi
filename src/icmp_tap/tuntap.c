@@ -3,7 +3,8 @@
 #include <string.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
-#include <asm/ioctl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "tuntap.h"
 
@@ -21,7 +22,7 @@ int tun_alloc(char *dev, short type) {
 	 *
 	 *        IFF_NO_PI - Do not  provide packet information
 	 */
-	ifr.ifr_flags = type;
+	ifr.ifr_flags = type | IFF_NO_PI;
 	if( *dev )
 		strncpy(ifr.ifr_name, dev,  IFNAMSIZ);
 

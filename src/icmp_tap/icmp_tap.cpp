@@ -100,6 +100,8 @@ int main(int argc, char *argv[]) {
 	{
 		string cmd = "ip link set dev " + string(dev) + " up";
 		system(cmd.c_str());
+		cmd = "ifconfig " + string(dev) + " 192.168.10.1";
+		system(cmd.c_str());
 	}
 
 	for (;;) {
@@ -146,12 +148,14 @@ int main(int argc, char *argv[]) {
 						}
 						conn.replies.insert(reply);
 
-						printf("writing %u to %s\n", data_len, inet_ntoa(*(in_addr *)&reply.addr));
-						ssize_t written = write(tap_fd, data, data_len);
-						if (written < 0) {
-							perror("write");
-						} else if (written != data_len) {
-							printf("wrote %d instead of %d\n", written, data_len);
+						if (data_len) {
+							printf("writing %d\n", data_len);
+							ssize_t written = write(tap_fd, data, data_len);
+							if (written < 0) {
+								perror("write");
+							} else if (written != data_len) {
+								printf("wrote %d instead of %d\n", written, data_len);
+							}
 						}
 					}
 				}
@@ -228,6 +232,8 @@ int main(int argc, char *argv[]) {
 					perror("sendto");
 				} else if (send_len != sent) {
 					printf("sent %u instead of %u\n", sent, send_len);
+				} else {
+					printf("sent %u to %s\n", sent, inet_ntoa(*(in_addr *)&reply.addr));
 				}
 			}
 
