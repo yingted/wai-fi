@@ -73,15 +73,6 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     assert(config->slave);
 
-{
-    os_printf("eth: ");
-    int i;
-    for (i = 0; i != p->len; ++i) {
-        os_printf("%02x", ((u8_t *)p->payload)[i]);
-    }
-    os_printf("\n");
-}
-
     if (pbuf_header(p, L3_HLEN)) {
         struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
         if (!r) {
@@ -189,7 +180,6 @@ err_t icmp_net_init(struct netif *netif) {
     config->dhcp_bound_callback = NULL;
     config->send_i = config->recv_i = 0;
     {
-        user_dprintf("offset of hwaddr_len: %d", offsetof(struct netif, hwaddr_len));
         netif->hwaddr_len = 6;
         static u8_t *last_hwaddr = NULL;
         if (!last_hwaddr) {
@@ -209,7 +199,6 @@ err_t icmp_net_init(struct netif *netif) {
                 }
             }
         }
-        user_dprintf("mac: %02x:%02x:%02x:%02x:%02x:%02x", last_hwaddr[0], last_hwaddr[1], last_hwaddr[2], last_hwaddr[3], last_hwaddr[4], last_hwaddr[5]);
     }
     const char name[2] = {'i', 'n'};
     os_memcpy(netif->name, name, sizeof(name));

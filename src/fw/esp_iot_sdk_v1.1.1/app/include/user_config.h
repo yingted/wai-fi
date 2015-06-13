@@ -18,8 +18,14 @@
 } while (0)
 #endif
 
+// fix header conflict
 #include "ip_addr.h"
 #define LWIP_OPEN_SRC
+
+// I don't understand why this is necessary for ABI compatibility
+#define mtu mtu __attribute__((aligned(4)))
+#include <lwip/netif.h>
+#undef mtu
 
 #endif
 
