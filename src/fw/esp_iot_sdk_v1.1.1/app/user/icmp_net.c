@@ -73,7 +73,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     assert(config->slave);
 
-    if (pbuf_header(p, L3_HLEN)) {
+    {
         struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
@@ -161,7 +161,6 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
-        // TODO check delay
         err_t rc = config->netif->input(p, config->netif);
         if (rc != ERR_OK) {
             user_dprintf("netif->input: error %d", rc);

@@ -5,7 +5,7 @@
 #include "user_interface.h"
 #include "icmp_net.h"
 #include "lwip/ip4.h"
-#include "espressif/esp8266/uart_register.h"
+#include "lwip/netif/etharp.h"
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -87,7 +87,7 @@ void user_init(void) {
             &linklocal_info.gw,
             &icmp_config,
             icmp_net_init,
-            ip_input
+            ethernet_input
         )) {
         user_dprintf("netif_add failed");
     }

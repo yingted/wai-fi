@@ -241,6 +241,7 @@ int main(int argc, char *argv[]) {
 				auto reply_it = it++;
 				if (reply.time < min_time) {
 					printf("timing out id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
+					// XXX send empty reply?
 					conn.replies.erase(reply_it);
 				}
 			}
