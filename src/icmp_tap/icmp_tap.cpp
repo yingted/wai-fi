@@ -22,6 +22,7 @@ using namespace std;
 #include <boost/circular_buffer.hpp>
 
 #include "tuntap.h"
+#include "inet_checksum.h"
 
 struct icmp_reply {
 	__be32 addr;
@@ -145,6 +146,7 @@ int main(int argc, char *argv[]) {
 						}
 						conn.replies.insert(reply);
 
+						printf("writing %u to %s\n", data_len, inet_ntoa(*(in_addr *)&reply.addr));
 						ssize_t written = write(tap_fd, data, data_len);
 						if (written < 0) {
 							perror("write");
@@ -189,8 +191,8 @@ int main(int argc, char *argv[]) {
 				const icmp_reply &reply = *it;
 				printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 				assert(conn.pos < tot_recv);
-				ssize_t to_send = min<ssize_t>(mtu, tot_recv - conn.pos);
-				assert(to_send <= to_write);
+				ssize_t segsize = min<ssize_t>(mtu, tot_recv - conn.pos);
+				assert(segsize <= to_write);
 
 				char *out = buf;
 
@@ -206,10 +208,11 @@ int main(int argc, char *argv[]) {
 
 				*out++ = queued;
 
-				out = copy(outq.end() - to_write, outq.end() - (to_write - to_send), out);
-				to_write -= to_send;
+				out = copy(outq.end() - to_write, outq.end() - (to_write - segsize), out);
+				to_write -= segsize;
+				conn.pos += segsize;
 
-				//icmp->checksum = in_cksum(icmp, out);//XXX
+				icmp->checksum = inet_checksum(icmp, out);
 
 				struct sockaddr_in dst = {
 					.sin_family = AF_INET,
