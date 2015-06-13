@@ -27,5 +27,7 @@
 #include <lwip/netif.h>
 #undef mtu
 
+#define ssl_client_new SSLClient_new
+
 #endif
 

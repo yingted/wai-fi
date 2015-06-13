@@ -6,6 +6,9 @@
 #include "icmp_net.h"
 #include "lwip/ip4.h"
 #include "lwip/netif/etharp.h"
+#include "lwip/sockets.h"
+#include "ssl/ssl_ssl.h"
+#include "ssl/ssl_tls1.h"
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -14,7 +17,54 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
+int ssl_fd;
+static SSL_CTX *ssl_ctx;
+static SSL *ssl = NULL;
+static uint8_t session_id[32], session_id_size = 0;
 
+ICACHE_FLASH_ATTR
+static inline void on_tunnel_established() {
+    user_dprintf("tunnel established");
+
+    ssl_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (ssl_fd < 0) {
+        user_dprintf("socket: error %d", ssl_fd);
+        return;
+    }
+
+    connect(...);
+
+    ssl = SSLClient_new(ssl_ctx, ssl_fd, session_id_size ? session_id : NULL, session_id_size);
+    if (ssl == NULL) {
+        user_dprintf("ssl_client_new: failed");
+        close(ssl_fd);
+        return;
+    }
+
+    // TODO asyncify
+    int rc;
+    while (ssl_handshake_status(ssl) != SSL_OK) {
+        rc = ssl_read(ssl, NULL);
+        user_dprintf("ssl_read: %d", rc);
+        if (rc < SSL_OK)
+            break;
+    }
+
+    ssl->hs_status = rc;
+
+    if (rc != SSL_OK) {
+        user_dprintf("ssl: handshake failure %d", rc);
+        return;
+    }
+
+    assert(ssl_get_session_id(ssl));
+    os_memcpy(session_id, ssl_get_session_id(ssl),
+        session_id_size = ssl_get_session_id_size(ssl));
+
+    user_dprintf("ssl: connected");
+}
+
+ICACHE_FLASH_ATTR
 void wifi_handle_event_cb(System_Event_t *event) {
     struct netif *saved_default = NULL;
     switch (event->event) {
@@ -36,11 +86,16 @@ void wifi_handle_event_cb(System_Event_t *event) {
                     user_dprintf("dhcp error: %d", rc);
                 }
             } else {
-                user_dprintf("tunnel established");
+                on_tunnel_established();
             }
             break;
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
+
+            if (ssl) {
+                ssl_free(ssl);
+                close(ssl_fd);
+            }
 
             dhcp_stop(&icmp_tap);
 
@@ -58,9 +113,11 @@ void wifi_handle_event_cb(System_Event_t *event) {
     }
 }
 
+ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {
 }
 
+ICACHE_FLASH_ATTR
 void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("user_init()");
@@ -89,6 +146,9 @@ void user_init(void) {
         )) {
         user_dprintf("netif_add failed");
     }
+
+    ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 1);
+    // TODO ssl_obj_memory_load(...)
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 }
