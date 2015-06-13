@@ -170,7 +170,6 @@ int main(int argc, char *argv[]) {
 				if (len == sizeof(buf)) {
 					printf("Warning: buffer full (%u bytes)\n", len);
 				}
-				printf("tap: read %d bytes\n", len);
 				copy(buf, buf + len, back_inserter(outq));
 				tot_recv += len;
 			}
