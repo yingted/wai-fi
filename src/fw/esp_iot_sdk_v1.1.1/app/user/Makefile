@@ -43,3 +43,19 @@ INCLUDES += -I ../../include/ets
 PDIR := ../$(PDIR)
 sinclude $(PDIR)Makefile
 
+default_private_key.pem:
+	openssl genrsa -out $@ 1024
+
+cert_req.pem: default_private_key.pem cert_req.txt
+	openssl req -new -key $< -out $@ < cert_req.txt
+
+default_certificate: cert_req.pem default_private_key.pem
+	openssl x509 -req -days 12000 -in $< -signkey default_private_key.pem -out $@ -outform DER
+
+default_private_key: %: %.pem
+	openssl rsa -in $< -out $@ -outform DER
+
+default_private_key.c default_certificate.c: %.c: %
+	xxd -i $< > $@
+
+CSRCS += default_private_key.c default_certificate.c
