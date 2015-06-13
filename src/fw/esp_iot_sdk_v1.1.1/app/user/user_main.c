@@ -7,8 +7,7 @@
 #include "lwip/ip4.h"
 #include "lwip/netif/etharp.h"
 #include "lwip/sockets.h"
-#include "ssl/ssl_ssl.h"
-#include "ssl/ssl_tls1.h"
+#include "espconn.h"
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -17,51 +16,33 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
-int ssl_fd;
-static SSL_CTX *ssl_ctx;
-static SSL *ssl = NULL;
-static uint8_t session_id[32], session_id_size = 0;
+bool secure_connected = false;
+struct espconn con;
+
+ICACHE_FLASH_ATTR
+static void espconn_connect_cb(void *arg) {
+    user_dprintf("arg=%p", arg);
+}
+
+ICACHE_FLASH_ATTR
+static void espconn_reconnect_cb(void *arg, sint8 err) {
+    user_dprintf("reconnect due to %u", err);
+    espconn_connect_cb(arg);
+}
 
 ICACHE_FLASH_ATTR
 static inline void on_tunnel_established() {
     user_dprintf("tunnel established");
 
-    ssl_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (ssl_fd < 0) {
-        user_dprintf("socket: error %d", ssl_fd);
-        return;
-    }
-
-    connect(...);
-
-    ssl = SSLClient_new(ssl_ctx, ssl_fd, session_id_size ? session_id : NULL, session_id_size);
-    if (ssl == NULL) {
-        user_dprintf("ssl_client_new: failed");
-        close(ssl_fd);
-        return;
-    }
-
-    // TODO asyncify
-    int rc;
-    while (ssl_handshake_status(ssl) != SSL_OK) {
-        rc = ssl_read(ssl, NULL);
-        user_dprintf("ssl_read: %d", rc);
-        if (rc < SSL_OK)
-            break;
-    }
-
-    ssl->hs_status = rc;
-
-    if (rc != SSL_OK) {
-        user_dprintf("ssl: handshake failure %d", rc);
-        return;
-    }
-
-    assert(ssl_get_session_id(ssl));
-    os_memcpy(session_id, ssl_get_session_id(ssl),
-        session_id_size = ssl_get_session_id_size(ssl));
-
-    user_dprintf("ssl: connected");
+    os_memset(&con, 0, sizeof(con));
+    con.type = ESPCONN_TCP;
+    con.state = ESPCONN_NONE;
+    esp_tcp tcp;
+    con.proto.tcp = &tcp;
+    espconn_regist_connectcb(&con, espconn_connect_cb);
+    espconn_regist_reconcb(&con, espconn_reconnect_cb);
+    espconn_secure_connect(&con);
+    secure_connected = true;
 }
 
 ICACHE_FLASH_ATTR
@@ -92,9 +73,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
 
-            if (ssl) {
-                ssl_free(ssl);
-                close(ssl_fd);
+            if (secure_connected) {
+                espconn_secure_disconnect(&con);
             }
 
             dhcp_stop(&icmp_tap);
@@ -146,9 +126,6 @@ void user_init(void) {
         )) {
         user_dprintf("netif_add failed");
     }
-
-    ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 1);
-    // TODO ssl_obj_memory_load(...)
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 }
