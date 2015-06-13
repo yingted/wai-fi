@@ -19,13 +19,12 @@ void wifi_handle_event_cb(System_Event_t *event) {
     struct netif *saved_default = NULL;
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:
-            user_dprintf("ip=" IPSTR " mask=" IPSTR " gw=" IPSTR,
+            user_dprintf("ip " IPSTR " mask " IPSTR " gw " IPSTR,
                       IP2STR(&event->event_info.got_ip.ip),
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
 
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
-            user_dprintf("route to " IPSTR " via " IPSTR, IP2STR(&event->event_info.got_ip.gw), IP2STR(&icmp_config.slave->ip_addr));
 
             assert(saved_default == NULL);
             if (netif_default != &icmp_tap) {
@@ -64,10 +63,7 @@ void user_rf_pre_init(void) {
 
 void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
-#ifndef NDEBUG
-    os_delay_us(1000000);
     user_dprintf("user_init()");
-#endif
 
     wifi_set_opmode_current(STATION_MODE);
     {

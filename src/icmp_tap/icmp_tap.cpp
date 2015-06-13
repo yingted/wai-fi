@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
 						conn.replies.insert(reply);
 
 						if (data_len) {
-							printf("writing %d\n", data_len);
+							printf("tap: writing %d\n", data_len);
 							ssize_t written = write(tap_fd, data, data_len);
 							if (written < 0) {
 								perror("write");
@@ -167,6 +167,7 @@ int main(int argc, char *argv[]) {
 			if (len < 0) {
 				perror("recv tap");
 			} else {
+				printf("tap: reading %d\n", len);
 				if (len == sizeof(buf)) {
 					printf("Warning: buffer full (%u bytes)\n", len);
 				}
