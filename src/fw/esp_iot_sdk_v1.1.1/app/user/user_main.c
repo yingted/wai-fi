@@ -16,7 +16,6 @@ static struct ip_info linklocal_info = {
 };
 
 void wifi_handle_event_cb(System_Event_t *event) {
-    user_dprintf("event={event=%d}", event->event);
     struct netif *saved_default = NULL;
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:

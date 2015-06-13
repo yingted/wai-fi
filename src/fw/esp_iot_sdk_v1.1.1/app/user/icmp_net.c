@@ -128,7 +128,7 @@ send:
 
     {
         struct netif *slave = config->slave;
-        user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len, IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
+        user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
         err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
 
         if (rc != ERR_OK) {
@@ -161,15 +161,17 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
-        // TODO check header retransmission, delay
-        (*config->slave->input)(p, config->slave);
+        // TODO check delay
+        err_t rc = config->netif->input(p, config->netif);
+        if (rc != ERR_OK) {
+            user_dprintf("netif->input: error %d", rc);
+        }
     }
 }
 
 ICACHE_FLASH_ATTR
 err_t icmp_net_init(struct netif *netif) {
     netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
-    //netif->output = etharp_output;
     netif->output = etharp_output;
     netif->linkoutput = icmp_net_linkoutput;
 
@@ -262,6 +264,9 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 
             ICMP_NET_CONFIG_LOCK(config);
             int queued = seqno + ihdr->queued + 1 - config->send_i;
+            if (queued < 0) {
+                queued = 0; // cannot queue negative
+            }
             user_dprintf("qlen: %d, seqno: %d, queued: %d, send_i: %d", ICMP_NET_CONFIG_QLEN(config), seqno, queued, config->send_i);
             while (ICMP_NET_CONFIG_MUST_KEEPALIVE(config) || (queued && ICMP_NET_CONFIG_CAN_KEEPALIVE(config))) {
                 if (queued) {
@@ -291,7 +296,7 @@ void __wrap_netif_set_up(struct netif *netif) {
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
             if (config == netif->state && config->dhcp_bound_callback) {
-                (*config->dhcp_bound_callback)(netif);
+                config->dhcp_bound_callback(netif);
                 break;
             }
         }
