@@ -178,7 +178,6 @@ err_t icmp_net_init(struct netif *netif) {
     config->netif = netif;
     config->next = root;
     config->slave = NULL;
-    config->dhcp_bound_callback = NULL;
     config->send_i = config->recv_i = 0;
     {
         netif->hwaddr_len = 6;
@@ -285,25 +284,4 @@ end:
     }
 
     __real_icmp_input(p, inp);
-}
-
-ICACHE_FLASH_ATTR
-void __wrap_netif_set_up(struct netif *netif) {
-    bool do_callback = !(netif->flags & NETIF_FLAG_UP);
-    __real_netif_set_up(netif);
-    if (do_callback) {
-        struct icmp_net_config *config;
-        for (config = root; config; config = config->next) {
-            if (config == netif->state && config->dhcp_bound_callback) {
-                config->dhcp_bound_callback(netif);
-                break;
-            }
-        }
-    }
-}
-
-ICACHE_FLASH_ATTR
-void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb) {
-    struct icmp_net_config *config = netif->state;
-    config->dhcp_bound_callback = cb;
 }

@@ -24,23 +24,23 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
 
-            user_dprintf("route to " IPSTR ": %p", IP2STR(&event->event_info.got_ip.gw), ip_route(&event->event_info.got_ip.gw));
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
-            user_dprintf("route via " IPSTR, IP2STR(&icmp_config.slave->ip_addr));
+            user_dprintf("route to " IPSTR " via " IPSTR, IP2STR(&event->event_info.got_ip.gw), IP2STR(&icmp_config.slave->ip_addr));
 
             assert(saved_default == NULL);
-            assert(netif_default != &icmp_tap);
-            saved_default = netif_default;
-            netif_default = &icmp_tap;
+            if (netif_default != &icmp_tap) {
+                saved_default = netif_default;
+                netif_default = &icmp_tap;
 
-            err_t rc = dhcp_start(&icmp_tap);
-            user_dprintf("dhcp_start returned %d", (int)rc);
-            if (rc != ERR_OK) {
-                user_dprintf("dhcp error: %d", rc);
+                err_t rc = dhcp_start(&icmp_tap);
+                if (rc != ERR_OK) {
+                    user_dprintf("dhcp error: %d", rc);
+                }
+            } else {
+                user_dprintf("tunnel established");
             }
-            user_dprintf("dhcp: %p", icmp_tap.dhcp);
             break;
-        default:
+        case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
 
             dhcp_stop(&icmp_tap);
@@ -49,12 +49,14 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 netif_default = saved_default;
                 saved_default = NULL;
             }
+        case EVENT_STAMODE_CONNECTED:
             break;
+        case EVENT_STAMODE_AUTHMODE_CHANGE:
+            user_dprintf("unknown event authmode_change");
+            break;
+        default:
+            user_dprintf("unknown event %d", event->event);
     }
-}
-
-void icmp_tap_dhcp_bound_cb(struct netif *netif) {
-    user_dprintf("ip_addr: " IPSTR, IP2STR(&netif->ip_addr));
 }
 
 void user_rf_pre_init(void) {
@@ -91,8 +93,6 @@ void user_init(void) {
         )) {
         user_dprintf("netif_add failed");
     }
-
-    icmp_net_set_dhcp_bound_callback(&icmp_tap, icmp_tap_dhcp_bound_cb);
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 }

@@ -16,7 +16,6 @@ struct icmp_net_config {
     struct netif *slave, *netif;
 // private:
     struct icmp_net_config *next;
-    netif_status_callback_fn dhcp_bound_callback;
     // recv_i <= send_i
     uint16_t recv_i, send_i;
     /**
