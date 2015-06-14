@@ -217,8 +217,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
-    const static s16_t icmp_hlen = sizeof(u32_t) * 2;
-    if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_hdr)) {
+    if (p->tot_len < ip_hlen + sizeof(struct icmp_echo_hdr) + sizeof(struct icmp_net_hdr)) {
         user_dprintf("short: %d bytes", p->tot_len);
         goto end;
     }
@@ -234,12 +233,11 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         }
 
         struct icmp_echo_hdr *iecho = p->payload;
-        pbuf_header(p, -icmp_hlen);
+        pbuf_header(p, (s16_t)-sizeof(*iecho));
         uint16_t seqno = ntohs(iecho->seqno);
-        user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
+        user_dprintf("echo reply: %u ms, seqno=%u, size %d", (((unsigned)(timestamp() - ntohs(iecho->id))) << 14U) / (500U * (unsigned)system_get_cpu_freq()), seqno, p->tot_len - sizeof(*iecho) - 1);
 
         struct icmp_net_hdr *ihdr = p->payload;
-        assert(sizeof(*ihdr) == 1);
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
 
         struct icmp_net_config *config;
