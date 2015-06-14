@@ -22,6 +22,11 @@ struct icmp_net_hdr {
     unsigned char queued, pad_[3];
 };
 
+static void assert_heap() {
+    uint32_t heap = system_get_free_heap_size();
+    assert(20000 <= heap && heap <= 50000);
+}
+
 static inline unsigned long ccount() {
     register unsigned long ccount;
     asm(
@@ -78,6 +83,19 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
         if (!r) {
             user_dprintf("no memory");
             pbuf_free(p);
+{
+    struct block {
+        struct block *next;
+        size_t size;
+    };
+    extern void *_heap_start; // 0x3fffbff8 ?
+    uint32_t ulAddress = (uint32_t) _heap_start;
+    ulAddress &= -8;
+    struct block *cur = (struct block *)ulAddress;
+    for (;; cur = cur->next) {
+        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
+    }
+}
             return ERR_MEM;
         }
         if (pbuf_header(r, (s16_t)-L3_HLEN)) {
@@ -123,7 +141,7 @@ send:
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
         iecho->seqno = htons(seqno);
-        iecho->chksum = inet_chksum(iecho, p->len);
+        iecho->chksum = inet_chksum(p->payload, p->len);
     }
 
     {
@@ -279,9 +297,84 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         }
 
 end:
+        assert_heap();
         pbuf_free(p);
         return;
     }
 
+    assert_heap();
     __real_icmp_input(p, inp);
+    assert_heap();
+}
+
+#define pvPort(Malloc) \
+void *__real_pvPort ## Malloc(size_t size); \
+ICACHE_FLASH_ATTR \
+void *__wrap_pvPort ## Malloc(size_t size) { \
+    void *ret = __real_pvPort ## Malloc(size); \
+    if (!ret) { \
+{ \
+    struct block { \
+        struct block *next; \
+        size_t size; \
+    }; \
+    extern void *_heap_start; /* 0x3fffbff8 ? */ \
+    uint32_t ulAddress = (uint32_t) _heap_start; \
+    ulAddress &= -8; \
+    struct block *cur = (struct block *)ulAddress; \
+    for (;; cur = cur->next) { \
+        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur)); \
+    } \
+} \
+    } \
+    return ret; \
+} \
+
+pvPort(Malloc)
+pvPort(Realloc)
+pvPort(Zalloc)
+pvPort(Calloc)
+
+void *__real_esf_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_esf_buf_alloc(long a, long b) {
+    void *ret = __real_esf_buf_alloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
+void *__real_esf_rx_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_esf_rx_buf_alloc(long a, long b) {
+    void *ret = __real_esf_rx_buf_alloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
+void *__real_mem_malloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_mem_malloc(long a, long b) {
+    void *ret = __real_mem_malloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
+void *__real_mem_realloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_mem_realloc(long a, long b) {
+    void *ret = __real_mem_realloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
 }

@@ -11,11 +11,12 @@ cleanup() {
 }
 trap 'cleanup' EXIT INT QUIT TERM
 sudo iw phy phy0 interface add wlp3s0v1 type station
+channel="$(iwlist wlp3s0 channel | sed -n 's/.*Current.*Channel \([0-9]\+\).*/\1/p')"
 cat > hostapd.conf << EOF
 interface=wlp3s0v1
 driver=nl80211
 ssid=icmp-test
-channel=$(iwlist wlp3s0 channel | sed -n 's/.*Current.*Channel \([0-9]\+\).*/\1/p')
+channel=${channel:-6}
 EOF
 sudo hostapd hostapd.conf & hostapd=$!
 sudo ifconfig wlp3s0v1 192.168.9.1
