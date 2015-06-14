@@ -33,7 +33,7 @@ static void close_tcp() {
 
 ICACHE_FLASH_ATTR
 static err_t tcp_connected_cb(void *arg, struct tcp_pcb *tcp, err_t err) {
-    user_dprintf("tcp connected");
+    user_dprintf("tcp connected, heap: %d", system_get_free_heap_size());
 
     ssl = SSLClient_new(ssl_ctx, tcp, session_id_size ? session_id : NULL, session_id_size);
     if (ssl == NULL) {
@@ -42,9 +42,9 @@ static err_t tcp_connected_cb(void *arg, struct tcp_pcb *tcp, err_t err) {
         return;
     }
 
-    // TODO asyncify
     int rc;
     while (ssl_handshake_status(ssl) != SSL_OK) {
+        user_dprintf("trying ssl_read");
         rc = ssl_read(ssl, NULL);
         user_dprintf("ssl_read: %d", rc);
         if (rc < SSL_OK)
@@ -65,15 +65,27 @@ static err_t tcp_connected_cb(void *arg, struct tcp_pcb *tcp, err_t err) {
     user_dprintf("ssl: connected");
 }
 
+static void start_ssl();
 ICACHE_FLASH_ATTR
-static inline void on_tunnel_established() {
-    user_dprintf("tunnel established");
+static void tcp_err_cb(void *arg, err_t err) {
+    user_dprintf("cause: %d", err);
+    if (ssl != NULL) {
+        ssl_free(ssl);
+        ssl = NULL;
+    }
+    tcp = NULL;
+    start_ssl();
+}
 
+ICACHE_FLASH_ATTR
+static void start_ssl() {
     tcp = tcp_new();
     if (tcp == NULL) {
         user_dprintf("tcp: allocate failed");
         return;
     }
+
+    tcp_err(tcp, tcp_err_cb);
 
     if (tcp_bind(tcp, &icmp_tap.ip_addr, 0U) != ERR_OK) {
         user_dprintf("tcp: bind failed");
@@ -111,7 +123,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
                     user_dprintf("dhcp error: %d", rc);
                 }
             } else {
-                on_tunnel_established();
+                user_dprintf("tunnel established");
+                start_ssl();
             }
             break;
         case EVENT_STAMODE_DISCONNECTED:
@@ -178,4 +191,10 @@ void user_init(void) {
     ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 1);
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
+}
+
+void __real_os_update_cpu_frequency(int freq);
+void __wrap_os_update_cpu_frequency(int freq) {
+    __real_os_update_cpu_frequency(freq);
+    uart_div_modify(0, UART_CLK_FREQ / 115200);
 }

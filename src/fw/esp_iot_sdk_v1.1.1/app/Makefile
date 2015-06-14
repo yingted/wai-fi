@@ -118,6 +118,7 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 # ICMP hook
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
+	-Wl,-wrap,os_update_cpu_frequency \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip
