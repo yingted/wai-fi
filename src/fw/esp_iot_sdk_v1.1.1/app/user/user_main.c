@@ -31,11 +31,14 @@ static void close_tcp() {
     }
 }
 
+EXP_FUNC SSL *STDCALL ICACHE_FLASH_ATTR my_SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb, const
+        uint8_t *session_id, uint8_t sess_id_size);
+
 ICACHE_FLASH_ATTR
 static err_t tcp_connected_cb(void *arg, struct tcp_pcb *tcp, err_t err) {
     user_dprintf("tcp connected, heap: %d", system_get_free_heap_size());
 
-    ssl = SSLClient_new(ssl_ctx, tcp, session_id_size ? session_id : NULL, session_id_size);
+    ssl = my_SSLClient_new(ssl_ctx, tcp, session_id_size ? session_id : NULL, session_id_size);
     if (ssl == NULL) {
         user_dprintf("ssl_client_new: failed");
         close_tcp();
@@ -55,6 +58,8 @@ static err_t tcp_connected_cb(void *arg, struct tcp_pcb *tcp, err_t err) {
 
     if (rc != SSL_OK) {
         user_dprintf("ssl: handshake failure %d", rc);
+        user_dprintf("heap: %d", system_get_free_heap_size());
+        assert(system_get_free_heap_size() <= 80000);
         return;
     }
 
@@ -188,13 +193,45 @@ void user_init(void) {
         user_dprintf("netif_add failed");
     }
 
-    ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 1);
+    ssl_ctx = ssl_ctx_new(SSL_SERVER_VERIFY_LATER | SSL_DISPLAY_CERTS | SSL_NO_DEFAULT_KEY, 1);
+    if (ssl_ctx == NULL) {
+        user_dprintf("ssl_ctx_new failed");
+    }
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 }
 
-void __real_os_update_cpu_frequency(int freq);
-void __wrap_os_update_cpu_frequency(int freq) {
-    __real_os_update_cpu_frequency(freq);
+void __real_ets_update_cpu_frequency(int freq);
+ICACHE_FLASH_ATTR
+void __wrap_ets_update_cpu_frequency(int freq) {
+    __real_ets_update_cpu_frequency(freq);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
+}
+
+int __real_do_client_connect(SSL *ssl);
+ICACHE_FLASH_ATTR
+int __wrap_do_client_connect(SSL *ssl) {
+    user_dprintf("%p", ssl);
+    user_dprintf("bm_data: %p", ssl->bm_data);
+    return __real_do_client_connect(ssl);
+}
+
+EXP_FUNC SSL *STDCALL ICACHE_FLASH_ATTR my_SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb, const
+        uint8_t *session_id, uint8_t sess_id_size)
+{
+    SSL *ssl_new_context(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb);
+    SSL *ssl = ssl_new_context(ssl_ctx, SslClient_pcb);
+    ssl->version = SSL_PROTOCOL_VERSION_MAX;
+    if (session_id && ssl_ctx->num_sessions) {
+        if (sess_id_size > SSL_SESSION_ID_SIZE) {
+            ssl_free(ssl);
+            return NULL;
+        }
+        os_memcpy(ssl->session_id, session_id, sess_id_size);
+        ssl->sess_id_size = sess_id_size;
+        SET_SSL_FLAG(SSL_SESSION_RESUME);
+    }
+    SET_SSL_FLAG(SSL_IS_CLIENT);
+    do_client_connect(ssl);
+    return ssl;
 }
