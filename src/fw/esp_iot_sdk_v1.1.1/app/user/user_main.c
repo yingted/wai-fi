@@ -20,30 +20,43 @@ bool secure_connected = false;
 struct espconn con;
 
 ICACHE_FLASH_ATTR
-static void espconn_connect_cb(void *arg) {
-    user_dprintf("arg=%p", arg);
+static void assert_heap() {
+    uint32_t heap = system_get_free_heap_size();
+    user_dprintf("heap: %u", heap);
+    if (!(20000 <= heap && heap <= 50000)) {
+        assert(false);
+    }
 }
 
-static void on_tunnel_established();
+ICACHE_FLASH_ATTR
+static void espconn_connect_cb(void *arg) {
+    user_dprintf("arg=%p", arg);
+    assert_heap();
+}
+
+static void connect_ssl();
+ICACHE_FLASH_ATTR
+static void schedule_reconnect() {
+    //espconn_secure_disconnect(&con);
+    secure_connected = false;
+    assert_heap();
+    //sys_timeout(1000, connect_ssl, NULL);
+    connect_ssl();
+}
+
 ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
-    user_dprintf("reconnect due to %u", err);
-    espconn_secure_disconnect(&con);
-    secure_connected = false;
-    on_tunnel_established();
+    user_dprintf("reconnect due to %d", err);
+    schedule_reconnect();
 }
 
 ICACHE_FLASH_ATTR
 static void espconn_disconnect_cb(void *arg) {
-    espconn_secure_disconnect(&con);
-    secure_connected = false;
-    on_tunnel_established();
+    schedule_reconnect();
 }
 
 ICACHE_FLASH_ATTR
-static void on_tunnel_established() {
-    user_dprintf("tunnel established");
-
+static void connect_ssl() {
     os_memset(&con, 0, sizeof(con));
     con.type = ESPCONN_TCP;
     con.state = ESPCONN_NONE;
@@ -51,22 +64,24 @@ static void on_tunnel_established() {
         static esp_tcp tcp;
         memset(&tcp, 0, sizeof(tcp));
         tcp.remote_port = 55555;
-        tcp.local_port = espconn_port();
-        const static unsigned char local_ip[] = {192, 168, 10, 96};
-        const static unsigned char remote_ip[] = {192, 168, 10, 1};
-        os_memcpy(tcp.local_ip, local_ip, sizeof(local_ip));
-        os_memcpy(tcp.remote_ip, remote_ip, sizeof(remote_ip));
+        os_memcpy(tcp.local_ip, &icmp_tap.ip_addr, sizeof(struct ip_addr));
+        os_memcpy(tcp.remote_ip, &icmp_tap.gw, sizeof(struct ip_addr));
 
         con.proto.tcp = &tcp;
     }
+    assert_heap();
     espconn_regist_connectcb(&con, espconn_connect_cb);
     espconn_regist_reconcb(&con, espconn_reconnect_cb);
     espconn_regist_disconcb(&con, espconn_disconnect_cb);
+    assert_heap();
 
     user_dprintf("starting connection");
+    assert_heap();
+    ets_intr_lock();
     sint8 rc = espconn_secure_connect(&con);
-    user_dprintf("started connection: %u", rc);
-    user_dprintf("heap: %u", system_get_free_heap_size());
+    ets_intr_unlock();
+    user_dprintf("started connection: %d", rc);
+    assert_heap();
     if (rc) {
         user_dprintf("espconn_secure_connect: error %u", rc);
         return;
@@ -96,7 +111,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
                     user_dprintf("dhcp error: %d", rc);
                 }
             } else {
-                on_tunnel_established();
+                user_dprintf("tunnel established");
+                connect_ssl();
             }
             break;
         case EVENT_STAMODE_DISCONNECTED:
@@ -130,6 +146,7 @@ ICACHE_FLASH_ATTR
 void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("user_init()");
+    user_dprintf("heap: %d", system_get_free_heap_size());
 
     wifi_set_opmode_current(STATION_MODE);
     {
