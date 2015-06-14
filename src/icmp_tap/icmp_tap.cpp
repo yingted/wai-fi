@@ -109,7 +109,12 @@ int main(int argc, char *argv[]) {
 		FD_SET(tap_fd, &fds);
 		FD_SET(raw_fd, &fds);
 
-		select(fd_max, &fds, NULL, NULL, NULL);
+		struct timeval timeout = {
+			.tv_sec = 1,
+			.tv_usec = 0,
+		};
+
+		select(fd_max, &fds, NULL, NULL, &timeout);
 
 		// Step 1: Collect echo requests and write out data to the tap fd.
 		// Subscribe any active connections to the stream.
@@ -245,6 +250,14 @@ int main(int argc, char *argv[]) {
 					// XXX send empty reply?
 					conn.replies.erase(reply_it);
 				}
+			}
+		}
+		for (auto it = conns.begin(); it != conns.end();) {
+			if (it->second.replies.empty()) {
+				printf("closing connection\n");
+				conns.erase(it++);
+			} else {
+				++it;
 			}
 		}
 	}

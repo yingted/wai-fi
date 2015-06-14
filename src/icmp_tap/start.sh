@@ -3,6 +3,7 @@ sudo killall dnsmasq icmp_tap hostapd
 cleanup() {
 	echo exiting
 	sudo kill $hostapd $dnsmasq $icmp_tap
+	sudo killall dnsmasq icmp_tap hostapd
 	sleep .1
 	sudo kill -TERM $hostapd $dnsmasq $icmp_tap
 	sleep .1
