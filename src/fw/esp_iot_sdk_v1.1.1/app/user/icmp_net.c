@@ -19,7 +19,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
 struct icmp_net_hdr {
-    unsigned char queued;
+    unsigned char queued, pad_[3];
 };
 
 static inline unsigned long ccount() {
@@ -159,6 +159,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert(config->slave);
     extern ip_addr_t current_iphdr_src;
 
+    assert((((long)p->payload) & 0x3) == 0);
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
         err_t rc = config->netif->input(p, config->netif);
@@ -238,7 +239,6 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
 
         struct icmp_net_hdr *ihdr = p->payload;
-        assert(sizeof(*ihdr) == 1);
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
 
         struct icmp_net_config *config;

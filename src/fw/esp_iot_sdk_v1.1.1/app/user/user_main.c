@@ -24,16 +24,24 @@ static void espconn_connect_cb(void *arg) {
     user_dprintf("arg=%p", arg);
 }
 
-#if 0
+static void on_tunnel_established();
 ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %u", err);
-    espconn_reconnect_callback(arg, err);
+    espconn_secure_disconnect(&con);
+    secure_connected = false;
+    on_tunnel_established();
 }
-#endif
 
 ICACHE_FLASH_ATTR
-static inline void on_tunnel_established() {
+static void espconn_disconnect_cb(void *arg) {
+    espconn_secure_disconnect(&con);
+    secure_connected = false;
+    on_tunnel_established();
+}
+
+ICACHE_FLASH_ATTR
+static void on_tunnel_established() {
     user_dprintf("tunnel established");
 
     os_memset(&con, 0, sizeof(con));
@@ -52,7 +60,8 @@ static inline void on_tunnel_established() {
         con.proto.tcp = &tcp;
     }
     espconn_regist_connectcb(&con, espconn_connect_cb);
-    //espconn_regist_reconcb(&con, espconn_reconnect_cb);
+    espconn_regist_reconcb(&con, espconn_reconnect_cb);
+    espconn_regist_disconcb(&con, espconn_disconnect_cb);
 
     user_dprintf("starting connection");
     sint8 rc = espconn_secure_connect(&con);

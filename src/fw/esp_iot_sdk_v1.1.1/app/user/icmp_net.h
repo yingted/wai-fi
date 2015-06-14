@@ -8,7 +8,7 @@
 
 // Must be a power of 2
 #define ICMP_NET_QSIZE 4U
-#define ICMP_NET_MAX_KEEPALIVE 3U
+#define ICMP_NET_MAX_KEEPALIVE 2U
 #define ICMP_NET_MIN_KEEPALIVE 1U
 
 struct icmp_net_config {

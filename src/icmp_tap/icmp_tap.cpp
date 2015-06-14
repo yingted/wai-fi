@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
 		for (auto &it : conns) {
 			connection &conn = it.second;
 			ssize_t to_write = tot_recv - conn.pos;
-			ssize_t mtu = 1400 - 1; // for header
+			ssize_t mtu = 1400 - 4; // for header
 			int packets = (to_write + mtu - 1) / mtu;
 			unsigned char queued = max<unsigned char>(0, min<unsigned long>(UCHAR_MAX, packets - conn.replies.size()));
 			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {
@@ -216,6 +216,10 @@ int main(int argc, char *argv[]) {
 				}
 
 				*out++ = queued;
+				// padding
+				*out++ = 0;
+				*out++ = 0;
+				*out++ = 0;
 
 				out = copy(outq.end() - to_write, outq.end() - (to_write - segsize), out);
 				to_write -= segsize;
