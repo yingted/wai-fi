@@ -335,6 +335,7 @@ pvPort(Realloc)
 pvPort(Zalloc)
 pvPort(Calloc)
 
+#if 0
 void *__real_esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_buf_alloc(long a, long b) {
@@ -345,6 +346,7 @@ void *__wrap_esf_buf_alloc(long a, long b) {
     }
     return ret;
 }
+#endif
 
 void *__real_esf_rx_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
@@ -377,4 +379,48 @@ void *__wrap_mem_realloc(long a, long b) {
         assert(false);
     }
     return ret;
+}
+
+u16_t
+__real_inet_chksum_pseudo(struct pbuf *p, 
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pseudo(struct pbuf *p, 
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len) {
+    user_dprintf("%p", p);
+    return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
+}
+
+u16_t
+__real_inet_chksum_pseudo_partial(struct pbuf *p,
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len, u16_t chksum_len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pseudo_partial(struct pbuf *p,
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len, u16_t chksum_len) {
+    user_dprintf("%p", p);
+    return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
+}
+
+u16_t
+__real_inet_chksum(void *dataptr, u16_t len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum(void *dataptr, u16_t len) {
+    user_dprintf("%p", dataptr);
+    return __real_inet_chksum(dataptr, len);
+}
+
+u16_t
+__real_inet_chksum_pbuf(struct pbuf *p);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pbuf(struct pbuf *p) {
+    user_dprintf("%p", p);
+    return __real_inet_chksum_pbuf(p);
 }

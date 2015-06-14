@@ -118,15 +118,19 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 # ICMP hook
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
-	-Wl,-wrap,pvPortMalloc,-u,pvPortMalloc \
-	-Wl,-wrap,pvPortRealloc,-u,pvPortRealloc \
-	-Wl,-wrap,pvPortCalloc,-u,pvPortCalloc \
-	-Wl,-wrap,pvPortZalloc,-u,pvPortZalloc \
-	-Wl,-wrap,esf_buf_alloc,-u,esf_buf_alloc \
-	-Wl,-wrap,esf_rx_buf_alloc,-u,esf_rx_buf_alloc \
-	-Wl,-wrap,mem_malloc,-u,mem_malloc \
-	-Wl,-wrap,mem_realloc,-u,mem_realloc \
+	-Wl,-wrap,pvPortMalloc \
+	-Wl,-wrap,pvPortRealloc \
+	-Wl,-wrap,pvPortCalloc \
+	-Wl,-wrap,pvPortZalloc \
+	-Wl,-wrap,esf_rx_buf_alloc \
+	-Wl,-wrap,mem_malloc \
+	-Wl,-wrap,mem_realloc \
+	-Wl,-wrap,inet_chksum_pseudo \
+	-Wl,-wrap,inet_chksum_pseudo_partial \
+	-Wl,-wrap,inet_chksum \
+	-Wl,-wrap,inet_chksum_pbuf \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
+	#-Wl,-wrap,esf_buf_alloc \
 
 INCLUDES += -I $(PDIR)../include/lwip
 INCLUDES += -I $(PDIR)../include/lwip/ipv4
