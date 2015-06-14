@@ -118,10 +118,6 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 # ICMP hook
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
-	-Wl,-wrap,SSLClient_new,-u,SSLClient_new \
-	-Wl,-wrap,ssl_ctx_new,-u,ssl_ctx_new \
-	-Wl,-wrap,espconn_ssl_client,-u,espconn_ssl_client \
-	-Wl,-wrap,ets_post,-u,ets_post \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip
