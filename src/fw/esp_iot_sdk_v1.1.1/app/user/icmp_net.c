@@ -18,13 +18,47 @@
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
+ICACHE_FLASH_ATTR
+static void mem_error() {
+    struct block {
+        struct block *next;
+        size_t size;
+    };
+    extern void *_heap_start; // 0x3fffbff8 ?
+    uint32_t ulAddress = (uint32_t) _heap_start;
+    ulAddress &= -8;
+    struct block *cur = (struct block *)ulAddress;
+    for (;; cur = cur->next) {
+        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
+    }
+}
+
+extern void *esf_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void show_esf_buf() {
+    struct node {
+        char data_[32];
+        struct node *next;
+    } *cur = (void *)*(((char **)0x40101384)-1);
+    os_printf("esf_buf: (rx=%p)", (char **)esf_buf_alloc);
+    for (; cur; cur = (((long)cur) & 0x3) ? NULL : cur->next) {
+        os_printf(" %p", cur);
+    }
+    os_printf("\n");
+}
+
 struct icmp_net_hdr {
     unsigned char queued, pad_[3];
 };
 
+ICACHE_FLASH_ATTR
 static void assert_heap() {
     uint32_t heap = system_get_free_heap_size();
-    assert(20000 <= heap && heap <= 50000);
+    if (!(20000 <= heap && heap <= 50000)) {
+        user_dprintf("heap: %d", heap);
+        assert(false);
+    }
+    show_esf_buf();
 }
 
 static inline unsigned long ccount() {
@@ -45,6 +79,9 @@ static err_t send_keepalive(struct netif *netif) {
     ICMP_NET_CONFIG_UNLOCK(config);
     user_dprintf("sending keepalive"); // TODO timeout
     struct pbuf *p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
+    if (p == NULL) {
+        mem_error();
+    }
     pbuf_header(p, (s16_t)-L3_HLEN);
     err_t ret = icmp_net_linkoutput(netif, p);
     ICMP_NET_CONFIG_LOCK(config);
@@ -83,19 +120,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
         if (!r) {
             user_dprintf("no memory");
             pbuf_free(p);
-{
-    struct block {
-        struct block *next;
-        size_t size;
-    };
-    extern void *_heap_start; // 0x3fffbff8 ?
-    uint32_t ulAddress = (uint32_t) _heap_start;
-    ulAddress &= -8;
-    struct block *cur = (struct block *)ulAddress;
-    for (;; cur = cur->next) {
-        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
-    }
-}
+            mem_error();
             return ERR_MEM;
         }
         if (pbuf_header(r, (s16_t)-L3_HLEN)) {
@@ -160,6 +185,9 @@ send:
     if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
         user_dprintf("sending keepalive");
         p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
+        if (p == NULL) {
+            mem_error();
+        }
         goto send;
     }
 
@@ -335,18 +363,19 @@ pvPort(Realloc)
 pvPort(Zalloc)
 pvPort(Calloc)
 
-#if 0
 void *__real_esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_buf_alloc(long a, long b) {
+    user_dprintf("%ld %ld", a, b);
+    ets_intr_lock();
     void *ret = __real_esf_buf_alloc(a, b);
+    ets_intr_unlock();
     if (!ret) {
-        user_dprintf("%ld %ld", a, b);
+        //user_dprintf("%ld %ld", a, b);
         assert(false);
     }
     return ret;
 }
-#endif
 
 void *__real_esf_rx_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
@@ -381,6 +410,7 @@ void *__wrap_mem_realloc(long a, long b) {
     return ret;
 }
 
+#if 0
 u16_t
 __real_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
@@ -390,7 +420,7 @@ u16_t
 __wrap_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len) {
-    user_dprintf("%p", p);
+    //user_dprintf("%p", p);
     return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
 }
 
@@ -403,7 +433,7 @@ u16_t
 __wrap_inet_chksum_pseudo_partial(struct pbuf *p,
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len, u16_t chksum_len) {
-    user_dprintf("%p", p);
+    //user_dprintf("%p", p);
     return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
 }
 
@@ -412,7 +442,7 @@ __real_inet_chksum(void *dataptr, u16_t len);
 ICACHE_FLASH_ATTR
 u16_t
 __wrap_inet_chksum(void *dataptr, u16_t len) {
-    user_dprintf("%p", dataptr);
+    //user_dprintf("%p", dataptr);
     return __real_inet_chksum(dataptr, len);
 }
 
@@ -421,6 +451,7 @@ __real_inet_chksum_pbuf(struct pbuf *p);
 ICACHE_FLASH_ATTR
 u16_t
 __wrap_inet_chksum_pbuf(struct pbuf *p) {
-    user_dprintf("%p", p);
+    //user_dprintf("%p", p);
     return __real_inet_chksum_pbuf(p);
 }
+#endif

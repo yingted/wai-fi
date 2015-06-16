@@ -147,6 +147,8 @@ void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("user_init()");
     user_dprintf("heap: %d", system_get_free_heap_size());
+    void show_esf_buf();
+    show_esf_buf();
 
     wifi_set_opmode_current(STATION_MODE);
     {
