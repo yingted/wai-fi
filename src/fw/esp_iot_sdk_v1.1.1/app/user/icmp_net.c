@@ -36,13 +36,20 @@ static void mem_error() {
 extern void *esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void show_esf_buf() {
+    int lmacIsActive();
+    os_printf("lmac: %d ", lmacIsActive());
     struct node {
         char data_[32];
         struct node *next;
-    } *cur = (void *)*(((char **)0x40101384)-1);
-    os_printf("esf_buf: (rx=%p)", (char **)esf_buf_alloc);
-    for (; cur; cur = (((long)cur) & 0x3) ? NULL : cur->next) {
-        os_printf(" %p", cur);
+    } **base = (struct node **)*((char ***)0x40101380), *cur;
+    int i;
+    os_printf("esf_buf:");
+    for (i = 0; i < 5; ++i) { // esf_buf 1, 4, 5, 6, esf_rx_buf (in order)
+        os_printf(" [%d", i);
+        for (cur = base[i]; cur; cur = (((long)cur) & 0x3) ? NULL : cur->next) {
+            os_printf(" %p", cur);
+        }
+        os_printf("]");
     }
     os_printf("\n");
 }
@@ -172,7 +179,11 @@ send:
     {
         struct netif *slave = config->slave;
         user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
+        ets_intr_lock();
+        int lmacIsActive();
+        assert(!lmacIsActive());
         err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
+        ets_intr_unlock();
 
         if (rc != ERR_OK) {
             user_dprintf("error: %d", rc);
@@ -366,12 +377,11 @@ pvPort(Calloc)
 void *__real_esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_buf_alloc(long a, long b) {
-    user_dprintf("%ld %ld", a, b);
     ets_intr_lock();
     void *ret = __real_esf_buf_alloc(a, b);
     ets_intr_unlock();
+    user_dprintf("%ld %ld => %p", a, b, ret);
     if (!ret) {
-        //user_dprintf("%ld %ld", a, b);
         assert(false);
     }
     return ret;
@@ -381,8 +391,8 @@ void *__real_esf_rx_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_rx_buf_alloc(long a, long b) {
     void *ret = __real_esf_rx_buf_alloc(a, b);
+    user_dprintf("%ld %ld => %p", a, b, ret);
     if (!ret) {
-        user_dprintf("%ld %ld", a, b);
         assert(false);
     }
     return ret;
