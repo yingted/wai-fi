@@ -184,27 +184,41 @@ void show_esf_buf() {
         struct block *next;
         size_t size;
     };
-    uint32_t ulAddress = (uint32_t) 0x3ffe9e38;
-#if 0
+    size_t heap_size = system_get_free_heap_size();
+    size_t *addr = (void *)0x3ffe9e38;
+    int i;
     void vPortFree(void *);
     void *ptr = pvPortMalloc(4); // XXX crashes
     user_dprintf("malloc(4) = %p", ptr);
     vPortFree(ptr);
-    void **it = (void *)(ulAddress - 1024);
-    user_dprintf("heap: %p", (void *)ulAddress);
-    int i;
-    for (i = 0; i < 20000; ++i) {
-        if ((((char *)ptr) - 128) <= (char *)*it && (char *)*it <= ((char *)ptr) + 128) {
-            user_dprintf("found %p ~ %p at %p", *it, ptr, it);
-            user_dprintf("size: %d", ((struct block *)it)->size);
-        }
-        ++it;
+    static struct block *cur = NULL;
+    if (cur) {
+        goto found;
     }
-#endif
-    ulAddress &= -8;
-    struct block *cur = (struct block *)ulAddress;
+    for (i = -1000; i <= 1000; ++i) {
+        if (addr[i] == heap_size) {
+            user_dprintf("found xFreeBytesRemaining=%d: %p", heap_size, addr + i);
+            int j;
+            void **it = (void *)(addr + i);
+            for (j = -10; j <= 10; ++j) {
+                if ((((char *)ptr) - 128) <= (char *)it[j] && (char *)it[j] <= ((char *)ptr) + 128) {
+                    if (((struct block *)(it + j))->size == 0) {
+                        cur = (void *)(it + j);
+                        goto found;
+                    }
+                }
+            }
+        }
+    }
+    assert(false /* no heap */);
+found:
     for (; cur != NULL && (3 & (long) cur) == 0; cur = cur->next) {
         user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
+        if (heap_size <= cur->size) {
+            break;
+        }
+        user_dprintf("next: %p", cur->next);
+        heap_size -= cur->size;
     }
 }
 }
