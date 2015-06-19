@@ -117,7 +117,7 @@ void *__wrap_esf_rx_buf_alloc(long a, long b) {
     ets_intr_lock();
     void *ret = __real_esf_rx_buf_alloc(a, b);
     ets_intr_unlock();
-    user_dprintf("%ld %ld => %p", a, b, ret);
+    //user_dprintf("%ld %ld => %p", a, b, ret);
     if (!ret) {
         assert(false);
     }
