@@ -126,11 +126,11 @@ LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,esf_rx_buf_alloc \
 	-Wl,-wrap,mem_malloc \
 	-Wl,-wrap,mem_realloc \
+	-Wl,-wrap,inet_chksum_pseudo \
+	-Wl,-wrap,inet_chksum_pseudo_partial \
+	-Wl,-wrap,inet_chksum \
+	-Wl,-wrap,inet_chksum_pbuf \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
-	#-Wl,-wrap,inet_chksum_pseudo \
-	#-Wl,-wrap,inet_chksum_pseudo_partial \
-	#-Wl,-wrap,inet_chksum \
-	#-Wl,-wrap,inet_chksum_pbuf \
 
 INCLUDES += -I $(PDIR)../include/lwip
 INCLUDES += -I $(PDIR)../include/lwip/ipv4

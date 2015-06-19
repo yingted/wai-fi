@@ -18,6 +18,134 @@
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
+#define inet_chksum_pseudo __real_inet_chksum_pseudo
+u16_t
+__real_inet_chksum_pseudo(struct pbuf *p, 
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pseudo(struct pbuf *p, 
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len) {
+    //user_dprintf("%p", p);
+    return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
+}
+
+#define inet_chksum_pseudo_partial __real_inet_chksum_pseudo_partial
+u16_t
+__real_inet_chksum_pseudo_partial(struct pbuf *p,
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len, u16_t chksum_len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pseudo_partial(struct pbuf *p,
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len, u16_t chksum_len) {
+    //user_dprintf("%p", p);
+    return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
+}
+
+#define inet_chksum __real_inet_chksum
+u16_t
+__real_inet_chksum(void *dataptr, u16_t len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum(void *dataptr, u16_t len) {
+    //user_dprintf("%p", dataptr);
+    return __real_inet_chksum(dataptr, len);
+}
+
+#define inet_chksum_pbuf __real_inet_chksum_pbuf
+u16_t
+__real_inet_chksum_pbuf(struct pbuf *p);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pbuf(struct pbuf *p) {
+    //user_dprintf("%p", p);
+    return __real_inet_chksum_pbuf(p);
+}
+
+#define pvPort(Malloc) \
+void *__real_pvPort ## Malloc(size_t size); \
+ICACHE_FLASH_ATTR \
+void *__wrap_pvPort ## Malloc(size_t size) { \
+    void *ret = __real_pvPort ## Malloc(size); \
+    if (!ret) { \
+{ \
+    struct block { \
+        struct block *next; \
+        size_t size; \
+    }; \
+    extern void *_heap_start; /* 0x3fffbff8 ? */ \
+    uint32_t ulAddress = (uint32_t) /*_heap_start*/ 0x3fffbff8; \
+    ulAddress &= -8; \
+    struct block *cur = (struct block *)ulAddress; \
+    user_dprintf("pvPort" #Malloc "(%u) failed", size); \
+    for (;; cur = cur->next) { \
+        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur)); \
+    } \
+} \
+    } \
+    return ret; \
+} \
+
+#define pvPortMalloc __real_pvPortMalloc
+pvPort(Malloc)
+pvPort(Realloc)
+pvPort(Zalloc)
+pvPort(Calloc)
+
+void *__real_esf_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_esf_buf_alloc(long a, long b) {
+    ets_intr_lock();
+    void *ret = __real_esf_buf_alloc(a, b);
+    ets_intr_unlock();
+    user_dprintf("%ld %ld => %p", a, b, ret);
+    if (!ret) {
+        assert(false);
+    }
+    return ret;
+}
+
+void *__real_esf_rx_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_esf_rx_buf_alloc(long a, long b) {
+    ets_intr_lock();
+    void *ret = __real_esf_rx_buf_alloc(a, b);
+    ets_intr_unlock();
+    user_dprintf("%ld %ld => %p", a, b, ret);
+    if (!ret) {
+        assert(false);
+    }
+    return ret;
+}
+
+#define mem_malloc __real_mem_malloc
+void *__real_mem_malloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_mem_malloc(long a, long b) {
+    void *ret = __real_mem_malloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
+#define mem_realloc __real_mem_realloc
+void *__real_mem_realloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_mem_realloc(long a, long b) {
+    void *ret = __real_mem_realloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
 ICACHE_FLASH_ATTR
 static void mem_error() {
     struct block {
@@ -33,7 +161,6 @@ static void mem_error() {
     }
 }
 
-extern void *esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void show_esf_buf() {
     int lmacIsActive();
@@ -52,6 +179,34 @@ void show_esf_buf() {
         os_printf("]");
     }
     os_printf("\n");
+{
+    struct block {
+        struct block *next;
+        size_t size;
+    };
+    uint32_t ulAddress = (uint32_t) 0x3ffe9e38;
+#if 0
+    void vPortFree(void *);
+    void *ptr = pvPortMalloc(4); // XXX crashes
+    user_dprintf("malloc(4) = %p", ptr);
+    vPortFree(ptr);
+    void **it = (void *)(ulAddress - 1024);
+    user_dprintf("heap: %p", (void *)ulAddress);
+    int i;
+    for (i = 0; i < 20000; ++i) {
+        if ((((char *)ptr) - 128) <= (char *)*it && (char *)*it <= ((char *)ptr) + 128) {
+            user_dprintf("found %p ~ %p at %p", *it, ptr, it);
+            user_dprintf("size: %d", ((struct block *)it)->size);
+        }
+        ++it;
+    }
+#endif
+    ulAddress &= -8;
+    struct block *cur = (struct block *)ulAddress;
+    for (; cur != NULL && (3 & (long) cur) == 0; cur = cur->next) {
+        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
+    }
+}
 }
 
 struct icmp_net_hdr {
@@ -228,13 +383,14 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
 ICACHE_FLASH_ATTR
 err_t icmp_net_init(struct netif *netif) {
+    user_dprintf("");
+
     netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
     netif->output = etharp_output;
     netif->linkoutput = icmp_net_linkoutput;
 
     struct icmp_net_config *config = netif->state;
     config->netif = netif;
-    config->next = root;
     config->slave = NULL;
     config->send_i = config->recv_i = 0;
     {
@@ -263,14 +419,21 @@ err_t icmp_net_init(struct netif *netif) {
     static u8_t if_num = 0;
     netif->num = if_num++;
     netif->mtu = 1400; // TODO discover
+
+    ets_intr_lock();
+    config->next = root;
     root = config;
+    ets_intr_unlock();
+
+    user_dprintf("done");
 
     return ERR_OK;
 }
 
+void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
-    user_dprintf("icmp_input()");
+    user_dprintf("%p %p", p, inp);
 
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
@@ -345,123 +508,3 @@ end:
     __real_icmp_input(p, inp);
     assert_heap();
 }
-
-#define pvPort(Malloc) \
-void *__real_pvPort ## Malloc(size_t size); \
-ICACHE_FLASH_ATTR \
-void *__wrap_pvPort ## Malloc(size_t size) { \
-    void *ret = __real_pvPort ## Malloc(size); \
-    if (!ret) { \
-{ \
-    struct block { \
-        struct block *next; \
-        size_t size; \
-    }; \
-    extern void *_heap_start; /* 0x3fffbff8 ? */ \
-    uint32_t ulAddress = (uint32_t) _heap_start; \
-    ulAddress &= -8; \
-    struct block *cur = (struct block *)ulAddress; \
-    for (;; cur = cur->next) { \
-        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur)); \
-    } \
-} \
-    } \
-    return ret; \
-} \
-
-pvPort(Malloc)
-pvPort(Realloc)
-pvPort(Zalloc)
-pvPort(Calloc)
-
-void *__real_esf_buf_alloc(long a, long b);
-ICACHE_FLASH_ATTR
-void *__wrap_esf_buf_alloc(long a, long b) {
-    ets_intr_lock();
-    void *ret = __real_esf_buf_alloc(a, b);
-    ets_intr_unlock();
-    user_dprintf("%ld %ld => %p", a, b, ret);
-    if (!ret) {
-        assert(false);
-    }
-    return ret;
-}
-
-void *__real_esf_rx_buf_alloc(long a, long b);
-ICACHE_FLASH_ATTR
-void *__wrap_esf_rx_buf_alloc(long a, long b) {
-    void *ret = __real_esf_rx_buf_alloc(a, b);
-    user_dprintf("%ld %ld => %p", a, b, ret);
-    if (!ret) {
-        assert(false);
-    }
-    return ret;
-}
-
-void *__real_mem_malloc(long a, long b);
-ICACHE_FLASH_ATTR
-void *__wrap_mem_malloc(long a, long b) {
-    void *ret = __real_mem_malloc(a, b);
-    if (!ret) {
-        user_dprintf("%ld %ld", a, b);
-        assert(false);
-    }
-    return ret;
-}
-
-void *__real_mem_realloc(long a, long b);
-ICACHE_FLASH_ATTR
-void *__wrap_mem_realloc(long a, long b) {
-    void *ret = __real_mem_realloc(a, b);
-    if (!ret) {
-        user_dprintf("%ld %ld", a, b);
-        assert(false);
-    }
-    return ret;
-}
-
-#if 0
-u16_t
-__real_inet_chksum_pseudo(struct pbuf *p, 
-       ip_addr_t *src, ip_addr_t *dest,
-       u8_t proto, u16_t proto_len);
-ICACHE_FLASH_ATTR
-u16_t
-__wrap_inet_chksum_pseudo(struct pbuf *p, 
-       ip_addr_t *src, ip_addr_t *dest,
-       u8_t proto, u16_t proto_len) {
-    //user_dprintf("%p", p);
-    return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
-}
-
-u16_t
-__real_inet_chksum_pseudo_partial(struct pbuf *p,
-       ip_addr_t *src, ip_addr_t *dest,
-       u8_t proto, u16_t proto_len, u16_t chksum_len);
-ICACHE_FLASH_ATTR
-u16_t
-__wrap_inet_chksum_pseudo_partial(struct pbuf *p,
-       ip_addr_t *src, ip_addr_t *dest,
-       u8_t proto, u16_t proto_len, u16_t chksum_len) {
-    //user_dprintf("%p", p);
-    return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
-}
-
-u16_t
-__real_inet_chksum(void *dataptr, u16_t len);
-ICACHE_FLASH_ATTR
-u16_t
-__wrap_inet_chksum(void *dataptr, u16_t len) {
-    //user_dprintf("%p", dataptr);
-    return __real_inet_chksum(dataptr, len);
-}
-
-u16_t
-__real_inet_chksum_pbuf(struct pbuf *p);
-ICACHE_FLASH_ATTR
-u16_t
-__wrap_inet_chksum_pbuf(struct pbuf *p) {
-    //user_dprintf("%p", p);
-    return __real_inet_chksum_pbuf(p);
-}
-#endif
