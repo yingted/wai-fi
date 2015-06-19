@@ -18,6 +18,8 @@
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
+void vPortFree(void *);
+
 #define inet_chksum_pseudo __real_inet_chksum_pseudo
 u16_t
 __real_inet_chksum_pseudo(struct pbuf *p, 
@@ -187,17 +189,12 @@ void show_esf_buf() {
     size_t heap_size = system_get_free_heap_size();
     size_t *addr = (void *)0x3ffe9e38;
     int i;
-    void vPortFree(void *);
-    void *ptr = pvPortMalloc(4); // XXX crashes
-    user_dprintf("malloc(4) = %p", ptr);
+    void *ptr = pvPortMalloc(1);
     vPortFree(ptr);
-    static struct block *cur = NULL;
-    if (cur) {
-        goto found;
-    }
+    ets_intr_lock();
+    struct block *cur = NULL;
     for (i = -1000; i <= 1000; ++i) {
         if (addr[i] == heap_size) {
-            user_dprintf("found xFreeBytesRemaining=%d: %p", heap_size, addr + i);
             int j;
             void **it = (void *)(addr + i);
             for (j = -10; j <= 10; ++j) {
@@ -210,10 +207,14 @@ void show_esf_buf() {
             }
         }
     }
+    ets_intr_unlock();
     assert(false /* no heap */);
 found:
+    os_printf("heap: %p size: %d", cur, heap_size);
     for (; cur != NULL && (3 & (long) cur) == 0; cur = cur->next) {
         user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
+        assert(cur->size <= 82000);
+        assert(cur->next > cur);
         if (heap_size <= cur->size) {
             break;
         }
