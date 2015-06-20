@@ -19,14 +19,8 @@ static struct ip_info linklocal_info = {
 bool secure_connected = false;
 struct espconn con;
 
-ICACHE_FLASH_ATTR
-static void assert_heap() {
-    uint32_t heap = system_get_free_heap_size();
-    user_dprintf("heap: %u", heap);
-    if (!(20000 <= heap && heap <= 50000)) {
-        assert(false);
-    }
-}
+#define assert_heap() assert_heap_(__FILE__, __LINE__)
+void assert_heap_(char *file, int line);
 
 ICACHE_FLASH_ATTR
 static void espconn_connect_cb(void *arg) {
@@ -91,18 +85,20 @@ static void connect_ssl() {
 
 ICACHE_FLASH_ATTR
 void wifi_handle_event_cb(System_Event_t *event) {
-    struct netif *saved_default = NULL;
+    assert_heap();
+    static struct netif *saved_default = NULL;
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:
             user_dprintf("ip " IPSTR " mask " IPSTR " gw " IPSTR,
                       IP2STR(&event->event_info.got_ip.ip),
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
+            assert_heap();
 
             icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
 
-            assert(saved_default == NULL);
             if (netif_default != &icmp_tap) {
+                assert(saved_default == NULL);
                 saved_default = netif_default;
                 netif_default = &icmp_tap;
 
@@ -129,6 +125,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 saved_default = NULL;
             }
         case EVENT_STAMODE_CONNECTED:
+            user_dprintf("connected");
+            assert_heap();
             break;
         case EVENT_STAMODE_AUTHMODE_CHANGE:
             user_dprintf("unknown event authmode_change");
@@ -136,6 +134,9 @@ void wifi_handle_event_cb(System_Event_t *event) {
         default:
             user_dprintf("unknown event %d", event->event);
     }
+
+    user_dprintf("done");
+    assert_heap();
 }
 
 ICACHE_FLASH_ATTR
@@ -147,8 +148,7 @@ void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("user_init()");
     user_dprintf("heap: %d", system_get_free_heap_size());
-    void show_esf_buf();
-    show_esf_buf();
+    assert_heap();
 
     wifi_set_opmode_current(STATION_MODE);
     {
@@ -176,4 +176,7 @@ void user_init(void) {
     }
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
+
+    user_dprintf("done");
+    assert_heap();
 }

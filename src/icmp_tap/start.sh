@@ -1,4 +1,5 @@
 #!/bin/bash
+#sudo service wpa_supplicant stop
 sudo killall dnsmasq icmp_tap hostapd
 cleanup() {
 	echo exiting

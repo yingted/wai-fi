@@ -20,6 +20,15 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
 void vPortFree(void *);
 
+void show_esf_buf();
+static bool is_mem_error = false;
+ICACHE_FLASH_ATTR
+static void mem_error() {
+    is_mem_error = true;
+    show_esf_buf();
+    assert(false);
+}
+
 #define inet_chksum_pseudo __real_inet_chksum_pseudo
 u16_t
 __real_inet_chksum_pseudo(struct pbuf *p, 
@@ -74,20 +83,8 @@ ICACHE_FLASH_ATTR \
 void *__wrap_pvPort ## Malloc(size_t size) { \
     void *ret = __real_pvPort ## Malloc(size); \
     if (!ret) { \
-{ \
-    struct block { \
-        struct block *next; \
-        size_t size; \
-    }; \
-    extern void *_heap_start; /* 0x3fffbff8 ? */ \
-    uint32_t ulAddress = (uint32_t) /*_heap_start*/ 0x3fffbff8; \
-    ulAddress &= -8; \
-    struct block *cur = (struct block *)ulAddress; \
-    user_dprintf("pvPort" #Malloc "(%u) failed", size); \
-    for (;; cur = cur->next) { \
-        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur)); \
-    } \
-} \
+        user_dprintf("pvPort" #Malloc "(%u) failed", size); \
+        mem_error(); \
     } \
     return ret; \
 } \
@@ -149,21 +146,6 @@ void *__wrap_mem_realloc(long a, long b) {
 }
 
 ICACHE_FLASH_ATTR
-static void mem_error() {
-    struct block {
-        struct block *next;
-        size_t size;
-    };
-    extern void *_heap_start; // 0x3fffbff8 ?
-    uint32_t ulAddress = (uint32_t) _heap_start;
-    ulAddress &= -8;
-    struct block *cur = (struct block *)ulAddress;
-    for (;; cur = cur->next) {
-        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
-    }
-}
-
-ICACHE_FLASH_ATTR
 void show_esf_buf() {
     int lmacIsActive();
     os_printf("lmac: %d ", lmacIsActive());
@@ -189,10 +171,12 @@ void show_esf_buf() {
     size_t heap_size = system_get_free_heap_size();
     size_t *addr = (void *)0x3ffe9e38;
     int i;
+    static struct block *cur = NULL;
+    if (is_mem_error && cur) {
+        goto found;
+    }
     void *ptr = pvPortMalloc(1);
     vPortFree(ptr);
-    ets_intr_lock();
-    struct block *cur = NULL;
     for (i = -1000; i <= 1000; ++i) {
         if (addr[i] == heap_size) {
             int j;
@@ -207,20 +191,24 @@ void show_esf_buf() {
             }
         }
     }
-    ets_intr_unlock();
     assert(false /* no heap */);
-found:
-    os_printf("heap: %p size: %d", cur, heap_size);
+found:;
+#if 0
+    ets_intr_lock();
+    os_printf("heap: %p size: %d blocks:", cur, heap_size);
     for (; cur != NULL && (3 & (long) cur) == 0; cur = cur->next) {
-        user_dprintf("block %p size %d skip %d", cur, cur->size, ((size_t)cur->next) - ((size_t)cur) - sizeof(*cur));
+        os_printf(" [%d] %d", cur->size, ((size_t)cur->next) - (((size_t)cur) + cur->size));
         assert(cur->size <= 82000);
         assert(cur->next > cur);
-        if (heap_size <= cur->size) {
+        heap_size -= cur->size;
+        if (((int)heap_size) <= 0) {
             break;
         }
-        user_dprintf("next: %p", cur->next);
-        heap_size -= cur->size;
     }
+    os_printf("\n");
+    assert(heap_size == 0);
+    ets_intr_unlock();
+#endif
 }
 }
 
@@ -228,8 +216,10 @@ struct icmp_net_hdr {
     unsigned char queued, pad_[3];
 };
 
+#define assert_heap() assert_heap_(__FILE__, __LINE__)
 ICACHE_FLASH_ATTR
-static void assert_heap() {
+void assert_heap_(char *file, int line) {
+    user_dprintf("%s:%d", file, line);
     uint32_t heap = system_get_free_heap_size();
     if (!(20000 <= heap && heap <= 50000)) {
         user_dprintf("heap: %d", heap);
@@ -274,6 +264,7 @@ ICACHE_FLASH_ATTR
 static void drop_echo_reply(struct icmp_net_config *config) {
     assert(0 < ICMP_NET_CONFIG_QLEN(config));
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
+    assert_heap();
     struct pbuf *p;
     while (config->recv_i != config->send_i && (p = config->queue[++config->recv_i % ICMP_NET_QSIZE])) {
         if (p == NULL) {
@@ -289,6 +280,7 @@ static void drop_echo_reply(struct icmp_net_config *config) {
 
 ICACHE_FLASH_ATTR
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
+    assert_heap();
     struct icmp_net_config *config = netif->state;
     assert(config->slave);
 
@@ -372,6 +364,7 @@ send:
         goto send;
     }
 
+    assert_heap();
     return ERR_OK;
 }
 
@@ -383,6 +376,7 @@ static struct icmp_net_config *root = NULL;
  */
 ICACHE_FLASH_ATTR
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
+    assert_heap();
     assert(config->slave);
     extern ip_addr_t current_iphdr_src;
 
@@ -440,6 +434,7 @@ err_t icmp_net_init(struct netif *netif) {
     root = config;
     ets_intr_unlock();
 
+    assert_heap();
     user_dprintf("done");
 
     return ERR_OK;
@@ -449,6 +444,7 @@ void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("%p %p", p, inp);
+    assert_heap();
 
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
@@ -468,6 +464,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
             goto end;
         }
 
+        assert_heap();
+
         struct icmp_echo_hdr *iecho = p->payload;
         pbuf_header(p, -icmp_hlen);
         uint16_t seqno = ntohs(iecho->seqno);
@@ -476,8 +474,11 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         struct icmp_net_hdr *ihdr = p->payload;
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
 
+        assert_heap();
+
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
+            assert_heap();
             ICMP_NET_CONFIG_LOCK(config);
             if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
                 if (config->recv_i == seqno) {
