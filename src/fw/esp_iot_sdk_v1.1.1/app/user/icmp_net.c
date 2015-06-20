@@ -157,7 +157,7 @@ void show_esf_buf() {
     os_printf("esf_buf:");
     for (i = 0; i < 5; ++i) { // esf_buf 1, 4, 5, 6, esf_rx_buf (in order)
         os_printf(" [%d", i);
-        for (cur = base[i]; cur; cur = (((long)cur) & 0x3) ? NULL : cur->next) {
+        for (cur = base[i]; cur; cur = (((size_t)cur) & 0x3) ? NULL : cur->next) {
             os_printf(" %p", cur);
         }
         os_printf("]");
@@ -196,7 +196,7 @@ found:;
 #if 0
     ets_intr_lock();
     os_printf("heap: %p size: %d blocks:", cur, heap_size);
-    for (; cur != NULL && (3 & (long) cur) == 0; cur = cur->next) {
+    for (; cur != NULL && (3 & (size_t) cur) == 0; cur = cur->next) {
         os_printf(" [%d] %d", cur->size, ((size_t)cur->next) - (((size_t)cur) + cur->size));
         assert(cur->size <= 82000);
         assert(cur->next > cur);
@@ -320,6 +320,7 @@ send:
     }
 
     {
+        assert((((size_t)p->payload) & 0x3) == 0);
         struct icmp_echo_hdr *iecho = (struct icmp_echo_hdr *)p->payload;
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
@@ -380,7 +381,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert(config->slave);
     extern ip_addr_t current_iphdr_src;
 
-    assert((((long)p->payload) & 0x3) == 0);
+    assert((((size_t)p->payload) & 0x3) == 0);
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
         err_t rc = config->netif->input(p, config->netif);
@@ -444,6 +445,7 @@ void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("%p %p", p, inp);
+    assert((((size_t)p->payload) & 0x3) == 0);
     assert_heap();
 
     struct ip_hdr *iphdr = p->payload;
@@ -459,6 +461,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     // Intercept ICMP echo replies.
     if (type == ICMP_ER) {
         pbuf_header(p, -ip_hlen);
+        assert((((size_t)p->payload) & 0x3) == 0);
         if (inet_chksum_pbuf(p)) {
             user_dprintf("checksum failed");
             goto end;
@@ -468,11 +471,13 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 
         struct icmp_echo_hdr *iecho = p->payload;
         pbuf_header(p, -icmp_hlen);
+        assert((((size_t)p->payload) & 0x3) == 0);
         uint16_t seqno = ntohs(iecho->seqno);
         user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
 
         struct icmp_net_hdr *ihdr = p->payload;
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
+        assert((((size_t)p->payload) & 0x3) == 0);
 
         assert_heap();
 
