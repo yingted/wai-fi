@@ -193,7 +193,7 @@ void show_esf_buf() {
     }
     assert(false /* no heap */);
 found:;
-#if 0
+#if 1
     ets_intr_lock();
     os_printf("heap: %p size: %d blocks:", cur, heap_size);
     for (; cur != NULL && (3 & (size_t) cur) == 0; cur = cur->next) {
@@ -320,7 +320,7 @@ send:
     }
 
     {
-        assert((((size_t)p->payload) & 0x3) == 0);
+        assert((((size_t)p->payload) & 0x1) == 0);
         struct icmp_echo_hdr *iecho = (struct icmp_echo_hdr *)p->payload;
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
