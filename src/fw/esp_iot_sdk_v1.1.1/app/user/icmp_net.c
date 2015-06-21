@@ -83,6 +83,7 @@ __wrap_inet_chksum_pbuf(struct pbuf *p) {
 void *__real_pvPort ## Malloc(size_t size); \
 ICACHE_FLASH_ATTR \
 void *__wrap_pvPort ## Malloc(size_t size) { \
+    size += 32; \
     void *ret = __real_pvPort ## Malloc(size); \
     if (!ret) { \
         user_dprintf("pvPort" #Malloc "(%u) failed", size); \
@@ -389,7 +390,6 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert(config->slave);
     extern ip_addr_t current_iphdr_src;
 
-    assert((((size_t)p->payload) & 0x3) == 0);
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
         err_t rc = config->netif->input(p, config->netif);
@@ -461,7 +461,7 @@ void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("%p %p", p, inp);
-    assert((((size_t)p->payload) & 0x3) == 0);
+    assert((((size_t)p->payload) & 0x1) == 0);
     assert_heap();
 
     struct ip_hdr *iphdr = p->payload;
@@ -477,7 +477,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     // Intercept ICMP echo replies.
     if (type == ICMP_ER) {
         pbuf_header(p, -ip_hlen);
-        assert((((size_t)p->payload) & 0x3) == 0);
+        assert((((size_t)p->payload) & 0x1) == 0);
         if (inet_chksum_pbuf(p)) {
             user_dprintf("checksum failed");
             goto end;
@@ -487,13 +487,13 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 
         struct icmp_echo_hdr *iecho = p->payload;
         pbuf_header(p, -icmp_hlen);
-        assert((((size_t)p->payload) & 0x3) == 0);
+        assert((((size_t)p->payload) & 0x1) == 0);
         uint16_t seqno = ntohs(iecho->seqno);
         user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
 
         struct icmp_net_hdr *ihdr = p->payload;
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
-        assert((((size_t)p->payload) & 0x3) == 0);
+        assert((((size_t)p->payload) & 0x1) == 0);
 
         assert_heap();
 
