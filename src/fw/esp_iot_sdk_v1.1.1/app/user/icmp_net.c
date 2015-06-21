@@ -449,6 +449,14 @@ err_t icmp_net_init(struct netif *netif) {
     return ERR_OK;
 }
 
+err_t __real_ip_input(struct pbuf *p, struct netif *inp);
+ICACHE_FLASH_ATTR
+err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
+    assert_heap();
+    user_dprintf("%p %p", p, inp);
+    return __real_ip_input(p, inp);
+}
+
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {

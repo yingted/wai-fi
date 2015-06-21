@@ -130,6 +130,7 @@ LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,inet_chksum_pseudo_partial \
 	-Wl,-wrap,inet_chksum \
 	-Wl,-wrap,inet_chksum_pbuf \
+	-Wl,-wrap,ip_input \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip
