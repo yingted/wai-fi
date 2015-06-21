@@ -469,6 +469,14 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     const static s16_t icmp_hlen = sizeof(u32_t) * 2;
     if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_hdr)) {
         user_dprintf("short: %d bytes", p->tot_len);
+        {
+            int i;
+            os_printf("first %d bytes: ", p->len);
+            for (i = 0; i < p->len; ++i) {
+                os_printf("%02x", ((u8_t *)p->payload)[i]);
+            }
+            os_printf("\n");
+        }
         goto end;
     }
 
