@@ -119,9 +119,6 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
 	-Wl,-wrap,pvPortMalloc \
-	-Wl,-wrap,pvPortRealloc \
-	-Wl,-wrap,pvPortCalloc \
-	-Wl,-wrap,pvPortZalloc \
 	-Wl,-wrap,esf_buf_alloc \
 	-Wl,-wrap,esf_rx_buf_alloc \
 	-Wl,-wrap,mem_malloc \
@@ -131,6 +128,7 @@ LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,inet_chksum \
 	-Wl,-wrap,inet_chksum_pbuf \
 	-Wl,-wrap,ip_input \
+	-Wl,-wrap,etharp_tmr \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip

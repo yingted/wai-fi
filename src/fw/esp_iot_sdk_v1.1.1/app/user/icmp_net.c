@@ -18,7 +18,6 @@
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
-void vPortFree(void *);
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
 
@@ -79,24 +78,22 @@ __wrap_inet_chksum_pbuf(struct pbuf *p) {
     return __real_inet_chksum_pbuf(p);
 }
 
-#define pvPort(Malloc) \
-void *__real_pvPort ## Malloc(size_t size); \
-ICACHE_FLASH_ATTR \
-void *__wrap_pvPort ## Malloc(size_t size) { \
-    size += 32; \
-    void *ret = __real_pvPort ## Malloc(size); \
-    if (!ret) { \
-        user_dprintf("pvPort" #Malloc "(%u) failed", size); \
-        mem_error(); \
-    } \
-    return ret; \
-} \
-
 #define pvPortMalloc __real_pvPortMalloc
-pvPort(Malloc)
-pvPort(Realloc)
-pvPort(Zalloc)
-pvPort(Calloc)
+void *__real_pvPortMalloc(size_t size);
+void *pvPortZalloc(size_t size);
+ICACHE_FLASH_ATTR
+void *__wrap_pvPortMalloc(size_t size) {
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    //size += 32;
+    //void *ret = __real_pvPortMalloc(size);
+    void *ret = pvPortZalloc(size);
+    if (!ret) {
+        user_dprintf("pvPortMalloc(%u) failed, called from %p", size, a0);
+        mem_error();
+    }
+    return (char *)ret;
+}
 
 void *__real_esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
@@ -179,6 +176,7 @@ void show_esf_buf() {
     int i;
     static struct block *cur = NULL;
     if (is_mem_error && cur) {
+        user_dprintf("skipping heap search");
         goto found;
     }
     void *ptr = pvPortMalloc(1);
@@ -203,11 +201,29 @@ found:;
     ets_intr_lock();
     os_printf("heap: %p size: %d stack: %p blocks:", cur, heap_size, &ptr);
     for (; cur != NULL && (3 & (size_t) cur) == 0; cur = cur->next) {
+#if 1
+        if (!(cur->size < 82000) && (cur->size + 65536 < 82000)) {
+            os_printf(" fix:");
+            cur->size += 65536;
+        }
+#endif
+        size_t size = cur->size & ~(1 << (sizeof(size_t) * 8 - 1));
         assert((void **)cur < &ptr);
-        os_printf(" [%d] %d", cur->size, ((size_t)cur->next) - (((size_t)cur) + cur->size));
-        assert(cur->size <= 82000);
+        if (size != cur->size) {
+            os_printf(" used:");
+        }
+        os_printf(" [%d] %d", size, ((size_t)cur->next) - (((size_t)cur) + size));
+        if (!(size < 82000) || !(cur->next > cur) || heap_size < size) {
+            char *begin = ((char *)cur) - 1024, *end = ((char *)cur) + 1024;
+            os_printf("mem[%p:%p]: ", begin, end);
+            for (; begin != end; ++begin) {
+                os_printf("%02x", *begin);
+            }
+            os_printf("\n");
+        }
+        assert(size <= 82000);
         assert(cur->next > cur);
-        heap_size -= cur->size;
+        heap_size -= size;
         if (((int)heap_size) <= 0) {
             break;
         }
@@ -289,6 +305,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     assert_heap();
     struct icmp_net_config *config = netif->state;
     assert(config->slave);
+    user_dprintf("%p %p", netif, p);
 
     {
         struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
@@ -400,11 +417,20 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 }
 
 ICACHE_FLASH_ATTR
+err_t icmp_net_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr) {
+    assert_heap();
+    err_t ret = etharp_output(netif, q, ipaddr);
+    assert_heap();
+    return ret;
+}
+
+ICACHE_FLASH_ATTR
 err_t icmp_net_init(struct netif *netif) {
     user_dprintf("");
 
     netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_POINTTOPOINT | NETIF_FLAG_ETHARP;
-    netif->output = etharp_output;
+    //netif->output = etharp_output;
+    netif->output = icmp_net_output;
     netif->linkoutput = icmp_net_linkoutput;
 
     struct icmp_net_config *config = netif->state;
@@ -452,9 +478,21 @@ err_t icmp_net_init(struct netif *netif) {
 err_t __real_ip_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
+    static int count = 0;
+    assert(count++ == 0);
     assert_heap();
     user_dprintf("%p %p", p, inp);
-    return __real_ip_input(p, inp);
+    __real_ip_input(p, inp);
+    assert_heap();
+    assert(--count == 0);
+}
+
+void __real_etharp_tmr();
+ICACHE_FLASH_ATTR
+void __wrap_etharp_tmr() {
+    assert_heap();
+    __real_etharp_tmr();
+    assert_heap();
 }
 
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
