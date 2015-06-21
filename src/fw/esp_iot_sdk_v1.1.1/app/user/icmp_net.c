@@ -396,6 +396,9 @@ send:
 }
 
 static struct icmp_net_config *root = NULL;
+#define PROCESS_PBUF_QSIZE 4
+struct pbuf *process_pbuf_q[PROCESS_PBUF_QSIZE];
+struct icmp_net_config *process_pbuf_q_config[PROCESS_PBUF_QSIZE];
 
 /**
  * Process an input ping in pbuf.
@@ -409,10 +412,18 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         user_dprintf("match: len=%u", p->tot_len);
-        err_t rc = config->netif->input(p, config->netif);
-        if (rc != ERR_OK) {
-            user_dprintf("netif->input: error %d", rc);
-            pbuf_free(p);
+        int i;
+        for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {
+            assert((process_pbuf_q[i] == NULL) == (process_pbuf_q_config[i] == NULL));
+            if (process_pbuf_q[i] == NULL) {
+                break;
+            }
+        }
+        if (i == PROCESS_PBUF_QSIZE) {
+            user_dprintf("dropping ethernet frame");
+        } else {
+            process_pbuf_q[i] = p;
+            process_pbuf_q_config[i] = config;
         }
     }
 }
@@ -502,6 +513,7 @@ void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
     assert(slave != NULL);
     assert(config->slave == NULL);
     config->slave = slave;
+    // TODO replace input
 }
 
 ICACHE_FLASH_ATTR
@@ -520,6 +532,28 @@ err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert(count++ == 0);
     const err_t ret = __real_ethernet_input(p, netif);
     assert(--count == 0);
+    while (process_pbuf_q[0]) {
+        ets_intr_lock();
+        struct pbuf *p = process_pbuf_q[0];
+        struct icmp_net_config *config = process_pbuf_q_config[0];
+        int i;
+        for (i = 0; i + 1 < PROCESS_PBUF_QSIZE; ++i) {
+            process_pbuf_q[i] = process_pbuf_q[i + 1];
+            process_pbuf_q_config[i] = process_pbuf_q_config[i + 1];
+        }
+        process_pbuf_q[i] = NULL;
+        process_pbuf_q_config[i] = NULL;
+        ets_intr_unlock();
+
+        assert(p);
+        assert(config);
+
+        err_t rc = config->netif->input(p, config->netif);
+        if (rc != ERR_OK) {
+            user_dprintf("netif->input: error %d", rc);
+            pbuf_free(p);
+        }
+    }
     return ret;
 }
 

@@ -95,9 +95,9 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.gw));
             assert_heap();
 
-            icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
-
             if (netif_default != &icmp_tap) {
+                icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
+
                 assert(saved_default == NULL);
                 saved_default = netif_default;
                 netif_default = &icmp_tap;
