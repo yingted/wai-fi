@@ -19,6 +19,8 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
 void vPortFree(void *);
+#define assert_heap() assert_heap_(__FILE__, __LINE__)
+void assert_heap_(char *file, int line);
 
 void show_esf_buf();
 static bool is_mem_error = false;
@@ -98,10 +100,11 @@ pvPort(Calloc)
 void *__real_esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_buf_alloc(long a, long b) {
-    ets_intr_lock();
+    //ets_intr_lock();
     void *ret = __real_esf_buf_alloc(a, b);
-    ets_intr_unlock();
-    user_dprintf("%ld %ld => %p", a, b, ret);
+    //ets_intr_unlock();
+    //user_dprintf("%ld %ld => %p", a, b, ret);
+    //assert_heap();
     if (!ret) {
         assert(false);
     }
@@ -111,10 +114,12 @@ void *__wrap_esf_buf_alloc(long a, long b) {
 void *__real_esf_rx_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_rx_buf_alloc(long a, long b) {
-    ets_intr_lock();
+    //assert_heap();
+    //ets_intr_lock();
     void *ret = __real_esf_rx_buf_alloc(a, b);
-    ets_intr_unlock();
+    //ets_intr_unlock();
     //user_dprintf("%ld %ld => %p", a, b, ret);
+    //assert_heap();
     if (!ret) {
         assert(false);
     }
@@ -195,8 +200,9 @@ void show_esf_buf() {
 found:;
 #if 1
     ets_intr_lock();
-    os_printf("heap: %p size: %d blocks:", cur, heap_size);
+    os_printf("heap: %p size: %d stack: %p blocks:", cur, heap_size, &ptr);
     for (; cur != NULL && (3 & (size_t) cur) == 0; cur = cur->next) {
+        assert((void **)cur < &ptr);
         os_printf(" [%d] %d", cur->size, ((size_t)cur->next) - (((size_t)cur) + cur->size));
         assert(cur->size <= 82000);
         assert(cur->next > cur);
@@ -216,7 +222,6 @@ struct icmp_net_hdr {
     unsigned char queued, pad_[3];
 };
 
-#define assert_heap() assert_heap_(__FILE__, __LINE__)
 ICACHE_FLASH_ATTR
 void assert_heap_(char *file, int line) {
     user_dprintf("%s:%d", file, line);
@@ -292,6 +297,9 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
             mem_error();
             return ERR_MEM;
         }
+        int i;
+        for (i = 0; i < r->len; ++i)
+            ((u8_t *)r->payload)[i] = '\x8f';
         if (pbuf_header(r, (s16_t)-L3_HLEN)) {
             user_dprintf("reserve header failed");
 err_buf:
