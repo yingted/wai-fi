@@ -95,7 +95,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.gw));
             assert_heap();
 
-            icmp_config.slave = ip_route(&event->event_info.got_ip.gw);
+            icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
 
             if (netif_default != &icmp_tap) {
                 assert(saved_default == NULL);
@@ -119,6 +119,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
             }
 
             dhcp_stop(&icmp_tap);
+
+            icmp_net_unenslave(&icmp_config);
 
             if (netif_default == &icmp_tap) {
                 netif_default = saved_default;

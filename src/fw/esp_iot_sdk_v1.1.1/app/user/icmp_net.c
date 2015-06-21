@@ -412,6 +412,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
         err_t rc = config->netif->input(p, config->netif);
         if (rc != ERR_OK) {
             user_dprintf("netif->input: error %d", rc);
+            pbuf_free(p);
         }
     }
 }
@@ -493,6 +494,33 @@ void __wrap_etharp_tmr() {
     assert_heap();
     __real_etharp_tmr();
     assert_heap();
+}
+
+ICACHE_FLASH_ATTR
+void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
+    assert(config->netif != NULL);
+    assert(slave != NULL);
+    assert(config->slave == NULL);
+    config->slave = slave;
+}
+
+ICACHE_FLASH_ATTR
+void icmp_net_unenslave(struct icmp_net_config *config) {
+    assert(config->netif != NULL);
+    assert(config->slave != NULL);
+    config->slave = NULL;
+}
+
+err_t __real_ethernet_input(struct pbuf *p, struct netif *netif);
+ICACHE_FLASH_ATTR
+err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
+#ifndef NDEBUG
+    static size_t count = 0;
+#endif
+    assert(count++ == 0);
+    const err_t ret = __real_ethernet_input(p, netif);
+    assert(--count == 0);
+    return ret;
 }
 
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
