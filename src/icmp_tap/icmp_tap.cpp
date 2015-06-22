@@ -35,6 +35,7 @@ typedef __be32 connection_id;
 struct connection {
 	boost::circular_buffer<char>::size_type pos;
 	set<icmp_reply> replies;
+	struct timespec time;
 };
 
 static bool lt_seq(const icmp_reply &a, const icmp_reply &b) {
@@ -151,6 +152,7 @@ int main(int argc, char *argv[]) {
 							printf("new connection to %s\n", inet_ntoa(*(in_addr *)&reply.addr));
 							conn.pos = tot_recv;
 						}
+						conn.time = reply.time;
 						conn.replies.insert(reply);
 
 						if (data_len) {
@@ -257,7 +259,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		for (auto it = conns.begin(); it != conns.end();) {
-			if (it->second.replies.empty()) {
+			if (it->second.time < min_time) {
 				printf("closing connection\n");
 				conns.erase(it++);
 			} else {

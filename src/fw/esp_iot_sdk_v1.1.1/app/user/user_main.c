@@ -118,11 +118,10 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 espconn_secure_disconnect(&con);
             }
 
-            dhcp_stop(&icmp_tap);
-
-            icmp_net_unenslave(&icmp_config);
-
             if (netif_default == &icmp_tap) {
+                dhcp_stop(&icmp_tap);
+
+                icmp_net_unenslave(&icmp_config);
                 netif_default = saved_default;
                 saved_default = NULL;
             }
