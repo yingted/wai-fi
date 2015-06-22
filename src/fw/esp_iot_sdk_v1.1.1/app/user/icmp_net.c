@@ -294,18 +294,17 @@ static void drop_echo_reply(struct icmp_net_config *config) {
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
-    ICMP_NET_CONFIG_LOCK(config);
     while (config->recv_i != config->send_i && (p = config->queue[++config->recv_i % ICMP_NET_QSIZE])) {
         if (p == NULL) {
             break;
         }
+
         ICMP_NET_CONFIG_UNLOCK(config);
         process_pbuf(config, p);
-        drop_echo_reply(config);
         pbuf_free(p);
+        ICMP_NET_CONFIG_LOCK(config);
 
     }
-    ICMP_NET_CONFIG_UNLOCK(config);
 }
 
 ICACHE_FLASH_ATTR
@@ -408,12 +407,13 @@ send:
 
 static struct icmp_net_config *root = NULL;
 #define PROCESS_PBUF_QSIZE 4
-struct pbuf *process_pbuf_q[PROCESS_PBUF_QSIZE];
+struct pbuf *process_pbuf_q[PROCESS_PBUF_QSIZE] = {NULL, NULL, NULL, NULL};
 struct icmp_net_config *process_pbuf_q_config[PROCESS_PBUF_QSIZE];
 
 /**
  * Process an input ping in pbuf.
  * config must be locked.
+ * p->ref neutral.
  */
 ICACHE_FLASH_ATTR
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
@@ -424,7 +424,9 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         assert(ethernet_input_count);
         user_dprintf("match: len=%u", p->tot_len);
+        pbuf_ref(p);
         ets_intr_lock();
+        ICMP_NET_CONFIG_LOCK(config);
         int i;
         for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {
             assert((process_pbuf_q[i] == NULL) == (process_pbuf_q_config[i] == NULL));
@@ -434,6 +436,8 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
                 break;
             }
         }
+        drop_echo_reply(config);
+        ICMP_NET_CONFIG_UNLOCK(config);
         ets_intr_unlock();
         if (i == PROCESS_PBUF_QSIZE) {
             user_dprintf("dropping ethernet frame");
@@ -545,8 +549,8 @@ err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert(ethernet_input_count++ == 0);
     const err_t ret = __real_ethernet_input(p, netif);
     assert(--ethernet_input_count == 0);
+    ets_intr_lock();
     while (process_pbuf_q[0]) {
-        ets_intr_lock();
         struct pbuf *p = process_pbuf_q[0];
         struct icmp_net_config *config = process_pbuf_q_config[0];
         int i;
@@ -560,13 +564,16 @@ err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
 
         assert(p);
         assert(config);
+        user_dprintf("netif->input %d", p->tot_len);
 
         err_t rc = config->netif->input(p, config->netif);
         if (rc != ERR_OK) {
             user_dprintf("netif->input: error %d", rc);
             pbuf_free(p);
         }
+        ets_intr_lock();
     }
+    ets_intr_unlock();
     return ret;
 }
 
