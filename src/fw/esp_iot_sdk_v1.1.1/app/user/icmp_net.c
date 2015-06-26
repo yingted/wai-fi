@@ -291,7 +291,7 @@ static err_t send_keepalive(struct netif *netif) {
  */
 ICACHE_FLASH_ATTR
 static void drop_echo_reply(struct icmp_net_config *config) {
-    assert(0 < ICMP_NET_CONFIG_QLEN(config)); // XXX fails
+    assert(0 < ICMP_NET_CONFIG_QLEN(config));
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
@@ -316,9 +316,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     user_dprintf("%p %p", netif, p);
 
     {
-        if (p->tot_len > 2000) {
-            user_dprintf("large pbuf: %d", p->tot_len);
-        }
+        assert(p->tot_len < 2000);
         struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
@@ -423,7 +421,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     extern ip_addr_t current_iphdr_src;
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
-        assert(ethernet_input_count); // XXX fails
+        assert(ethernet_input_count);
         user_dprintf("match: len=%u", p->tot_len);
         pbuf_ref(p);
         ets_intr_lock();
@@ -451,7 +449,7 @@ ICACHE_FLASH_ATTR
 static void process_queued_pbufs() {
     assert_heap();
     ets_intr_lock();
-    while (process_pbuf_q[0]) { // XXX use sys_check_timeouts
+    while (process_pbuf_q[0]) {
         struct pbuf *p = process_pbuf_q[0];
         struct icmp_net_config *config = process_pbuf_q_config[0];
         int i;
@@ -482,9 +480,7 @@ static void process_queued_pbufs() {
 ICACHE_FLASH_ATTR
 err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     assert_heap();
-    if (p->tot_len > 2000) {
-        user_dprintf("large pbuf: %d", p->tot_len); // XXX 39050?
-    }
+    assert(p->tot_len < 2000);
     err_t ret = etharp_output(netif, p, ipaddr);
     assert_heap();
     return ret;
@@ -583,9 +579,10 @@ err_t __real_ethernet_input(struct pbuf *p, struct netif *netif);
 ICACHE_FLASH_ATTR
 err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert_heap();
-    ++ethernet_input_count;
+    user_dprintf("%p %p", p, netif);
+    assert(ethernet_input_count++ == 0);
     err_t ret = __real_ethernet_input(p, netif);
-    --ethernet_input_count;
+    assert(--ethernet_input_count == 0);
     process_queued_pbufs();
     return ret;
 }
@@ -594,9 +591,9 @@ void __real_sys_check_timeouts(void);
 ICACHE_FLASH_ATTR
 void __wrap_sys_check_timeouts(void) {
     assert_heap();
-    ++ethernet_input_count;
+    assert(ethernet_input_count++ == 0);
     __real_sys_check_timeouts();
-    --ethernet_input_count;
+    assert(--ethernet_input_count == 0);
     process_queued_pbufs();
 }
 
