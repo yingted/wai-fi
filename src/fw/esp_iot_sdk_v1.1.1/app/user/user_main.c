@@ -16,8 +16,8 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
-bool secure_connected = false;
-struct espconn con;
+volatile int secure_connected = 0;
+/*volatile*/ struct espconn con;
 
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
@@ -34,29 +34,31 @@ static void schedule_reconnect() {
     //espconn_secure_disconnect(&con);
     assert_heap();
 
-    ets_intr_lock();
-    if (!secure_connected) {
-        return;
-    }
-    secure_connected = false;
     //sys_timeout(1000, connect_ssl, NULL);
     connect_ssl();
-    ets_intr_unlock();
 }
 
 ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %d", err);
+    assert(secure_connected != 0);
+    secure_connected = 0;
     schedule_reconnect();
 }
 
 ICACHE_FLASH_ATTR
 static void espconn_disconnect_cb(void *arg) {
+    assert(secure_connected == 2);
+    secure_connected = 0;
     schedule_reconnect();
 }
 
 ICACHE_FLASH_ATTR
 static void connect_ssl() {
+    if (!__sync_bool_compare_and_swap(&secure_connected, 0, 1)) {
+        return;
+    }
+
     os_memset(&con, 0, sizeof(con));
     con.type = ESPCONN_TCP;
     con.state = ESPCONN_NONE;
@@ -77,20 +79,19 @@ static void connect_ssl() {
 
     user_dprintf("starting connection");
     assert_heap();
-    ets_intr_lock();
-    if (secure_connected) {
-        user_dprintf("error: already connected");
+    assert(secure_connected);
+    sint8 rc = espconn_secure_connect(&con);
+    bool cas;
+
+    if (rc) {
+        cas = __sync_bool_compare_and_swap(&secure_connected, 1, 0);
+        user_dprintf("espconn_secure_connect: error %u", rc);
     } else {
-        sint8 rc = espconn_secure_connect(&con);
-        if (rc) {
-            user_dprintf("espconn_secure_connect: error %u", rc);
-        } else {
-            secure_connected = true;
-        }
-        assert_heap();
-        user_dprintf("started connection: %d", rc);
+        cas = __sync_bool_compare_and_swap(&secure_connected, 1, 2);
     }
-    ets_intr_unlock();
+    assert(cas);
+    assert_heap();
+    user_dprintf("started connection: %d", rc);
 }
 
 ICACHE_FLASH_ATTR
