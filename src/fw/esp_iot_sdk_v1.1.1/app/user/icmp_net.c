@@ -20,6 +20,8 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 #ifndef NDEBUG
 static size_t ethernet_input_count = 0;
 #endif
+#define esf_buf_printf(...)
+//#define esf_buf_printf os_printf
 
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
@@ -151,8 +153,6 @@ void *__wrap_mem_realloc(long a, long b) {
     return ret;
 }
 
-//#define esf_buf_printf(...)
-#define esf_buf_printf os_printf
 ICACHE_FLASH_ATTR
 void show_esf_buf() {
     int lmacIsActive();
@@ -246,15 +246,15 @@ struct icmp_net_hdr {
 
 ICACHE_FLASH_ATTR
 void assert_heap_(char *file, int line) {
-    user_dprintf("%s:%d", file, line);
-    //os_printf("%s:%d ", file, line);
+    //user_dprintf("%s:%d", file, line);
+    esf_buf_printf("%s:%d ", file, line);
     uint32_t heap = system_get_free_heap_size();
     if (!(20000 <= heap && heap <= 50000)) {
         user_dprintf("heap: %d", heap);
         assert(false);
     }
     show_esf_buf();
-    //os_printf("ok\n");
+    esf_buf_printf("ok\n");
 }
 
 static inline unsigned long ccount() {
@@ -448,6 +448,37 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 }
 
 ICACHE_FLASH_ATTR
+static void process_queued_pbufs() {
+    assert_heap();
+    ets_intr_lock();
+    while (process_pbuf_q[0]) { // XXX use sys_check_timeouts
+        struct pbuf *p = process_pbuf_q[0];
+        struct icmp_net_config *config = process_pbuf_q_config[0];
+        int i;
+        for (i = 0; i + 1 < PROCESS_PBUF_QSIZE; ++i) {
+            process_pbuf_q[i] = process_pbuf_q[i + 1];
+            process_pbuf_q_config[i] = process_pbuf_q_config[i + 1];
+        }
+        process_pbuf_q[i] = NULL;
+        process_pbuf_q_config[i] = NULL;
+        ets_intr_unlock();
+
+        assert(p);
+        assert(config);
+        user_dprintf("netif->input %d", p->tot_len);
+
+        err_t rc = config->netif->input(p, config->netif);
+        if (rc != ERR_OK) {
+            user_dprintf("netif->input: error %d", rc);
+            pbuf_free(p);
+        }
+        ets_intr_lock();
+    }
+    ets_intr_unlock();
+    assert_heap();
+}
+
+ICACHE_FLASH_ATTR
 err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     assert_heap();
     if (p->tot_len > 2000) {
@@ -551,42 +582,21 @@ err_t __real_ethernet_input(struct pbuf *p, struct netif *netif);
 ICACHE_FLASH_ATTR
 err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert_heap();
-    return __real_ethernet_input(p, netif);
-    assert_heap();
+    ++ethernet_input_count;
+    err_t ret = __real_ethernet_input(p, netif);
+    --ethernet_input_count;
+    process_queued_pbufs();
+    return ret;
 }
 
 void __real_sys_check_timeouts(void);
 ICACHE_FLASH_ATTR
 void __wrap_sys_check_timeouts(void) {
+    assert_heap();
+    ++ethernet_input_count;
     __real_sys_check_timeouts();
-
-    ets_intr_lock();
-    assert(ethernet_input_count++ == 0);
-    while (process_pbuf_q[0]) { // XXX use sys_check_timeouts
-        struct pbuf *p = process_pbuf_q[0];
-        struct icmp_net_config *config = process_pbuf_q_config[0];
-        int i;
-        for (i = 0; i + 1 < PROCESS_PBUF_QSIZE; ++i) {
-            process_pbuf_q[i] = process_pbuf_q[i + 1];
-            process_pbuf_q_config[i] = process_pbuf_q_config[i + 1];
-        }
-        process_pbuf_q[i] = NULL;
-        process_pbuf_q_config[i] = NULL;
-        ets_intr_unlock();
-
-        assert(p);
-        assert(config);
-        user_dprintf("netif->input %d", p->tot_len);
-
-        err_t rc = config->netif->input(p, config->netif);
-        if (rc != ERR_OK) {
-            user_dprintf("netif->input: error %d", rc);
-            pbuf_free(p);
-        }
-        ets_intr_lock();
-    }
-    assert(--ethernet_input_count == 0);
-    ets_intr_unlock();
+    --ethernet_input_count;
+    process_queued_pbufs();
 }
 
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
