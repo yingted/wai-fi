@@ -361,15 +361,22 @@ send:
         iecho->code = 0;
         iecho->chksum = 0;
         iecho->id = htons(timestamp());
+#ifndef NDEBUG
+        bool did_drop = false;
+#endif
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
-            user_dprintf("dropping packet #%u", config->recv_i);
             drop_echo_reply(config);
         }
         assert(ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_QSIZE);
         config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
+#ifndef NDEBUG
+        if (did_drop) {
+            user_dprintf("dropped packet #%u", config->recv_i);
+        }
+#endif
         iecho->seqno = htons(seqno);
         iecho->chksum = inet_chksum(p->payload, p->len);
     }

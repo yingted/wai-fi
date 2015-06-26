@@ -152,8 +152,19 @@ void wifi_handle_event_cb(System_Event_t *event) {
     assert_heap();
 }
 
+struct exc_arg {
+};
+
+ICACHE_FLASH_ATTR
+static void exc_handler(struct exc_arg *exc) {
+    assert(false);
+}
+
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {
+    _xtos_set_exception_handler(9, exc_handler);
+    _xtos_set_exception_handler(28, exc_handler);
+    _xtos_set_exception_handler(29, exc_handler);
 }
 
 ICACHE_FLASH_ATTR
