@@ -73,14 +73,14 @@ static void connect_ssl() {
     assert_heap();
     ets_intr_lock();
     sint8 rc = espconn_secure_connect(&con);
-    ets_intr_unlock();
-    user_dprintf("started connection: %d", rc);
     assert_heap();
     if (rc) {
         user_dprintf("espconn_secure_connect: error %u", rc);
-        return;
+    } else {
+        secure_connected = true;
     }
-    secure_connected = true;
+    ets_intr_unlock();
+    user_dprintf("started connection: %d", rc);
 }
 
 ICACHE_FLASH_ATTR
@@ -114,9 +114,11 @@ void wifi_handle_event_cb(System_Event_t *event) {
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
 
+            ets_intr_lock();
             if (secure_connected) {
                 espconn_secure_disconnect(&con);
             }
+            ets_intr_unlock();
 
             if (netif_default == &icmp_tap) {
                 dhcp_stop(&icmp_tap);

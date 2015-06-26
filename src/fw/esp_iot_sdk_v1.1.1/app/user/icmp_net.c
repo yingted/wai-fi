@@ -151,7 +151,8 @@ void *__wrap_mem_realloc(long a, long b) {
     return ret;
 }
 
-#define esf_buf_printf(...)
+//#define esf_buf_printf(...)
+#define esf_buf_printf os_printf
 ICACHE_FLASH_ATTR
 void show_esf_buf() {
     int lmacIsActive();
@@ -245,15 +246,15 @@ struct icmp_net_hdr {
 
 ICACHE_FLASH_ATTR
 void assert_heap_(char *file, int line) {
-    //user_dprintf("%s:%d", file, line);
-    os_printf("%s:%d ", file, line);
+    user_dprintf("%s:%d", file, line);
+    //os_printf("%s:%d ", file, line);
     uint32_t heap = system_get_free_heap_size();
     if (!(20000 <= heap && heap <= 50000)) {
         user_dprintf("heap: %d", heap);
         assert(false);
     }
     show_esf_buf();
-    os_printf("ok\n");
+    //os_printf("ok\n");
 }
 
 static inline unsigned long ccount() {
@@ -290,7 +291,7 @@ static err_t send_keepalive(struct netif *netif) {
  */
 ICACHE_FLASH_ATTR
 static void drop_echo_reply(struct icmp_net_config *config) {
-    assert(0 < ICMP_NET_CONFIG_QLEN(config));
+    assert(0 < ICMP_NET_CONFIG_QLEN(config)); // XXX fails
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
@@ -422,7 +423,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     extern ip_addr_t current_iphdr_src;
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
-        assert(ethernet_input_count);
+        assert(ethernet_input_count); // XXX fails
         user_dprintf("match: len=%u", p->tot_len);
         pbuf_ref(p);
         ets_intr_lock();
@@ -447,9 +448,12 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 }
 
 ICACHE_FLASH_ATTR
-err_t icmp_net_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr) {
+err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     assert_heap();
-    err_t ret = etharp_output(netif, q, ipaddr);
+    if (p->tot_len > 2000) {
+        user_dprintf("large pbuf: %d", p->tot_len); // XXX 39050?
+    }
+    err_t ret = etharp_output(netif, p, ipaddr);
     assert_heap();
     return ret;
 }
@@ -546,11 +550,19 @@ void icmp_net_unenslave(struct icmp_net_config *config) {
 err_t __real_ethernet_input(struct pbuf *p, struct netif *netif);
 ICACHE_FLASH_ATTR
 err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
-    assert(ethernet_input_count++ == 0);
-    const err_t ret = __real_ethernet_input(p, netif);
-    assert(--ethernet_input_count == 0);
+    assert_heap();
+    return __real_ethernet_input(p, netif);
+    assert_heap();
+}
+
+void __real_sys_check_timeouts(void);
+ICACHE_FLASH_ATTR
+void __wrap_sys_check_timeouts(void) {
+    __real_sys_check_timeouts();
+
     ets_intr_lock();
-    while (process_pbuf_q[0]) {
+    assert(ethernet_input_count++ == 0);
+    while (process_pbuf_q[0]) { // XXX use sys_check_timeouts
         struct pbuf *p = process_pbuf_q[0];
         struct icmp_net_config *config = process_pbuf_q_config[0];
         int i;
@@ -573,8 +585,8 @@ err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
         }
         ets_intr_lock();
     }
+    assert(--ethernet_input_count == 0);
     ets_intr_unlock();
-    return ret;
 }
 
 void __real_icmp_input(struct pbuf *p, struct netif *inp);

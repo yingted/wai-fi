@@ -130,6 +130,7 @@ LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,ip_input \
 	-Wl,-wrap,etharp_tmr \
 	-Wl,-wrap,ethernet_input \
+	-Wl,-wrap,sys_check_timeouts \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip

@@ -23,5 +23,7 @@ sudo hostapd hostapd.conf & hostapd=$!
 sudo ifconfig wlp3s0v1 192.168.9.1
 sudo ./icmp_tap & icmp_tap=$!
 sudo dnsmasq -d -i wlp3s0v1 -i icmp0 -I lo -F 192.168.9.20,192.168.9.254,255.255.255.0,12h -F 192.168.10.20,192.168.10.254,255.255.255.0,12h & dnsmasq=$!
+wait $hostapd
+cleanup
 wait
 trap - EXIT INT QUIT TERM
