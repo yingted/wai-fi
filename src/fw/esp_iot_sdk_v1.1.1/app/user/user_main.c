@@ -32,10 +32,16 @@ static void connect_ssl();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
     //espconn_secure_disconnect(&con);
-    secure_connected = false;
     assert_heap();
+
+    ets_intr_lock();
+    if (!secure_connected) {
+        return;
+    }
+    secure_connected = false;
     //sys_timeout(1000, connect_ssl, NULL);
     connect_ssl();
+    ets_intr_unlock();
 }
 
 ICACHE_FLASH_ATTR
@@ -72,15 +78,19 @@ static void connect_ssl() {
     user_dprintf("starting connection");
     assert_heap();
     ets_intr_lock();
-    sint8 rc = espconn_secure_connect(&con);
-    assert_heap();
-    if (rc) {
-        user_dprintf("espconn_secure_connect: error %u", rc);
+    if (secure_connected) {
+        user_dprintf("error: already connected");
     } else {
-        secure_connected = true;
+        sint8 rc = espconn_secure_connect(&con);
+        if (rc) {
+            user_dprintf("espconn_secure_connect: error %u", rc);
+        } else {
+            secure_connected = true;
+        }
+        assert_heap();
+        user_dprintf("started connection: %d", rc);
     }
     ets_intr_unlock();
-    user_dprintf("started connection: %d", rc);
 }
 
 ICACHE_FLASH_ATTR
@@ -148,6 +158,7 @@ void user_rf_pre_init(void) {
 
 ICACHE_FLASH_ATTR
 void user_init(void) {
+    system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("user_init()");
     user_dprintf("heap: %d", system_get_free_heap_size());

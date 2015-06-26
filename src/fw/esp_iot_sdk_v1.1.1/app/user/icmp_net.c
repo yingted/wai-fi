@@ -466,6 +466,7 @@ static void process_queued_pbufs() {
         assert(p);
         assert(config);
         user_dprintf("netif->input %d", p->tot_len);
+        assert(p->ref == 1);
 
         err_t rc = config->netif->input(p, config->netif);
         if (rc != ERR_OK) {
