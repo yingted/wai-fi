@@ -24,18 +24,18 @@ void assert_heap_(char *file, int line);
 
 ICACHE_FLASH_ATTR
 static void espconn_connect_cb(void *arg) {
-    user_dprintf("arg=%p", arg);
+    user_dprintf("%p", arg);
     assert_heap();
 }
 
 static void connect_ssl();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
-    //espconn_secure_disconnect(&con);
     assert_heap();
 
     ets_intr_lock();
     if (!secure_connected) {
+        user_dprintf("warning: disconnect: already disconnected");
         return;
     }
     secure_connected = false;
@@ -57,6 +57,14 @@ static void espconn_disconnect_cb(void *arg) {
 
 ICACHE_FLASH_ATTR
 static void connect_ssl() {
+    ets_intr_lock();
+
+    if (secure_connected) {
+        user_dprintf("error: already connected");
+        ets_intr_unlock();
+        return;
+    }
+
     os_memset(&con, 0, sizeof(con));
     con.type = ESPCONN_TCP;
     con.state = ESPCONN_NONE;
@@ -77,19 +85,16 @@ static void connect_ssl() {
 
     user_dprintf("starting connection");
     assert_heap();
-    ets_intr_lock();
-    if (secure_connected) {
-        user_dprintf("error: already connected");
+    assert(!secure_connected);
+    sint8 rc = espconn_secure_connect(&con);
+    if (rc) {
+        user_dprintf("espconn_secure_connect: error %u", rc);
     } else {
-        sint8 rc = espconn_secure_connect(&con);
-        if (rc) {
-            user_dprintf("espconn_secure_connect: error %u", rc);
-        } else {
-            secure_connected = true;
-        }
-        assert_heap();
-        user_dprintf("started connection: %d", rc);
+        secure_connected = true;
     }
+    assert_heap();
+    user_dprintf("started connection: %d", rc);
+
     ets_intr_unlock();
 }
 
@@ -126,7 +131,10 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
             ets_intr_lock();
             if (secure_connected) {
-                espconn_secure_disconnect(&con);
+                if (espconn_secure_disconnect(&con) != ESPCONN_OK) {
+                    user_dprintf("disconnect: failed");
+                }
+                secure_connected = false;
             }
             ets_intr_unlock();
 

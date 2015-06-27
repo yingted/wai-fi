@@ -260,7 +260,7 @@ void assert_heap_(char *file, int line) {
     //user_dprintf("%s:%d", file, line);
     esf_buf_printf("%s:%d ", file, line);
     uint32_t heap = system_get_free_heap_size();
-    if (!(20000 <= heap && heap <= 50000)) {
+    if (!(8000 <= heap && heap <= 50000)) {
         user_dprintf("heap: %d", heap);
         assert(false);
     }
