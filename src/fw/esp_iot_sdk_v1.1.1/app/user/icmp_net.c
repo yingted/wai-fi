@@ -302,7 +302,7 @@ static err_t send_keepalive(struct netif *netif) {
  */
 ICACHE_FLASH_ATTR
 static void drop_echo_reply(struct icmp_net_config *config) {
-    assert(0 < ICMP_NET_CONFIG_QLEN(config));
+    assert(0 < ICMP_NET_CONFIG_QLEN(config)); // XXX fails
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
@@ -375,6 +375,7 @@ send:
 #endif
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
+            user_dprintf("send queue full");
             drop_echo_reply(config);
         }
         assert(ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_QSIZE);
@@ -434,6 +435,9 @@ ICACHE_FLASH_ATTR
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert_heap();
     assert(config->slave);
+    assert(p->ref >= 1);
+    assert(p->len < 2000);
+    assert(p->tot_len < 2000);
     extern ip_addr_t current_iphdr_src;
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
@@ -449,6 +453,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
                 break;
             }
         }
+        user_dprintf("got icmp frame");
         drop_echo_reply(config);
         if (i == PROCESS_PBUF_QSIZE) {
             user_dprintf("dropping ethernet frame");
@@ -672,6 +677,9 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
             ICMP_NET_CONFIG_LOCK(config);
             if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
                 user_dprintf("receive window [%u, %u)", config->recv_i, config->send_i);
+                assert(p->ref >= 1);
+                assert(p->len < 2000);
+                assert(p->tot_len < 2000);
                 if (config->recv_i == seqno) {
                     process_pbuf(config, p);
                 } else {
