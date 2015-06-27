@@ -311,11 +311,8 @@ static void drop_echo_reply(struct icmp_net_config *config) {
             break;
         }
 
-        ICMP_NET_CONFIG_UNLOCK(config);
         process_pbuf(config, p);
         pbuf_free(p);
-        ICMP_NET_CONFIG_LOCK(config);
-
     }
 }
 
@@ -443,8 +440,6 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
         assert(ethernet_input_count);
         user_dprintf("match: len=%u", p->tot_len);
         pbuf_ref(p);
-        ets_intr_lock();
-        ICMP_NET_CONFIG_LOCK(config);
         int i;
         for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {
             assert((process_pbuf_q[i] == NULL) == (process_pbuf_q_config[i] == NULL));
@@ -455,8 +450,6 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
             }
         }
         drop_echo_reply(config);
-        ICMP_NET_CONFIG_UNLOCK(config);
-        ets_intr_unlock();
         if (i == PROCESS_PBUF_QSIZE) {
             user_dprintf("dropping ethernet frame");
         }
