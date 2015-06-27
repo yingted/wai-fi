@@ -19,6 +19,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 #ifndef NDEBUG
 static size_t ethernet_input_count = 0;
+void exc_handler(void *exc);
 #endif
 #define esf_buf_printf(...)
 //#define esf_buf_printf os_printf
@@ -49,6 +50,9 @@ __wrap_inet_chksum_pseudo(struct pbuf *p,
     void *a0 = a0_;
     user_dprintf("%p, from %p", p, a0);
     user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+    if (p->ref != 1) {
+        exc_handler(NULL);
+    }
     assert(p->ref == 1);
     // from: 0x401052ba
     // func: 0x401051b4
@@ -321,13 +325,16 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     struct icmp_net_config *config = netif->state;
     assert(config->slave);
     user_dprintf("%p %p", netif, p);
+    user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+    assert(p->ref >= 1);
+    assert(p->len < 2000);
+    assert(p->tot_len < 2000);
 
-    {
+    { // copy p
         assert(p->tot_len < 2000);
         struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
-            pbuf_free(p);
             mem_error();
             return ERR_MEM;
         }
@@ -338,7 +345,6 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
             user_dprintf("reserve header failed");
 err_buf:
             pbuf_free(r);
-            pbuf_free(p);
             return ERR_BUF;
         }
         if (pbuf_copy(r, p) != ERR_OK) {
@@ -350,7 +356,6 @@ err_buf:
             goto err_buf;
         }
 
-        pbuf_free(p);
         p = r;
     }
 
@@ -555,6 +560,9 @@ err_t __real_ip_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("%p %p", p, inp);
+    assert(p->ref >= 1);
+    assert(p->len < 2000);
+    assert(p->tot_len < 2000);
 #ifndef NDEBUG
     static int count = 0;
 #endif
@@ -594,6 +602,9 @@ ICACHE_FLASH_ATTR
 err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert_heap();
     user_dprintf("%p %p", p, netif);
+    assert(p->ref >= 1);
+    assert(p->len < 2000);
+    assert(p->tot_len < 2000);
     assert(ethernet_input_count++ == 0);
     err_t ret = __real_ethernet_input(p, netif);
     assert(--ethernet_input_count == 0);
@@ -616,6 +627,9 @@ ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("%p %p", p, inp);
     assert((((size_t)p->payload) & 0x1) == 0);
+    assert(p->ref >= 1);
+    assert(p->len < 2000);
+    assert(p->tot_len < 2000);
     assert_heap();
 
     struct ip_hdr *iphdr = p->payload;

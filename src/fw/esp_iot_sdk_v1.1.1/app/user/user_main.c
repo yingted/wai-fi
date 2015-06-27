@@ -168,25 +168,37 @@ struct exc_arg {
 };
 
 ICACHE_FLASH_ATTR
-static void exc_handler(struct exc_arg *exc) {
+void exc_handler(struct exc_arg *exc) {
     size_t exc_cause;
     void *exc_vaddr, *sp;
     asm volatile("rsr.exccause %0" : "=r" (exc_cause));
     asm volatile("rsr.excvaddr %0" : "=r" (exc_vaddr));
     asm volatile("mov %0, a1" : "=r" (sp));
 
-    struct exc_arg data = *exc;
-    user_dprintf("Exception %d at %p", exc_cause, exc_vaddr);
-    user_dprintf(
-        "pc=%p ps=%p sar=%p vpri=%p a2=%p a3=%p a4=%p a5=%p exccause=%p lcount=%p lbeg=%p lend=%p",
-        data.xt_pc, data.xt_ps, data.xt_sar, data.xt_vpri, data.xt_a2, data.xt_a3, data.xt_a4, data.xt_a5, data.xt_exccause, data.xt_lcount, data.xt_lbeg, data.xt_lend
-    );
-    os_printf("back from sp=%p:", sp);
-    int i;
-    for (i = 0; i < 64; ++i) {
-        os_printf(" %p", ((void **)sp)[~i]);
+    if (exc) {
+        struct exc_arg data = *exc;
+        user_dprintf("Exception %d at %p", exc_cause, exc_vaddr);
+        user_dprintf(
+            "pc=%p ps=%p sar=%p vpri=%p a2=%p a3=%p a4=%p a5=%p exccause=%p lcount=%p lbeg=%p lend=%p",
+            data.xt_pc, data.xt_ps, data.xt_sar, data.xt_vpri, data.xt_a2, data.xt_a3, data.xt_a4, data.xt_a5, data.xt_exccause, data.xt_lcount, data.xt_lbeg, data.xt_lend
+        );
     }
-    os_printf("\n");
+    {
+        os_printf("forward from sp=%p:", sp);
+        int i;
+        for (i = 0; i < 64; ++i) {
+            os_printf(" %p", ((void **)sp)[i]);
+        }
+        os_printf("\n");
+    }
+    {
+        os_printf("back from sp=%p:", sp);
+        int i;
+        for (i = 0; i < 64; ++i) {
+            os_printf(" %p", ((void **)sp)[~i]);
+        }
+        os_printf("\n");
+    }
     assert(false);
 }
 
