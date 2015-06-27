@@ -45,7 +45,14 @@ u16_t
 __wrap_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len) {
-    //user_dprintf("%p", p);
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    user_dprintf("%p, from %p", p, a0);
+    user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+    assert(p->ref == 1);
+    // from: 0x401052ba
+    // func: 0x401051b4
+    // from: 0x40262a78 (tcp_output)
     return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
 }
 
@@ -59,7 +66,7 @@ u16_t
 __wrap_inet_chksum_pseudo_partial(struct pbuf *p,
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len, u16_t chksum_len) {
-    //user_dprintf("%p", p);
+    user_dprintf("%p", p);
     return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
 }
 
@@ -69,7 +76,7 @@ __real_inet_chksum(void *dataptr, u16_t len);
 ICACHE_FLASH_ATTR
 u16_t
 __wrap_inet_chksum(void *dataptr, u16_t len) {
-    //user_dprintf("%p", dataptr);
+    user_dprintf("%p", dataptr);
     return __real_inet_chksum(dataptr, len);
 }
 
@@ -79,7 +86,7 @@ __real_inet_chksum_pbuf(struct pbuf *p);
 ICACHE_FLASH_ATTR
 u16_t
 __wrap_inet_chksum_pbuf(struct pbuf *p) {
-    //user_dprintf("%p", p);
+    user_dprintf("%p", p);
     return __real_inet_chksum_pbuf(p);
 }
 
