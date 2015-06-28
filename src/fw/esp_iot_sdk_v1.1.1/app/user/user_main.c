@@ -22,12 +22,6 @@ struct espconn con;
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
 
-ICACHE_FLASH_ATTR
-static void espconn_connect_cb(void *arg) {
-    user_dprintf("%p", arg);
-    assert_heap();
-}
-
 static void connect_ssl();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
@@ -56,6 +50,40 @@ static void espconn_disconnect_cb(void *arg) {
 }
 
 ICACHE_FLASH_ATTR
+static void espconn_sent_cb(void *arg) {
+    user_dprintf("%p", arg);
+}
+
+ICACHE_FLASH_ATTR
+static void espconn_recv_cb(void *arg, char *buf, unsigned short len) {
+    user_dprintf("%p", arg);
+    os_printf("buf: ");
+    for (; len > 0; ++buf, --len) {
+        os_printf("%c", *buf);
+    }
+    os_printf("\n");
+}
+
+ICACHE_FLASH_ATTR
+static void espconn_connect_cb(void *arg) {
+    struct espconn *conn = arg;
+
+    espconn_set_opt(conn, ESPCONN_REUSEADDR);
+    espconn_set_opt(conn, ESPCONN_NODELAY);
+    espconn_set_opt(conn, ESPCONN_KEEPALIVE);
+    int keepalive_interval = 2 * 10; // 10 seconds
+    espconn_set_keepalive(conn, ESPCONN_KEEPIDLE, &keepalive_interval);
+    espconn_set_keepalive(conn, ESPCONN_KEEPINTVL, &keepalive_interval);
+    //espconn_set_keepalive(conn, ESPCONN_KEEPCNT, 0);
+
+    user_dprintf("%p", conn);
+    assert_heap();
+    espconn_regist_disconcb(&con, espconn_disconnect_cb);
+    espconn_regist_recvcb(&con, espconn_recv_cb);
+    espconn_regist_sentcb(&con, espconn_sent_cb);
+}
+
+ICACHE_FLASH_ATTR
 static void connect_ssl() {
     USER_INTR_LOCK();
 
@@ -80,7 +108,6 @@ static void connect_ssl() {
     assert_heap();
     espconn_regist_connectcb(&con, espconn_connect_cb);
     espconn_regist_reconcb(&con, espconn_reconnect_cb);
-    espconn_regist_disconcb(&con, espconn_disconnect_cb);
     assert_heap();
 
     user_dprintf("starting connection");
