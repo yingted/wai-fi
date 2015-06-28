@@ -54,8 +54,8 @@ static void espconn_reconnect_cb(void *arg, sint8 err) {
 
     switch (err) {
         case ESPCONN_CONN: // -11
-            ssl_disconnect();
-            break;
+            // We probably took too long to respond to something MAC-level
+            system_restart(); // seems unrecoverable
     }
 
     schedule_reconnect();

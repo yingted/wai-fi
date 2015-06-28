@@ -150,8 +150,10 @@ send:
         struct netif *slave = config->slave;
         user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
         //USER_INTR_LOCK();
+#ifdef DEBUG_ESP
         int lmacIsActive();
         assert(!lmacIsActive());
+#endif
         err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
         //USER_INTR_UNLOCK();
 
@@ -198,7 +200,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
 #ifdef DEBUG_ESP
-        assert(icmp_net_lwip_entry_count);
+        assert(icmp_net_lwip_entry_count == 1);
 #endif
         user_dprintf("enqueuing %p len=%u", p, p->tot_len);
         pbuf_ref(p);
@@ -216,7 +218,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
         }
         drop_echo_reply(config);
 #ifdef DEBUG_ESP
-        assert(icmp_net_lwip_entry_count);
+        assert(icmp_net_lwip_entry_count == 1);
 #endif
     }
 }
