@@ -20,7 +20,7 @@ static struct ip_info linklocal_info = {
 bool secure_connected = false;
 struct espconn con;
 
-static void connect_ssl();
+static void ssl_connect();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
     assert_heap();
@@ -32,11 +32,20 @@ static void schedule_reconnect() {
     }
     secure_connected = false;
 #ifdef DEBUG_ESP
-    connect_ssl();
+    ssl_connect();
 #else
-    sys_timeout(1000, connect_ssl, NULL);
+    sys_timeout(1000, ssl_connect, NULL);
 #endif
     USER_INTR_UNLOCK();
+}
+
+ICACHE_FLASH_ATTR
+static void ssl_disconnect() {
+    assert(secure_connected);
+    if (espconn_secure_disconnect(&con) != ESPCONN_OK) {
+        user_dprintf("disconnect: failed");
+    }
+    secure_connected = false;
 }
 
 ICACHE_FLASH_ATTR
@@ -44,9 +53,9 @@ static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %d", err);
 
     switch (err) {
-        case ESPCONN_ARG: // -11
-            user_dprintf("restarting");
-            system_restart(); // TODO fix this
+        case ESPCONN_CONN: // -11
+            ssl_disconnect();
+            break;
     }
 
     schedule_reconnect();
@@ -66,6 +75,7 @@ static void espconn_sent_cb(void *arg) {
 
 ICACHE_FLASH_ATTR
 static void espconn_recv_cb(void *arg, char *buf, unsigned short len) {
+    return;
     user_dprintf("%p", arg);
 
     os_printf("buf: ");
@@ -97,7 +107,7 @@ static void espconn_connect_cb(void *arg) {
 }
 
 ICACHE_FLASH_ATTR
-static void connect_ssl() {
+static void ssl_connect() {
     USER_INTR_LOCK();
 
     if (secure_connected) {
@@ -163,7 +173,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 }
             } else {
                 user_dprintf("tunnel established");
-                connect_ssl();
+                ssl_connect();
             }
             break;
         case EVENT_STAMODE_DISCONNECTED:
@@ -171,10 +181,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
             USER_INTR_LOCK();
             if (secure_connected) {
-                if (espconn_secure_disconnect(&con) != ESPCONN_OK) {
-                    user_dprintf("disconnect: failed");
-                }
-                secure_connected = false;
+                ssl_disconnect();
             }
             USER_INTR_UNLOCK();
 

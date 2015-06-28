@@ -57,14 +57,17 @@ static err_t send_keepalive(struct netif *netif) {
  */
 ICACHE_FLASH_ATTR
 static void drop_echo_reply(struct icmp_net_config *config) {
-    assert(0 < ICMP_NET_CONFIG_QLEN(config));
+    assert(ICMP_NET_CONFIG_QLEN(config) > 0);
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
-    while (ICMP_NET_CONFIG_QLEN(config) > 0 && (p = config->queue[++config->recv_i % ICMP_NET_QSIZE])) {
-        if (p == NULL) {
+    while (p = config->queue[++config->recv_i % ICMP_NET_QSIZE]) {
+        if (ICMP_NET_CONFIG_QLEN(config) == 0) {
+            // We've just dropped the last outstanding packet, so there's nothing left to process
+            // A keepalive must be sent
             break;
         }
+        assert(ICMP_NET_CONFIG_QLEN(config) > 0);
 
 #ifdef DEBUG_ESP
         user_dprintf("processing packet %p len=%d seq=%d", p, p->tot_len, config->recv_i);
@@ -190,6 +193,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert(p->ref >= 1);
     assert(p->len < 2000);
     assert(p->tot_len < 2000);
+    assert(ICMP_NET_CONFIG_QLEN(config) > 0);
     extern ip_addr_t current_iphdr_src;
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
@@ -210,9 +214,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
         if (i == PROCESS_PBUF_QSIZE) {
             user_dprintf("dropped ethernet frame");
         }
-        if (ICMP_NET_CONFIG_QLEN(config) > 0) {
-            drop_echo_reply(config);
-        }
+        drop_echo_reply(config);
 #ifdef DEBUG_ESP
         assert(icmp_net_lwip_entry_count);
 #endif
@@ -237,7 +239,7 @@ static void process_queued_pbufs() {
 
         assert(p);
         assert(config);
-        user_dprintf("netif->input %d", p->tot_len);
+        user_dprintf("netif->input %p len=%d", p, p->tot_len);
         assert(p->ref >= 1);
 
         err_t rc = config->netif->input(p, config->netif);

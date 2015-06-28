@@ -118,11 +118,11 @@ DDEFINES +=				\
 INCLUDES := $(INCLUDES) -I $(PDIR)include
 
 # ICMP hook
-LINKFLAGS_eagle.app.v6 += \
+WRAP := \
 	-Wl,-wrap,icmp_input \
 	-Wl,-wrap,ethernet_input \
 	-Wl,-wrap,sys_check_timeouts \
-	-fdata-sections -ffunction-sections -Wl,--gc-sections \
+	-Wl,-wrap,pvPortMalloc \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
@@ -130,8 +130,7 @@ endif
 ifeq ($(FLAVOR),debug)
 	ifeq ($(DEBUG_ESP),1)
 		DEFINES += -DDEBUG_ESP
-		LINKFLAGS_eagle.app.v6 += \
-			-Wl,-wrap,pvPortMalloc \
+		WRAP += \
 			-Wl,-wrap,esf_buf_alloc \
 			-Wl,-wrap,esf_rx_buf_alloc \
 			-Wl,-wrap,mem_malloc \
@@ -142,10 +141,13 @@ ifeq ($(FLAVOR),debug)
 			-Wl,-wrap,inet_chksum_pbuf \
 			-Wl,-wrap,ip_input \
 			-Wl,-wrap,etharp_tmr \
-			-Wl,-wrap,ssl_read \
 
 	endif
 endif
+
+LINKFLAGS_eagle.app.v6 += \
+	$(WRAP) \
+	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../include/lwip
 INCLUDES += -I $(PDIR)../include/lwip/ipv4

@@ -326,10 +326,15 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
     assert(--count == 0);
 }
 
-EXP_FUNC int STDCALL ICACHE_FLASH_ATTR __real_ssl_read(SSL *ssl, uint8_t **in_data);
-EXP_FUNC int STDCALL ICACHE_FLASH_ATTR __wrap_ssl_read(SSL *ssl, uint8_t **in_data) {
-    int ret = __real_ssl_read(ssl, in_data);
-    user_dprintf("returning %d", ret);
+#else
+
+void *__real_pvPortMalloc(size_t size);
+void *__wrap_pvPortMalloc(size_t size) {
+    void *ret = __real_pvPortMalloc(size);
+    if (!ret) {
+        user_dprintf("malloc(%d) failed", size);
+        system_restart();
+    }
     return ret;
 }
 
