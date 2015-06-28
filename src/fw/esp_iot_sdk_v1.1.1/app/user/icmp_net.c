@@ -119,9 +119,9 @@ void *__wrap_esf_buf_alloc(long a, long b) {
     //USER_INTR_LOCK();
     void *ret = __real_esf_buf_alloc(a, b);
     //USER_INTR_UNLOCK();
-    //user_dprintf("%ld %ld => %p", a, b, ret);
-    //assert_heap();
     if (!ret) {
+        user_dprintf("%ld %ld => %p", a, b, ret);
+        assert_heap();
         assert(false);
     }
     return ret;
@@ -134,9 +134,9 @@ void *__wrap_esf_rx_buf_alloc(long a, long b) {
     //USER_INTR_LOCK();
     void *ret = __real_esf_rx_buf_alloc(a, b);
     //USER_INTR_UNLOCK();
-    //user_dprintf("%ld %ld => %p", a, b, ret);
-    //assert_heap();
     if (!ret) {
+        user_dprintf("%ld %ld => %p", a, b, ret);
+        assert_heap();
         assert(false);
     }
     return ret;
@@ -298,22 +298,22 @@ static err_t send_keepalive(struct netif *netif) {
 }
 
 /**
- * Drop recv_i.
- * Increment recv_i and process packets starting from recv_i.
+ * Drop recv_i. Usually, it was just processed.
+ * Increment recv_i and process packets starting from recv_i, if they exist.
  * config must be locked.
  */
 ICACHE_FLASH_ATTR
 static void drop_echo_reply(struct icmp_net_config *config) {
-    assert(0 < ICMP_NET_CONFIG_QLEN(config)); // XXX fails
+    assert(0 < ICMP_NET_CONFIG_QLEN(config));
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
-    while (config->recv_i != config->send_i && (p = config->queue[++config->recv_i % ICMP_NET_QSIZE])) {
+    while (ICMP_NET_CONFIG_QLEN(config) > 0 && (p = config->queue[++config->recv_i % ICMP_NET_QSIZE])) {
         if (p == NULL) {
             break;
         }
 
-        user_dprintf("processing packet %d", (config->recv_i + ICMP_NET_QSIZE - 1) % ICMP_NET_QSIZE);
+        user_dprintf("processing packet %d", config->recv_i);
         process_pbuf(config, p);
         pbuf_free(p);
     }
@@ -445,7 +445,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         assert(ethernet_input_count);
-        user_dprintf("match: len=%u", p->tot_len);
+        user_dprintf("enqueuing len=%u", p->tot_len);
         pbuf_ref(p);
         int i;
         for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {
@@ -456,10 +456,11 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
                 break;
             }
         }
-        user_dprintf("got icmp frame");
-        drop_echo_reply(config);
         if (i == PROCESS_PBUF_QSIZE) {
-            user_dprintf("dropping ethernet frame");
+            user_dprintf("dropped ethernet frame");
+        }
+        if (ICMP_NET_CONFIG_QLEN(config) > 0) {
+            drop_echo_reply(config);
         }
         assert(ethernet_input_count);
     }
