@@ -14,7 +14,7 @@
 TARGET = eagle
 #FLAVOR = release
 FLAVOR = debug
-DEBUG_ESP = 1
+DEBUG_ESP = 0
 
 #EXTRA_CCFLAGS += -u
 
@@ -120,7 +120,6 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 # ICMP hook
 WRAP := \
 	-Wl,-wrap,icmp_input \
-	-Wl,-wrap,ethernet_input \
 	-Wl,-wrap,sys_check_timeouts \
 	-Wl,-wrap,pvPortMalloc \
 

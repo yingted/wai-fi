@@ -184,7 +184,7 @@ struct pbuf *process_pbuf_q[PROCESS_PBUF_QSIZE] = {0};
 struct icmp_net_config *process_pbuf_q_config[PROCESS_PBUF_QSIZE];
 
 /**
- * Process an input ping in pbuf.
+ * Process an input ping in pbuf with seq=config->recv_i.
  * config must be locked.
  * p->ref neutral.
  */
@@ -316,25 +316,7 @@ err_t icmp_net_init(struct netif *netif) {
 }
 
 ICACHE_FLASH_ATTR
-void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
-    assert(config->netif != NULL);
-    assert(slave != NULL);
-    assert(config->slave == NULL);
-    config->slave = slave;
-
-    // TODO replace input
-}
-
-ICACHE_FLASH_ATTR
-void icmp_net_unenslave(struct icmp_net_config *config) {
-    assert(config->netif != NULL);
-    assert(config->slave != NULL);
-    config->slave = NULL;
-}
-
-err_t __real_ethernet_input(struct pbuf *p, struct netif *netif);
-ICACHE_FLASH_ATTR
-err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
+err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
 #ifdef DEBUG_ESP
     assert_heap();
     user_dprintf("%p %p", p, netif);
@@ -343,12 +325,35 @@ err_t __wrap_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert(p->tot_len < 2000);
     assert(icmp_net_lwip_entry_count++ == 0);
 #endif
-    err_t ret = __real_ethernet_input(p, netif);
+    err_t ret = ethernet_input(p, netif);
 #ifdef DEBUG_ESP
     assert(--icmp_net_lwip_entry_count == 0);
 #endif
     process_queued_pbufs();
     return ret;
+}
+
+ICACHE_FLASH_ATTR
+void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
+    assert(config->netif != NULL);
+    assert(slave != NULL);
+    assert(config->slave == NULL);
+    config->slave = slave;
+
+    assert(slave->input == ethernet_input);
+    slave->input = my_ethernet_input;
+}
+
+ICACHE_FLASH_ATTR
+void icmp_net_unenslave(struct icmp_net_config *config) {
+    struct netif *slave = config->slave;
+
+    assert(slave->input = my_ethernet_input);
+    slave->input = ethernet_input;
+
+    assert(config->netif != NULL);
+    assert(slave != NULL);
+    config->slave = NULL;
 }
 
 void __real_sys_check_timeouts(void);
