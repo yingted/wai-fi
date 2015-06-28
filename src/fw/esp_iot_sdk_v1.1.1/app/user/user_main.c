@@ -33,8 +33,11 @@ static void schedule_reconnect() {
         return;
     }
     secure_connected = false;
-    //sys_timeout(1000, connect_ssl, NULL);
+#ifdef DEBUG_ESP
     connect_ssl();
+#else
+    sys_timeout(1000, connect_ssl, NULL);
+#endif
     USER_INTR_UNLOCK();
 }
 

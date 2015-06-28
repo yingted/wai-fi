@@ -21,8 +21,11 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 static size_t ethernet_input_count = 0;
 void exc_handler(void *exc);
 #endif
+#ifdef DEBUG_ESP
+#define esf_buf_printf os_printf
+#else
 #define esf_buf_printf(...)
-//#define esf_buf_printf os_printf
+#endif
 
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
@@ -46,7 +49,7 @@ u16_t
 __wrap_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len) {
-#if 0
+#ifdef DEBUG_ESP
     register void *a0_ asm("a0");
     void *a0 = a0_;
     user_dprintf("%p, from %p", p, a0);
@@ -324,8 +327,10 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     assert_heap();
     struct icmp_net_config *config = netif->state;
     assert(config->slave);
+#ifdef DEBUG_ESP
     user_dprintf("%p %p", netif, p);
     user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+#endif
     assert(p->ref >= 1);
     assert(p->len < 2000);
     assert(p->tot_len < 2000);
@@ -373,30 +378,24 @@ send:
         iecho->code = 0;
         iecho->chksum = 0;
         iecho->id = htons(timestamp());
-#ifndef NDEBUG
-        bool did_drop = false;
-#endif
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
-            user_dprintf("send queue full");
+            user_dprintf("drop packet #%u", config->recv_i);
             drop_echo_reply(config);
         }
         assert(ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_QSIZE);
         config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
-#ifndef NDEBUG
-        if (did_drop) {
-            user_dprintf("dropped packet #%u", config->recv_i);
-        }
-#endif
         iecho->seqno = htons(seqno);
         iecho->chksum = inet_chksum(p->payload, p->len);
     }
 
     {
         struct netif *slave = config->slave;
+#ifdef DEBUG_ESP
         user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
+#endif
         //USER_INTR_LOCK();
         int lmacIsActive();
         assert(!lmacIsActive());
@@ -412,7 +411,9 @@ send:
     pbuf_free(p);
 
     if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
+#ifdef DEBUG_ESP
         user_dprintf("sending keepalive");
+#endif
         p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
         if (p == NULL) {
             mem_error();
@@ -445,7 +446,9 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
         assert(ethernet_input_count);
+#ifdef DEBUG_ESP
         user_dprintf("enqueuing len=%u", p->tot_len);
+#endif
         pbuf_ref(p);
         int i;
         for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {
@@ -484,7 +487,9 @@ static void process_queued_pbufs() {
 
         assert(p);
         assert(config);
+#ifdef DEBUG_ESP
         user_dprintf("netif->input %d", p->tot_len);
+#endif
         assert(p->ref == 1);
 
         err_t rc = config->netif->input(p, config->netif);
@@ -589,6 +594,7 @@ void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
     assert(slave != NULL);
     assert(config->slave == NULL);
     config->slave = slave;
+
     // TODO replace input
 }
 
