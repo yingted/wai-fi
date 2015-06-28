@@ -37,11 +37,11 @@ EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_
 
 #define USER_INTR_LOCK() do { \
     ets_intr_lock(); \
-    USER_MEM_BARRIER(); \
+    /*USER_MEM_BARRIER();*/ \
 } while (0)
 
 #define USER_INTR_UNLOCK() do { \
-    USER_MEM_BARRIER(); \
+    /*USER_MEM_BARRIER();*/ \
     ets_intr_lock(); \
 } while (0)
 
