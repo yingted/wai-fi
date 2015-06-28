@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
 			ssize_t to_write = tot_recv - conn.pos;
 			int packets = (to_write + mtu - 1) / mtu;
 			assert(packets <= 1);
-			unsigned char queued = max<unsigned char>(0, min<unsigned long>(UCHAR_MAX, packets - conn.replies.size()));
+			unsigned char queued = max<unsigned char>(0, min<long>(UCHAR_MAX, (long)packets - (long)conn.replies.size()));
 			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {
 				if (conn.pos == tot_recv) {
 					break; // queue is empty

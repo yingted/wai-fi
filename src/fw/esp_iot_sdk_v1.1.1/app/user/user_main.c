@@ -193,68 +193,16 @@ void wifi_handle_event_cb(System_Event_t *event) {
     assert_heap();
 }
 
-struct exc_arg {
-    size_t xt_pc;
-    size_t xt_ps;
-    size_t xt_sar;
-    size_t xt_vpri;
-    size_t xt_a2;
-    size_t xt_a3;
-    size_t xt_a4;
-    size_t xt_a5;
-    size_t xt_exccause;
-    size_t xt_lcount;
-    size_t xt_lbeg;
-    size_t xt_lend;
-};
-
-ICACHE_FLASH_ATTR
-void exc_handler(struct exc_arg *exc) {
-    size_t exc_cause;
-    void *exc_vaddr, *sp;
-    asm volatile("rsr.exccause %0" : "=r" (exc_cause));
-    asm volatile("rsr.excvaddr %0" : "=r" (exc_vaddr));
-    asm volatile("mov %0, a1" : "=r" (sp));
-
-    if (exc) {
-        struct exc_arg data = *exc;
-        user_dprintf("Exception %d at %p", exc_cause, exc_vaddr);
-        user_dprintf(
-            "pc=%p ps=%p sar=%p vpri=%p a2=%p a3=%p a4=%p a5=%p exccause=%p lcount=%p lbeg=%p lend=%p",
-            data.xt_pc, data.xt_ps, data.xt_sar, data.xt_vpri, data.xt_a2, data.xt_a3, data.xt_a4, data.xt_a5, data.xt_exccause, data.xt_lcount, data.xt_lbeg, data.xt_lend
-        );
-    }
-    {
-        os_printf("forward from sp=%p:", sp);
-        int i;
-        for (i = 0; i < 64; ++i) {
-            os_printf(" %p", ((void **)sp)[i]);
-        }
-        os_printf("\n");
-    }
-    {
-        os_printf("back from sp=%p:", sp);
-        int i;
-        for (i = 0; i < 64; ++i) {
-            os_printf(" %p", ((void **)sp)[~i]);
-        }
-        os_printf("\n");
-    }
-    assert(false);
-}
-
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {
-    _xtos_set_exception_handler(9, exc_handler);
-    _xtos_set_exception_handler(28, exc_handler);
-    _xtos_set_exception_handler(29, exc_handler);
+    debug_esp_install_exc_handler();
 }
 
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
-    user_dprintf("user_init()");
+    user_dprintf("set cpu freq to %d", system_get_cpu_freq());
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
 

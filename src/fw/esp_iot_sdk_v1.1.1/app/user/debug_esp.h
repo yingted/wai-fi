@@ -8,6 +8,7 @@ extern size_t icmp_net_lwip_entry_count;
 void assert_heap_(char *file, int line);
 void show_esf_buf();
 void mem_error();
+void debug_esp_install_exc_handler();
 
 #define pvPortMalloc __real_pvPortMalloc
 #define inet_chksum_pseudo __real_inet_chksum_pseudo
@@ -22,6 +23,7 @@ void mem_error();
 #define assert_heap()
 #define show_esf_buf()
 #define mem_error()
+#define debug_esp_install_exc_handler()
 
 #endif
 
