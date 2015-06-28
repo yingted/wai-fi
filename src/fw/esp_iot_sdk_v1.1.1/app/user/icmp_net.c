@@ -177,8 +177,8 @@ send:
 }
 
 static struct icmp_net_config *root = NULL;
-#define PROCESS_PBUF_QSIZE 4
-struct pbuf *process_pbuf_q[PROCESS_PBUF_QSIZE] = {NULL, NULL, NULL, NULL};
+#define PROCESS_PBUF_QSIZE ((ICMP_NET_QSIZE) + 1)
+struct pbuf *process_pbuf_q[PROCESS_PBUF_QSIZE] = {0};
 struct icmp_net_config *process_pbuf_q_config[PROCESS_PBUF_QSIZE];
 
 /**
