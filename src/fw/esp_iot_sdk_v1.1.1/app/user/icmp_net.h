@@ -35,8 +35,8 @@ struct icmp_net_config {
 #define ICMP_NET_CONFIG_QLEN(config) ((config)->send_i - (config)->recv_i)
 #define ICMP_NET_CONFIG_CAN_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_MAX_KEEPALIVE)
 #define ICMP_NET_CONFIG_MUST_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_MIN_KEEPALIVE)
-#define ICMP_NET_CONFIG_LOCK(config) ets_intr_lock()
-#define ICMP_NET_CONFIG_UNLOCK(config) ets_intr_unlock()
+#define ICMP_NET_CONFIG_LOCK(config) USER_INTR_LOCK()
+#define ICMP_NET_CONFIG_UNLOCK(config) USER_INTR_UNLOCK()
 
 err_t icmp_net_init(struct netif *netif);
 void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb);

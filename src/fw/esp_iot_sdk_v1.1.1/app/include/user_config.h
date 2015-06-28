@@ -33,5 +33,15 @@ struct tcp_pcb;
 EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb, const
                                                 uint8_t *session_id, uint8_t sess_id_size);
 
+#define USER_INTR_LOCK() do { \
+    ets_intr_lock(); \
+    __sync_synchronize(); \
+} while (0)
+
+#define USER_INTR_UNLOCK() do { \
+    __sync_synchronize(); \
+    ets_intr_lock(); \
+} while (0)
+
 #endif
 

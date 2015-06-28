@@ -33,7 +33,7 @@ ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
     assert_heap();
 
-    ets_intr_lock();
+    USER_INTR_LOCK();
     if (!secure_connected) {
         user_dprintf("warning: disconnect: already disconnected");
         return;
@@ -41,7 +41,7 @@ static void schedule_reconnect() {
     secure_connected = false;
     //sys_timeout(1000, connect_ssl, NULL);
     connect_ssl();
-    ets_intr_unlock();
+    USER_INTR_UNLOCK();
 }
 
 ICACHE_FLASH_ATTR
@@ -57,11 +57,11 @@ static void espconn_disconnect_cb(void *arg) {
 
 ICACHE_FLASH_ATTR
 static void connect_ssl() {
-    ets_intr_lock();
+    USER_INTR_LOCK();
 
     if (secure_connected) {
         user_dprintf("error: already connected");
-        ets_intr_unlock();
+        USER_INTR_UNLOCK();
         return;
     }
 
@@ -95,7 +95,7 @@ static void connect_ssl() {
     assert_heap();
     user_dprintf("started connection: %d", rc);
 
-    ets_intr_unlock();
+    USER_INTR_UNLOCK();
 }
 
 ICACHE_FLASH_ATTR
@@ -129,14 +129,14 @@ void wifi_handle_event_cb(System_Event_t *event) {
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
 
-            ets_intr_lock();
+            USER_INTR_LOCK();
             if (secure_connected) {
                 if (espconn_secure_disconnect(&con) != ESPCONN_OK) {
                     user_dprintf("disconnect: failed");
                 }
                 secure_connected = false;
             }
-            ets_intr_unlock();
+            USER_INTR_UNLOCK();
 
             if (netif_default == &icmp_tap) {
                 dhcp_stop(&icmp_tap);

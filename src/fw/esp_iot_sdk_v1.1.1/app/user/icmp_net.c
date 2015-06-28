@@ -46,6 +46,7 @@ u16_t
 __wrap_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len) {
+#if 0
     register void *a0_ asm("a0");
     void *a0 = a0_;
     user_dprintf("%p, from %p", p, a0);
@@ -57,6 +58,7 @@ __wrap_inet_chksum_pseudo(struct pbuf *p,
     // from: 0x401052ba
     // func: 0x401051b4
     // from: 0x40262a78 (tcp_output)
+#endif
     return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
 }
 
@@ -70,7 +72,7 @@ u16_t
 __wrap_inet_chksum_pseudo_partial(struct pbuf *p,
        ip_addr_t *src, ip_addr_t *dest,
        u8_t proto, u16_t proto_len, u16_t chksum_len) {
-    user_dprintf("%p", p);
+    //user_dprintf("%p", p);
     return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
 }
 
@@ -80,7 +82,7 @@ __real_inet_chksum(void *dataptr, u16_t len);
 ICACHE_FLASH_ATTR
 u16_t
 __wrap_inet_chksum(void *dataptr, u16_t len) {
-    user_dprintf("%p", dataptr);
+    //user_dprintf("%p", dataptr);
     return __real_inet_chksum(dataptr, len);
 }
 
@@ -90,7 +92,7 @@ __real_inet_chksum_pbuf(struct pbuf *p);
 ICACHE_FLASH_ATTR
 u16_t
 __wrap_inet_chksum_pbuf(struct pbuf *p) {
-    user_dprintf("%p", p);
+    //user_dprintf("%p", p);
     return __real_inet_chksum_pbuf(p);
 }
 
@@ -114,9 +116,9 @@ void *__wrap_pvPortMalloc(size_t size) {
 void *__real_esf_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_buf_alloc(long a, long b) {
-    //ets_intr_lock();
+    //USER_INTR_LOCK();
     void *ret = __real_esf_buf_alloc(a, b);
-    //ets_intr_unlock();
+    //USER_INTR_UNLOCK();
     //user_dprintf("%ld %ld => %p", a, b, ret);
     //assert_heap();
     if (!ret) {
@@ -129,9 +131,9 @@ void *__real_esf_rx_buf_alloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_esf_rx_buf_alloc(long a, long b) {
     //assert_heap();
-    //ets_intr_lock();
+    //USER_INTR_LOCK();
     void *ret = __real_esf_rx_buf_alloc(a, b);
-    //ets_intr_unlock();
+    //USER_INTR_UNLOCK();
     //user_dprintf("%ld %ld => %p", a, b, ret);
     //assert_heap();
     if (!ret) {
@@ -214,7 +216,7 @@ void show_esf_buf() {
     assert(false /* no heap */);
 found:;
 #if 1
-    ets_intr_lock();
+    USER_INTR_LOCK();
     esf_buf_printf("heap: %p size: %d stack: %p blocks:", cur, heap_size, &ptr);
     for (; cur != NULL && (3 & (size_t) cur) == 0; cur = cur->next) {
 #if 1
@@ -246,7 +248,7 @@ found:;
     }
     esf_buf_printf("\n");
     assert(heap_size == 0);
-    ets_intr_unlock();
+    USER_INTR_UNLOCK();
 #endif
 }
 }
@@ -311,6 +313,7 @@ static void drop_echo_reply(struct icmp_net_config *config) {
             break;
         }
 
+        user_dprintf("processing packet %d", (config->recv_i + ICMP_NET_QSIZE - 1) % ICMP_NET_QSIZE);
         process_pbuf(config, p);
         pbuf_free(p);
     }
@@ -394,11 +397,11 @@ send:
     {
         struct netif *slave = config->slave;
         user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
-        //ets_intr_lock();
+        //USER_INTR_LOCK();
         int lmacIsActive();
         assert(!lmacIsActive());
         err_t rc = ip_output_if(p, IP_ADDR_ANY, &config->relay_ip, ICMP_TTL, 0, IP_PROTO_ICMP, slave);
-        //ets_intr_unlock();
+        //USER_INTR_UNLOCK();
 
         if (rc != ERR_OK) {
             user_dprintf("error: %d", rc);
@@ -465,7 +468,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 ICACHE_FLASH_ATTR
 static void process_queued_pbufs() {
     assert_heap();
-    ets_intr_lock();
+    USER_INTR_LOCK();
     while (process_pbuf_q[0]) {
         struct pbuf *p = process_pbuf_q[0];
         struct icmp_net_config *config = process_pbuf_q_config[0];
@@ -476,7 +479,7 @@ static void process_queued_pbufs() {
         }
         process_pbuf_q[i] = NULL;
         process_pbuf_q_config[i] = NULL;
-        ets_intr_unlock();
+        USER_INTR_UNLOCK();
 
         assert(p);
         assert(config);
@@ -488,9 +491,9 @@ static void process_queued_pbufs() {
             user_dprintf("netif->input: error %d", rc);
             pbuf_free(p);
         }
-        ets_intr_lock();
+        USER_INTR_LOCK();
     }
-    ets_intr_unlock();
+    USER_INTR_UNLOCK();
     assert_heap();
 }
 
@@ -543,10 +546,10 @@ err_t icmp_net_init(struct netif *netif) {
     netif->num = if_num++;
     netif->mtu = 1400; // TODO discover
 
-    ets_intr_lock();
+    USER_INTR_LOCK();
     config->next = root;
     root = config;
-    ets_intr_unlock();
+    USER_INTR_UNLOCK();
 
     assert_heap();
     user_dprintf("done");
