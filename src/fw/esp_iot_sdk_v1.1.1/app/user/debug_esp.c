@@ -37,7 +37,6 @@ void mem_error() {
     assert(false);
 }
 
-#define inet_chksum_pseudo __real_inet_chksum_pseudo
 u16_t
 __real_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
@@ -61,7 +60,6 @@ __wrap_inet_chksum_pseudo(struct pbuf *p,
     return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
 }
 
-#define inet_chksum_pseudo_partial __real_inet_chksum_pseudo_partial
 u16_t
 __real_inet_chksum_pseudo_partial(struct pbuf *p,
        ip_addr_t *src, ip_addr_t *dest,
@@ -75,7 +73,6 @@ __wrap_inet_chksum_pseudo_partial(struct pbuf *p,
     return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
 }
 
-#define inet_chksum __real_inet_chksum
 u16_t
 __real_inet_chksum(void *dataptr, u16_t len);
 ICACHE_FLASH_ATTR
@@ -85,7 +82,6 @@ __wrap_inet_chksum(void *dataptr, u16_t len) {
     return __real_inet_chksum(dataptr, len);
 }
 
-#define inet_chksum_pbuf __real_inet_chksum_pbuf
 u16_t
 __real_inet_chksum_pbuf(struct pbuf *p);
 ICACHE_FLASH_ATTR
@@ -95,7 +91,6 @@ __wrap_inet_chksum_pbuf(struct pbuf *p) {
     return __real_inet_chksum_pbuf(p);
 }
 
-#define pvPortMalloc __real_pvPortMalloc
 void *__real_pvPortMalloc(size_t size);
 void *pvPortZalloc(size_t size);
 ICACHE_FLASH_ATTR
@@ -141,7 +136,6 @@ void *__wrap_esf_rx_buf_alloc(long a, long b) {
     return ret;
 }
 
-#define mem_malloc __real_mem_malloc
 void *__real_mem_malloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_mem_malloc(long a, long b) {
@@ -153,7 +147,6 @@ void *__wrap_mem_malloc(long a, long b) {
     return ret;
 }
 
-#define mem_realloc __real_mem_realloc
 void *__real_mem_realloc(long a, long b);
 ICACHE_FLASH_ATTR
 void *__wrap_mem_realloc(long a, long b) {
@@ -275,6 +268,13 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
     __real_ip_input(p, inp);
     assert_heap();
     assert(--count == 0);
+}
+
+EXP_FUNC int STDCALL ICACHE_FLASH_ATTR __real_ssl_read(SSL *ssl, uint8_t **in_data);
+EXP_FUNC int STDCALL ICACHE_FLASH_ATTR __wrap_ssl_read(SSL *ssl, uint8_t **in_data) {
+    int ret = __real_ssl_read(ssl, in_data);
+    user_dprintf("returning %d", ret);
+    return ret;
 }
 
 #endif

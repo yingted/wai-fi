@@ -12,8 +12,9 @@
 #     a generated lib/image xxx.a ()
 #
 TARGET = eagle
-FLAVOR = release
-#FLAVOR = debug
+#FLAVOR = release
+FLAVOR = debug
+DEBUG_ESP = 0
 
 #EXTRA_CCFLAGS += -u
 
@@ -122,21 +123,27 @@ LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,sys_check_timeouts \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
+ifeq ($(FLAVOR),release)
+    DEFINES += -DNDEBUG
+endif
 ifeq ($(FLAVOR),debug)
-    DEFINES += -DDEBUG_ESP
-    LINKFLAGS_eagle.app.v6 += \
-        -Wl,-wrap,pvPortMalloc \
-        -Wl,-wrap,esf_buf_alloc \
-        -Wl,-wrap,esf_rx_buf_alloc \
-        -Wl,-wrap,mem_malloc \
-        -Wl,-wrap,mem_realloc \
-        -Wl,-wrap,inet_chksum_pseudo \
-        -Wl,-wrap,inet_chksum_pseudo_partial \
-        -Wl,-wrap,inet_chksum \
-        -Wl,-wrap,inet_chksum_pbuf \
-        -Wl,-wrap,ip_input \
-        -Wl,-wrap,etharp_tmr \
+    ifeq ($(DEBUG_ESP),1)
+        DEFINES += -DDEBUG_ESP
+        LINKFLAGS_eagle.app.v6 += \
+            -Wl,-wrap,pvPortMalloc \
+            -Wl,-wrap,esf_buf_alloc \
+            -Wl,-wrap,esf_rx_buf_alloc \
+            -Wl,-wrap,mem_malloc \
+            -Wl,-wrap,mem_realloc \
+            -Wl,-wrap,inet_chksum_pseudo \
+            -Wl,-wrap,inet_chksum_pseudo_partial \
+            -Wl,-wrap,inet_chksum \
+            -Wl,-wrap,inet_chksum_pbuf \
+            -Wl,-wrap,ip_input \
+            -Wl,-wrap,etharp_tmr \
+            -Wl,-wrap,ssl_read \
 
+    endif
 endif
 
 INCLUDES += -I $(PDIR)../include/lwip

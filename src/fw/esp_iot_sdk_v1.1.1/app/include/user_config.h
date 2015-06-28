@@ -13,6 +13,7 @@
 #define assert(arg) do { \
     if (!(arg)) { \
         user_dprintf("assertion failed: %s", #arg); \
+        ets_intr_unlock(); \
         for (;;); \
     } \
 } while (0)

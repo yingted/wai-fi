@@ -145,9 +145,7 @@ send:
 
     {
         struct netif *slave = config->slave;
-#ifdef DEBUG_ESP
         user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
-#endif
         //USER_INTR_LOCK();
         int lmacIsActive();
         assert(!lmacIsActive());
@@ -163,9 +161,7 @@ send:
     pbuf_free(p);
 
     if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
-#ifdef DEBUG_ESP
         user_dprintf("sending keepalive");
-#endif
         p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
         if (p == NULL) {
             mem_error();
@@ -199,8 +195,8 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
 #ifdef DEBUG_ESP
         assert(icmp_net_lwip_entry_count);
-        user_dprintf("enqueuing len=%u", p->tot_len);
 #endif
+        user_dprintf("enqueuing len=%u", p->tot_len);
         pbuf_ref(p);
         int i;
         for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {
@@ -225,7 +221,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 
 ICACHE_FLASH_ATTR
 static void process_queued_pbufs() {
-    assert_heap();
+    //assert_heap();
     USER_INTR_LOCK();
     while (process_pbuf_q[0]) {
         struct pbuf *p = process_pbuf_q[0];
@@ -241,9 +237,7 @@ static void process_queued_pbufs() {
 
         assert(p);
         assert(config);
-#ifdef DEBUG_ESP
         user_dprintf("netif->input %d", p->tot_len);
-#endif
         assert(p->ref >= 1);
 
         err_t rc = config->netif->input(p, config->netif);
@@ -254,7 +248,7 @@ static void process_queued_pbufs() {
         USER_INTR_LOCK();
     }
     USER_INTR_UNLOCK();
-    assert_heap();
+    //assert_heap();
 }
 
 ICACHE_FLASH_ATTR
@@ -357,7 +351,7 @@ void __real_sys_check_timeouts(void);
 ICACHE_FLASH_ATTR
 void __wrap_sys_check_timeouts(void) {
 #ifdef DEBUG_ESP
-    assert_heap();
+    //assert_heap();
     assert(icmp_net_lwip_entry_count++ == 0);
 #endif
     __real_sys_check_timeouts();

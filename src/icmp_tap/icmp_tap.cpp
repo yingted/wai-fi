@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
 	if (argc == 2) {
 		strncpy(dev, argv[1], IFNAMSIZ);
 	}
+	const ssize_t mtu = 1400 - 4; // for header
 	char buf[64 * 1024]; // max IPv4 packet size
 	int tap_fd, raw_fd, fd_max;
 	boost::circular_buffer<char> outq(1024 * 1024);
@@ -99,7 +100,10 @@ int main(int argc, char *argv[]) {
 	printf("Opened tunnel on %.*s\n", IFNAMSIZ, dev);
 
 	{
-		string cmd = "ip link set dev " + string(dev) + " up";
+		string cmd;
+		cmd = "ip link set " + string(dev) + " mtu " + to_string(mtu - 14); // mac header
+		system(cmd.c_str());
+		cmd = "ip link set dev " + string(dev) + " up";
 		system(cmd.c_str());
 		cmd = "ifconfig " + string(dev) + " 192.168.10.1";
 		system(cmd.c_str());
@@ -192,8 +196,8 @@ int main(int argc, char *argv[]) {
 		for (auto &it : conns) {
 			connection &conn = it.second;
 			ssize_t to_write = tot_recv - conn.pos;
-			ssize_t mtu = 1400 - 4; // for header
 			int packets = (to_write + mtu - 1) / mtu;
+			assert(packets <= 1);
 			unsigned char queued = max<unsigned char>(0, min<unsigned long>(UCHAR_MAX, packets - conn.replies.size()));
 			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {
 				if (conn.pos == tot_recv) {

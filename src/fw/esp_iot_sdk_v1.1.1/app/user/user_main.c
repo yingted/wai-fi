@@ -80,7 +80,8 @@ static void espconn_connect_cb(void *arg) {
     int keepalive_interval = 2 * 10; // 10 seconds
     espconn_set_keepalive(conn, ESPCONN_KEEPIDLE, &keepalive_interval);
     espconn_set_keepalive(conn, ESPCONN_KEEPINTVL, &keepalive_interval);
-    //espconn_set_keepalive(conn, ESPCONN_KEEPCNT, 0);
+    int keepalive_count = 3; // 3 * 10 s = 30 s
+    espconn_set_keepalive(conn, ESPCONN_KEEPCNT, &keepalive_count);
 
     user_dprintf("connected");
     espconn_regist_disconcb(&con, espconn_disconnect_cb);
