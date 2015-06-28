@@ -20,7 +20,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 
 struct icmp_net_hdr {
-    unsigned char queued, pad_[3];
+    unsigned char queued, pad_[1];
 };
 
 static inline unsigned long ccount() {
@@ -67,7 +67,7 @@ static void drop_echo_reply(struct icmp_net_config *config) {
         }
 
 #ifdef DEBUG_ESP
-        user_dprintf("processing packet %d", config->recv_i);
+        user_dprintf("processing packet %p len=%d seq=%d", p, p->tot_len, config->recv_i);
 #endif
         process_pbuf(config, p);
         pbuf_free(p);
@@ -196,7 +196,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
 #ifdef DEBUG_ESP
         assert(icmp_net_lwip_entry_count);
 #endif
-        user_dprintf("enqueuing len=%u", p->tot_len);
+        user_dprintf("enqueuing %p len=%u", p, p->tot_len);
         pbuf_ref(p);
         int i;
         for (i = 0; i < PROCESS_PBUF_QSIZE; ++i) {

@@ -31,9 +31,10 @@ struct icmp_reply {
 };
 
 typedef __be32 connection_id;
+typedef string frame_t;
 
 struct connection {
-	boost::circular_buffer<char>::size_type pos;
+	size_t pos;
 	set<icmp_reply> replies;
 	struct timespec time;
 };
@@ -63,11 +64,11 @@ int main(int argc, char *argv[]) {
 	if (argc == 2) {
 		strncpy(dev, argv[1], IFNAMSIZ);
 	}
-	const ssize_t mtu = 1400 - 4; // for header
+	const ssize_t mtu = 1400 - 2; // for header
 	char buf[64 * 1024]; // max IPv4 packet size
 	int tap_fd, raw_fd, fd_max;
-	boost::circular_buffer<char> outq(1024 * 1024);
-	boost::circular_buffer<char>::size_type tot_recv = 0; // represents outq.end()
+	boost::circular_buffer<frame_t> outq(1024);
+	size_t tot_recv = 0; // represents outq.end()
 	fd_set fds;
 
 	map<connection_id, connection> conns;
@@ -182,8 +183,8 @@ int main(int argc, char *argv[]) {
 				if (len == sizeof(buf)) {
 					printf("Warning: buffer full (%u bytes)\n", len);
 				}
-				copy(buf, buf + len, back_inserter(outq));
-				tot_recv += len;
+				outq.push_back(string(buf, buf + len));
+				++tot_recv;
 			}
 		}
 		// Step 3: Write out the data to each connection.
@@ -195,9 +196,7 @@ int main(int argc, char *argv[]) {
 		min_time.tv_sec -= 30; // 30 seconds timeout
 		for (auto &it : conns) {
 			connection &conn = it.second;
-			ssize_t to_write = tot_recv - conn.pos;
-			int packets = (to_write + mtu - 1) / mtu;
-			assert(packets <= 1);
+			size_t packets = tot_recv - conn.pos;
 			unsigned char queued = max<unsigned char>(0, min<long>(UCHAR_MAX, (long)packets - (long)conn.replies.size()));
 			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {
 				if (conn.pos == tot_recv) {
@@ -206,8 +205,6 @@ int main(int argc, char *argv[]) {
 				const icmp_reply &reply = *it;
 				printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 				assert(conn.pos < tot_recv);
-				ssize_t segsize = min<ssize_t>(mtu, tot_recv - conn.pos);
-				assert(segsize <= to_write);
 
 				char *out = buf;
 
@@ -224,12 +221,9 @@ int main(int argc, char *argv[]) {
 				*out++ = queued;
 				// padding
 				*out++ = 0;
-				*out++ = 0;
-				*out++ = 0;
 
-				out = copy(outq.end() - to_write, outq.end() - (to_write - segsize), out);
-				to_write -= segsize;
-				conn.pos += segsize;
+				const string &frame = *(outq.end() - (tot_recv - conn.pos++));
+				out = copy(frame.begin(), frame.end(), out);
 
 				icmp->checksum = inet_checksum(icmp, out);
 

@@ -3,12 +3,12 @@
 sudo killall dnsmasq icmp_tap hostapd
 cleanup() {
 	echo exiting
-	sudo kill $hostapd $dnsmasq $icmp_tap
-	sudo killall dnsmasq icmp_tap hostapd
+	sudo kill $hostapd $dnsmasq $icmp_tap || :
+	sudo killall dnsmasq icmp_tap hostapd || :
 	sleep .1
-	sudo kill -TERM $hostapd $dnsmasq $icmp_tap
+	sudo kill -TERM $hostapd $dnsmasq $icmp_tap || :
 	sleep .1
-	sudo kill -9 $hostapd $dnsmasq $icmp_tap
+	sudo kill -9 $hostapd $dnsmasq $icmp_tap || :
 }
 trap 'cleanup' EXIT INT QUIT TERM
 sudo iw phy phy0 interface add wlp3s0v1 type station
@@ -19,6 +19,7 @@ driver=nl80211
 ssid=icmp-test
 channel=${channel:-6}
 EOF
+set -e
 sudo hostapd hostapd.conf & hostapd=$!
 sudo ifconfig wlp3s0v1 192.168.9.1
 sudo ./icmp_tap & icmp_tap=$!

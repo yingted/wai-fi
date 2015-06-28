@@ -12,7 +12,6 @@
 #ifdef DEBUG_ESP
 
 size_t icmp_net_lwip_entry_count = 0;
-void exc_handler(void *exc);
 
 #define esf_buf_printf os_printf
 
@@ -35,6 +34,63 @@ void mem_error() {
     is_mem_error = true;
     show_esf_buf();
     assert(false);
+}
+
+struct exc_arg {
+    size_t xt_pc;
+    size_t xt_ps;
+    size_t xt_sar;
+    size_t xt_vpri;
+    size_t xt_a2;
+    size_t xt_a3;
+    size_t xt_a4;
+    size_t xt_a5;
+    size_t xt_exccause;
+    size_t xt_lcount;
+    size_t xt_lbeg;
+    size_t xt_lend;
+};
+
+ICACHE_FLASH_ATTR
+static void exc_handler(struct exc_arg *exc) {
+    size_t exc_cause;
+    void *exc_vaddr, *sp;
+    asm volatile("rsr.exccause %0" : "=r" (exc_cause));
+    asm volatile("rsr.excvaddr %0" : "=r" (exc_vaddr));
+    asm volatile("mov %0, a1" : "=r" (sp));
+
+    if (exc) {
+        struct exc_arg data = *exc;
+        user_dprintf("Exception %d at %p", exc_cause, exc_vaddr);
+        user_dprintf(
+            "pc=%p ps=%p sar=%p vpri=%p a2=%p a3=%p a4=%p a5=%p exccause=%p lcount=%p lbeg=%p lend=%p",
+            data.xt_pc, data.xt_ps, data.xt_sar, data.xt_vpri, data.xt_a2, data.xt_a3, data.xt_a4, data.xt_a5, data.xt_exccause, data.xt_lcount, data.xt_lbeg, data.xt_lend
+        );
+    }
+    {
+        os_printf("forward from sp=%p:", sp);
+        int i;
+        for (i = 0; i < 64; ++i) {
+            os_printf(" %p", ((void **)sp)[i]);
+        }
+        os_printf("\n");
+    }
+    {
+        os_printf("back from sp=%p:", sp);
+        int i;
+        for (i = 0; i < 64; ++i) {
+            os_printf(" %p", ((void **)sp)[~i]);
+        }
+        os_printf("\n");
+    }
+    assert(false);
+}
+
+ICACHE_FLASH_ATTR
+void debug_esp_install_exc_handler() {
+    _xtos_set_exception_handler(9, exc_handler);
+    _xtos_set_exception_handler(28, exc_handler);
+    _xtos_set_exception_handler(29, exc_handler);
 }
 
 u16_t
@@ -275,63 +331,6 @@ EXP_FUNC int STDCALL ICACHE_FLASH_ATTR __wrap_ssl_read(SSL *ssl, uint8_t **in_da
     int ret = __real_ssl_read(ssl, in_data);
     user_dprintf("returning %d", ret);
     return ret;
-}
-
-struct exc_arg {
-    size_t xt_pc;
-    size_t xt_ps;
-    size_t xt_sar;
-    size_t xt_vpri;
-    size_t xt_a2;
-    size_t xt_a3;
-    size_t xt_a4;
-    size_t xt_a5;
-    size_t xt_exccause;
-    size_t xt_lcount;
-    size_t xt_lbeg;
-    size_t xt_lend;
-};
-
-ICACHE_FLASH_ATTR
-void exc_handler(struct exc_arg *exc) {
-    size_t exc_cause;
-    void *exc_vaddr, *sp;
-    asm volatile("rsr.exccause %0" : "=r" (exc_cause));
-    asm volatile("rsr.excvaddr %0" : "=r" (exc_vaddr));
-    asm volatile("mov %0, a1" : "=r" (sp));
-
-    if (exc) {
-        struct exc_arg data = *exc;
-        user_dprintf("Exception %d at %p", exc_cause, exc_vaddr);
-        user_dprintf(
-            "pc=%p ps=%p sar=%p vpri=%p a2=%p a3=%p a4=%p a5=%p exccause=%p lcount=%p lbeg=%p lend=%p",
-            data.xt_pc, data.xt_ps, data.xt_sar, data.xt_vpri, data.xt_a2, data.xt_a3, data.xt_a4, data.xt_a5, data.xt_exccause, data.xt_lcount, data.xt_lbeg, data.xt_lend
-        );
-    }
-    {
-        os_printf("forward from sp=%p:", sp);
-        int i;
-        for (i = 0; i < 64; ++i) {
-            os_printf(" %p", ((void **)sp)[i]);
-        }
-        os_printf("\n");
-    }
-    {
-        os_printf("back from sp=%p:", sp);
-        int i;
-        for (i = 0; i < 64; ++i) {
-            os_printf(" %p", ((void **)sp)[~i]);
-        }
-        os_printf("\n");
-    }
-    assert(false);
-}
-
-ICACHE_FLASH_ATTR
-void debug_esp_install_exc_handler() {
-    _xtos_set_exception_handler(9, exc_handler);
-    _xtos_set_exception_handler(28, exc_handler);
-    _xtos_set_exception_handler(29, exc_handler);
 }
 
 #endif

@@ -42,6 +42,13 @@ static void schedule_reconnect() {
 ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %d", err);
+
+    switch (err) {
+        case ESPCONN_ARG: // -11
+            user_dprintf("restarting");
+            system_restart(); // TODO fix this
+    }
+
     schedule_reconnect();
 }
 
