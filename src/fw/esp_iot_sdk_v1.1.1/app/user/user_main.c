@@ -52,20 +52,25 @@ static void espconn_disconnect_cb(void *arg) {
 ICACHE_FLASH_ATTR
 static void espconn_sent_cb(void *arg) {
     user_dprintf("%p", arg);
+
+    // TODO
 }
 
 ICACHE_FLASH_ATTR
 static void espconn_recv_cb(void *arg, char *buf, unsigned short len) {
     user_dprintf("%p", arg);
+
     os_printf("buf: ");
     for (; len > 0; ++buf, --len) {
         os_printf("%c", *buf);
     }
     os_printf("\n");
+    // TODO
 }
 
 ICACHE_FLASH_ATTR
 static void espconn_connect_cb(void *arg) {
+    assert_heap();
     struct espconn *conn = arg;
 
     espconn_set_opt(conn, ESPCONN_REUSEADDR);
@@ -76,8 +81,7 @@ static void espconn_connect_cb(void *arg) {
     espconn_set_keepalive(conn, ESPCONN_KEEPINTVL, &keepalive_interval);
     //espconn_set_keepalive(conn, ESPCONN_KEEPCNT, 0);
 
-    user_dprintf("%p", conn);
-    assert_heap();
+    user_dprintf("connected");
     espconn_regist_disconcb(&con, espconn_disconnect_cb);
     espconn_regist_recvcb(&con, espconn_recv_cb);
     espconn_regist_sentcb(&con, espconn_sent_cb);
