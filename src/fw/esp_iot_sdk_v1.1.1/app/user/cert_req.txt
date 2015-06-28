@@ -3,7 +3,7 @@
 .
 .
 .
-www.example.org
+foo.device.ssl
 .
 
 

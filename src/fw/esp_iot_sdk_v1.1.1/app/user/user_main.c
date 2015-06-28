@@ -9,6 +9,7 @@
 #include "lwip/sockets.h"
 #include "espconn.h"
 #include "debug_esp.h"
+#include "default_ca_certificate.h"
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -75,14 +76,12 @@ static void espconn_sent_cb(void *arg) {
 
 ICACHE_FLASH_ATTR
 static void espconn_recv_cb(void *arg, char *buf, unsigned short len) {
-    return;
     user_dprintf("%p", arg);
 
     os_printf("buf: ");
     for (; len > 0; ++buf, --len) {
         os_printf("%c", *buf);
     }
-    os_printf("\n");
     // TODO
 }
 
@@ -249,4 +248,13 @@ void user_init(void) {
 
     user_dprintf("done");
     assert_heap();
+}
+
+EXP_FUNC SSL_CTX *STDCALL __real_ssl_ctx_new(uint32_t options, int num_sessions);
+ICACHE_FLASH_ATTR
+EXP_FUNC SSL_CTX *STDCALL __wrap_ssl_ctx_new(uint32_t options, int num_sessions) {
+    options &= ~(SSL_SERVER_VERIFY_LATER | SSL_DISPLAY_CERTS | SSL_NO_DEFAULT_KEY);
+    SSL_CTX *ret = __real_ssl_ctx_new(options, num_sessions);
+    add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
+    return ret;
 }

@@ -122,6 +122,7 @@ WRAP := \
 	-Wl,-wrap,icmp_input \
 	-Wl,-wrap,sys_check_timeouts \
 	-Wl,-wrap,pvPortMalloc \
+	-Wl,-wrap,ssl_ctx_new \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
