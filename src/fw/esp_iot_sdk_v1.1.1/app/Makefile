@@ -29,7 +29,7 @@ endif # } PDIR
 APPDIR = .
 LDDIR = ../ld
 
-CCFLAGS += -Os -mlongcalls
+CCFLAGS += -Os -MMD
 
 TARGET_LDFLAGS =		\
 	-nostdlib		\
@@ -118,6 +118,12 @@ INCLUDES := $(INCLUDES) -I $(PDIR)include
 # ICMP hook
 LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,icmp_input \
+	-Wl,-wrap,ethernet_input \
+	-Wl,-wrap,sys_check_timeouts \
+	-fdata-sections -ffunction-sections -Wl,--gc-sections \
+
+ifeq ($(FLAVOR),debug)
+LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,pvPortMalloc \
 	-Wl,-wrap,esf_buf_alloc \
 	-Wl,-wrap,esf_rx_buf_alloc \
@@ -129,9 +135,8 @@ LINKFLAGS_eagle.app.v6 += \
 	-Wl,-wrap,inet_chksum_pbuf \
 	-Wl,-wrap,ip_input \
 	-Wl,-wrap,etharp_tmr \
-	-Wl,-wrap,ethernet_input \
-	-Wl,-wrap,sys_check_timeouts \
-	-fdata-sections -ffunction-sections -Wl,--gc-sections \
+
+endif
 
 INCLUDES += -I $(PDIR)../include/lwip
 INCLUDES += -I $(PDIR)../include/lwip/ipv4

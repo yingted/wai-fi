@@ -8,6 +8,7 @@
 #include "lwip/netif/etharp.h"
 #include "lwip/sockets.h"
 #include "espconn.h"
+#include "debug_esp.h"
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -18,9 +19,6 @@ static struct ip_info linklocal_info = {
 };
 bool secure_connected = false;
 struct espconn con;
-
-#define assert_heap() assert_heap_(__FILE__, __LINE__)
-void assert_heap_(char *file, int line);
 
 static void connect_ssl();
 ICACHE_FLASH_ATTR

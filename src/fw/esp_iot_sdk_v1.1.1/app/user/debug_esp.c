@@ -1,0 +1,280 @@
+#include "user_config.h"
+#include "osapi.h"
+#include "private_api.h"
+#include "c_types.h"
+#include "debug_esp.h"
+#include "lwip/icmp.h"
+#include "lwip/ip.h"
+#include "lwip/netif.h"
+#include "lwip/netif/etharp.h"
+#include <stddef.h>
+
+#ifdef DEBUG_ESP
+
+size_t icmp_net_lwip_entry_count = 0;
+void exc_handler(void *exc);
+
+#define esf_buf_printf os_printf
+
+ICACHE_FLASH_ATTR
+void assert_heap_(char *file, int line) {
+    //user_dprintf("%s:%d", file, line);
+    esf_buf_printf("%s:%d ", file, line);
+    uint32_t heap = system_get_free_heap_size();
+    if (!(8000 <= heap && heap <= 50000)) {
+        user_dprintf("heap: %d", heap);
+        assert(false);
+    }
+    show_esf_buf();
+    esf_buf_printf("ok\n");
+}
+
+static bool is_mem_error = false;
+ICACHE_FLASH_ATTR
+void mem_error() {
+    is_mem_error = true;
+    show_esf_buf();
+    assert(false);
+}
+
+#define inet_chksum_pseudo __real_inet_chksum_pseudo
+u16_t
+__real_inet_chksum_pseudo(struct pbuf *p, 
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pseudo(struct pbuf *p, 
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len) {
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    user_dprintf("%p, from %p", p, a0);
+    user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+    if (p->ref != 1) {
+        exc_handler(NULL);
+    }
+    assert(p->ref == 1);
+    // from: 0x401052ba
+    // func: 0x401051b4
+    // from: 0x40262a78 (tcp_output)
+    return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
+}
+
+#define inet_chksum_pseudo_partial __real_inet_chksum_pseudo_partial
+u16_t
+__real_inet_chksum_pseudo_partial(struct pbuf *p,
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len, u16_t chksum_len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pseudo_partial(struct pbuf *p,
+       ip_addr_t *src, ip_addr_t *dest,
+       u8_t proto, u16_t proto_len, u16_t chksum_len) {
+    //user_dprintf("%p", p);
+    return __real_inet_chksum_pseudo_partial(p, src, dest, proto, proto_len, chksum_len);
+}
+
+#define inet_chksum __real_inet_chksum
+u16_t
+__real_inet_chksum(void *dataptr, u16_t len);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum(void *dataptr, u16_t len) {
+    //user_dprintf("%p", dataptr);
+    return __real_inet_chksum(dataptr, len);
+}
+
+#define inet_chksum_pbuf __real_inet_chksum_pbuf
+u16_t
+__real_inet_chksum_pbuf(struct pbuf *p);
+ICACHE_FLASH_ATTR
+u16_t
+__wrap_inet_chksum_pbuf(struct pbuf *p) {
+    //user_dprintf("%p", p);
+    return __real_inet_chksum_pbuf(p);
+}
+
+#define pvPortMalloc __real_pvPortMalloc
+void *__real_pvPortMalloc(size_t size);
+void *pvPortZalloc(size_t size);
+ICACHE_FLASH_ATTR
+void *__wrap_pvPortMalloc(size_t size) {
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    //size += 32;
+    //void *ret = __real_pvPortMalloc(size);
+    void *ret = pvPortZalloc(size);
+    if (!ret) {
+        user_dprintf("pvPortMalloc(%u) failed, called from %p", size, a0);
+        mem_error();
+    }
+    return (char *)ret;
+}
+
+void *__real_esf_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_esf_buf_alloc(long a, long b) {
+    //USER_INTR_LOCK();
+    void *ret = __real_esf_buf_alloc(a, b);
+    //USER_INTR_UNLOCK();
+    if (!ret) {
+        user_dprintf("%ld %ld => %p", a, b, ret);
+        assert_heap();
+        assert(false);
+    }
+    return ret;
+}
+
+void *__real_esf_rx_buf_alloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_esf_rx_buf_alloc(long a, long b) {
+    //assert_heap();
+    //USER_INTR_LOCK();
+    void *ret = __real_esf_rx_buf_alloc(a, b);
+    //USER_INTR_UNLOCK();
+    if (!ret) {
+        user_dprintf("%ld %ld => %p", a, b, ret);
+        assert_heap();
+        assert(false);
+    }
+    return ret;
+}
+
+#define mem_malloc __real_mem_malloc
+void *__real_mem_malloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_mem_malloc(long a, long b) {
+    void *ret = __real_mem_malloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
+#define mem_realloc __real_mem_realloc
+void *__real_mem_realloc(long a, long b);
+ICACHE_FLASH_ATTR
+void *__wrap_mem_realloc(long a, long b) {
+    void *ret = __real_mem_realloc(a, b);
+    if (!ret) {
+        user_dprintf("%ld %ld", a, b);
+        assert(false);
+    }
+    return ret;
+}
+
+ICACHE_FLASH_ATTR
+void show_esf_buf() {
+    int lmacIsActive();
+    esf_buf_printf("lmac: %d ", lmacIsActive());
+    struct node {
+        char data_[32];
+        struct node *next;
+    } **base = (struct node **)*((char ***)0x40101380), *cur;
+    int i;
+    esf_buf_printf("esf_buf:");
+    for (i = 0; i < 5; ++i) { // esf_buf 1, 4, 5, 6, esf_rx_buf (in order)
+        esf_buf_printf(" [%d", i);
+        for (cur = base[i]; cur; cur = (((size_t)cur) & 0x3) ? NULL : cur->next) {
+            esf_buf_printf(" %p", cur);
+        }
+        esf_buf_printf("]");
+    }
+    esf_buf_printf("\n");
+{
+    struct block {
+        struct block *next;
+        size_t size;
+    };
+    size_t heap_size = system_get_free_heap_size();
+    size_t *addr = (void *)0x3ffe9e38;
+    int i;
+    static struct block *cur = NULL;
+    if (is_mem_error && cur) {
+        esf_buf_printf("assert_heap: skipping heap search\n");
+        goto found;
+    }
+    void *ptr = pvPortMalloc(1);
+    vPortFree(ptr);
+    for (i = -1000; i <= 1000; ++i) {
+        if (addr[i] == heap_size) {
+            int j;
+            void **it = (void *)(addr + i);
+            for (j = -10; j <= 10; ++j) {
+                if ((((char *)ptr) - 128) <= (char *)it[j] && (char *)it[j] <= ((char *)ptr) + 128) {
+                    if (((struct block *)(it + j))->size == 0) {
+                        cur = (void *)(it + j);
+                        goto found;
+                    }
+                }
+            }
+        }
+    }
+    assert(false /* no heap */);
+found:;
+#if 1
+    USER_INTR_LOCK();
+    esf_buf_printf("heap: %p size: %d stack: %p blocks:", cur, heap_size, &ptr);
+    for (; cur != NULL && (3 & (size_t) cur) == 0; cur = cur->next) {
+#if 1
+        if (!(cur->size < 82000) && (cur->size + 65536 < 82000)) {
+            esf_buf_printf(" fix:");
+            cur->size += 65536;
+        }
+#endif
+        size_t size = cur->size & ~(1 << (sizeof(size_t) * 8 - 1));
+        assert((void **)cur < &ptr);
+        if (size != cur->size) {
+            esf_buf_printf(" used:");
+        }
+        esf_buf_printf(" [%d] %d", size, ((size_t)cur->next) - (((size_t)cur) + size));
+        if (!(size < 82000) || !(cur->next > cur) || heap_size < size) {
+            char *begin = ((char *)cur) - 1024, *end = ((char *)cur) + 1024;
+            esf_buf_printf("mem[%p:%p]: ", begin, end);
+            for (; begin != end; ++begin) {
+                esf_buf_printf("%02x", *begin);
+            }
+            esf_buf_printf("\n");
+        }
+        assert(size <= 82000);
+        assert(cur->next > cur);
+        heap_size -= size;
+        if (((int)heap_size) <= 0) {
+            break;
+        }
+    }
+    esf_buf_printf("\n");
+    assert(heap_size == 0);
+    USER_INTR_UNLOCK();
+#endif
+}
+}
+
+void __real_etharp_tmr();
+ICACHE_FLASH_ATTR
+void __wrap_etharp_tmr() {
+    assert_heap();
+    __real_etharp_tmr();
+    assert_heap();
+}
+
+err_t __real_ip_input(struct pbuf *p, struct netif *inp);
+ICACHE_FLASH_ATTR
+err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
+    user_dprintf("%p %p", p, inp);
+    assert(p->ref >= 1);
+    assert(p->len < 2000);
+    assert(p->tot_len < 2000);
+#ifndef NDEBUG
+    static int count = 0;
+#endif
+    assert(count++ == 0);
+    assert_heap();
+    __real_ip_input(p, inp);
+    assert_heap();
+    assert(--count == 0);
+}
+
+#endif
