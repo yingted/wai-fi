@@ -30,12 +30,13 @@ endif # } PDIR
 APPDIR = .
 LDDIR = ../ld
 
-CCFLAGS += -Os -MMD
+CCFLAGS += -Os -MMD -flto
 
 TARGET_LDFLAGS =		\
 	-nostdlib		\
 	-Wl,-EL \
 	--longcalls \
+	-flto \
 	--text-section-literals
 
 ifeq ($(FLAVOR),debug)
@@ -124,26 +125,26 @@ LINKFLAGS_eagle.app.v6 += \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 ifeq ($(FLAVOR),release)
-    DEFINES += -DNDEBUG
+	DEFINES += -DNDEBUG
 endif
 ifeq ($(FLAVOR),debug)
-    ifeq ($(DEBUG_ESP),1)
-        DEFINES += -DDEBUG_ESP
-        LINKFLAGS_eagle.app.v6 += \
-            -Wl,-wrap,pvPortMalloc \
-            -Wl,-wrap,esf_buf_alloc \
-            -Wl,-wrap,esf_rx_buf_alloc \
-            -Wl,-wrap,mem_malloc \
-            -Wl,-wrap,mem_realloc \
-            -Wl,-wrap,inet_chksum_pseudo \
-            -Wl,-wrap,inet_chksum_pseudo_partial \
-            -Wl,-wrap,inet_chksum \
-            -Wl,-wrap,inet_chksum_pbuf \
-            -Wl,-wrap,ip_input \
-            -Wl,-wrap,etharp_tmr \
-            -Wl,-wrap,ssl_read \
+	ifeq ($(DEBUG_ESP),1)
+		DEFINES += -DDEBUG_ESP
+		LINKFLAGS_eagle.app.v6 += \
+			-Wl,-wrap,pvPortMalloc \
+			-Wl,-wrap,esf_buf_alloc \
+			-Wl,-wrap,esf_rx_buf_alloc \
+			-Wl,-wrap,mem_malloc \
+			-Wl,-wrap,mem_realloc \
+			-Wl,-wrap,inet_chksum_pseudo \
+			-Wl,-wrap,inet_chksum_pseudo_partial \
+			-Wl,-wrap,inet_chksum \
+			-Wl,-wrap,inet_chksum_pbuf \
+			-Wl,-wrap,ip_input \
+			-Wl,-wrap,etharp_tmr \
+			-Wl,-wrap,ssl_read \
 
-    endif
+	endif
 endif
 
 INCLUDES += -I $(PDIR)../include/lwip
