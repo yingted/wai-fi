@@ -127,23 +127,22 @@ WRAP := \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
+	DEBUG_ESP = 0
 endif
-ifeq ($(FLAVOR),debug)
-	ifeq ($(DEBUG_ESP),1)
-		DEFINES += -DDEBUG_ESP
-		WRAP += \
-			-Wl,-wrap,esf_buf_alloc \
-			-Wl,-wrap,esf_rx_buf_alloc \
-			-Wl,-wrap,mem_malloc \
-			-Wl,-wrap,mem_realloc \
-			-Wl,-wrap,inet_chksum_pseudo \
-			-Wl,-wrap,inet_chksum_pseudo_partial \
-			-Wl,-wrap,inet_chksum \
-			-Wl,-wrap,inet_chksum_pbuf \
-			-Wl,-wrap,ip_input \
-			-Wl,-wrap,etharp_tmr \
+ifeq ($(DEBUG_ESP),1)
+	DEFINES += -DDEBUG_ESP
+	WRAP += \
+		-Wl,-wrap,esf_buf_alloc \
+		-Wl,-wrap,esf_rx_buf_alloc \
+		-Wl,-wrap,mem_malloc \
+		-Wl,-wrap,mem_realloc \
+		-Wl,-wrap,inet_chksum_pseudo \
+		-Wl,-wrap,inet_chksum_pseudo_partial \
+		-Wl,-wrap,inet_chksum \
+		-Wl,-wrap,inet_chksum_pbuf \
+		-Wl,-wrap,ip_input \
+		-Wl,-wrap,etharp_tmr \
 
-	endif
 endif
 
 LINKFLAGS_eagle.app.v6 += \
