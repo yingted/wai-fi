@@ -37,8 +37,6 @@ endif
 # Required for each makefile to inherit from the parent
 #
 
-CSRCS += default_private_key.c default_certificate.c default_ca_certificate.c
-
 INCLUDES := $(INCLUDES) -I $(PDIR)include
 INCLUDES += -I ./
 INCLUDES += -I ../../include/ets
@@ -55,10 +53,16 @@ cert_req.pem: default_private_key.pem cert_req.txt
 	openssl req -new -key $< -out $@ < cert_req.txt
 
 default_ca_certificate: default_ca_private_key.pem
-	openssl req -x509 -new -nodes -key $< -days 12000 -out $@ < cert_req.txt
+	openssl req -x509 -new -nodes -key $< -days 12000 -out $@ -outform DER < ca_req.txt
 
-default_certificate: cert_req.pem default_private_key.pem default_ca_certificate default_ca_private_key.pem
-	openssl x509 -req -days 12000 -in $< -CA default_ca_certificate -CAkey default_ca_private_key.pem -CAcreateserial -out $@ -outform DER
+default_certificate: cert_req.pem default_ca_certificate default_ca_private_key.pem
+	openssl x509 -req -days 12000 -in $< -CA default_ca_certificate -CAform DER -CAkey default_ca_private_key.pem -CAcreateserial -out $@ -outform DER
 
-default_private_key.c default_certificate.c default_ca_certificate.c: %.c: %
+CERTFILES = default_private_key.c default_certificate.c default_ca_certificate.c
+
+$(CERTFILES): %.c: %
 	xxd -i $< > $@
+
+# XXX these don't get auto-run
+CSRCS += $(CERTFILES)
+OBJS += $(CERTFILES:%.c=$(OBJODIR)/%.o)

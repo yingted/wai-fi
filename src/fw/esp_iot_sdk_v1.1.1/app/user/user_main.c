@@ -253,8 +253,11 @@ void user_init(void) {
 EXP_FUNC SSL_CTX *STDCALL __real_ssl_ctx_new(uint32_t options, int num_sessions);
 ICACHE_FLASH_ATTR
 EXP_FUNC SSL_CTX *STDCALL __wrap_ssl_ctx_new(uint32_t options, int num_sessions) {
-    options &= ~(SSL_SERVER_VERIFY_LATER | SSL_DISPLAY_CERTS | SSL_NO_DEFAULT_KEY);
+    options &= ~(SSL_SERVER_VERIFY_LATER | /*SSL_DISPLAY_CERTS | */SSL_NO_DEFAULT_KEY);
     SSL_CTX *ret = __real_ssl_ctx_new(options, num_sessions);
-    add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
+    int rc = add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
+    assert(ret->ca_cert_ctx);
+    assert(ret->ca_cert_ctx->cert[0]);
+    assert(!ret->ca_cert_ctx->cert[1]);
     return ret;
 }
