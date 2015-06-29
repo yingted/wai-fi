@@ -250,14 +250,41 @@ void user_init(void) {
     assert_heap();
 }
 
+static X509_CTX *ca_cert = NULL;
+
 EXP_FUNC SSL_CTX *STDCALL __real_ssl_ctx_new(uint32_t options, int num_sessions);
 ICACHE_FLASH_ATTR
 EXP_FUNC SSL_CTX *STDCALL __wrap_ssl_ctx_new(uint32_t options, int num_sessions) {
-    options &= ~(SSL_SERVER_VERIFY_LATER | /*SSL_DISPLAY_CERTS | */SSL_NO_DEFAULT_KEY);
+    options &= ~(SSL_SERVER_VERIFY_LATER | SSL_DISPLAY_CERTS | SSL_NO_DEFAULT_KEY);
     SSL_CTX *ret = __real_ssl_ctx_new(options, num_sessions);
-    int rc = add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
-    assert(ret->ca_cert_ctx);
-    assert(ret->ca_cert_ctx->cert[0]);
-    assert(!ret->ca_cert_ctx->cert[1]);
+    if (ca_cert == NULL) {
+        int rc = add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
+        assert(rc == SSL_OK);
+        assert(ret->ca_cert_ctx);
+        assert(ret->ca_cert_ctx->cert[0] != NULL);
+        ca_cert = ret->ca_cert_ctx->cert[0];
+        assert(ca_cert);
+    } else {
+        int rc = add_cert_auth(ret, default_ca_certificate, 0);
+        assert(rc == SSL_OK);
+        assert(ret->ca_cert_ctx);
+        assert(ret->ca_cert_ctx->cert[0] == NULL);
+        ret->ca_cert_ctx->cert[0] = ca_cert;
+    }
+    assert(ret->ca_cert_ctx->cert[1] == NULL);
     return ret;
+}
+
+EXP_FUNC void STDCALL ICACHE_FLASH_ATTR __real_ssl_ctx_free(SSL_CTX *ssl_ctx);
+ICACHE_FLASH_ATTR
+EXP_FUNC void STDCALL ICACHE_FLASH_ATTR __wrap_ssl_ctx_free(SSL_CTX *ssl_ctx) {
+    if (
+            ca_cert != NULL &&
+            ssl_ctx->ca_cert_ctx &&
+            ssl_ctx->ca_cert_ctx->cert[0] == ca_cert
+        ) {
+        assert(ssl_ctx->ca_cert_ctx->cert[1] == NULL);
+        ssl_ctx->ca_cert_ctx->cert[0] = NULL;
+    }
+    return __real_ssl_ctx_free(ssl_ctx);
 }

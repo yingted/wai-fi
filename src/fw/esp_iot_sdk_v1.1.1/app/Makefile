@@ -14,7 +14,7 @@
 TARGET = eagle
 #FLAVOR = release
 FLAVOR = debug
-DEBUG_ESP = 0
+DEBUG_ESP = 1
 
 #EXTRA_CCFLAGS += -u
 
@@ -123,6 +123,7 @@ WRAP := \
 	-Wl,-wrap,sys_check_timeouts \
 	-Wl,-wrap,pvPortMalloc \
 	-Wl,-wrap,ssl_ctx_new \
+	-Wl,-wrap,ssl_ctx_free \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
