@@ -14,8 +14,10 @@ def import_esptool():
 def flash_port(port, baud=115200):
 	import_esptool()
 
+	print >> sys.stderr, 'Probing', port
 	with fslock.FsLock(port):
 		esptool.esp = esptool.ESPROM(port=port, baud=baud)
+		esptool.esp.connect()
 		mac = esptool.esp.read_mac()
 		mac = map('%02x'.__mod__, mac)
 		mac_text = ':'.join(mac)

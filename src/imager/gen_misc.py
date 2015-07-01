@@ -13,7 +13,7 @@ app_dir = os.path.join(sdk_dir, 'app')
 user_dir = os.path.join(app_dir, 'user')
 
 def call(overlay_dir):
-	with fslock.FsLock(app_dir), overlay.overlay_applied(overlay_dir, user_dir):
+	with fslock.FsLock(app_dir), overlay.overlay_applied(overlay_dir=overlay_dir, user_dir=user_dir):
 		p = subprocess.Popen(('bash', 'gen_misc.sh'), cwd=app_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 		stdout, stderr = p.communicate()
 		p.wait()
