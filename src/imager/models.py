@@ -5,5 +5,5 @@ Base = declarative_base()
 
 class Device(Base):
 	__tablename__ = 'devices'
-	mac = Column(String)
+	mac = Column(String, primary_key=True)
 	overlay_dir = Column(String)

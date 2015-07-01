@@ -8,7 +8,7 @@ import shutil
 import tempfile
 
 app_dir = '../fw/esp_iot_sdk_v1.1.1/app'
-user_dir = os.path.join(app_dir, user_dir)
+user_dir = os.path.join(app_dir, 'user')
 
 def call(overlay_dir):
 	with lockfile.LockFile(app_dir), overlay.overlay_applied(overlay_dir, user_dir):
