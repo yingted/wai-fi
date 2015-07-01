@@ -22,6 +22,8 @@ void connmgr_connect_cb(struct espconn *conn) {
     user_dprintf("%p", conn);
 
     // TODO
+    char buf[] = {'H', 'e', 'l', 'l', 'o', ',', ' ', 'W', 'o', 'r', 'l', 'd', '!', '\n'};
+    espconn_secure_sent(conn, buf, sizeof(buf));
 }
 
 ICACHE_FLASH_ATTR
