@@ -19,9 +19,9 @@ def call(overlay_dir):
 		p.wait()
 
 		paths = {}
-		m = re.match(pattern=r'.*^Generate .* successully in.* (\S+)\.(.*)', string=stdout, flags=re.M | re.S)
+		m = re.match(pattern=r'.*^Generate .* successully in.* (\S+)\.\n(.*)', string=stdout, flags=re.M | re.S)
 		out_dir, rest = m.groups()
-		for m in re.finditer(r'^([^-]+)-+>(0x[0-9a-f]+)$', rest, flags=re.M):
+		for m in re.finditer(r'^([^-\n ]+)-+>(0x[0-9a-f]+)$', rest, flags=re.M):
 			name, addr = m.groups()
 			out_path = os.path.join(bin_dir, name)
 			paths[addr] = out_path

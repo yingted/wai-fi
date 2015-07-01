@@ -37,7 +37,7 @@ def get_Session():
 		_Session = Session
 	return _Session
 
-overlay_file_names = 'default_private_key', 'default_certificate', 'default_private_key.c', 'default_certificate.c'
+overlay_file_names = 'default_private_key', 'default_certificate', 'default_private_key.c', 'default_certificate.c', 'cert_req.txt'
 
 @contextlib.contextmanager
 def overlay_applied(overlay_dir, user_dir):
@@ -66,6 +66,21 @@ def overlay_applied(overlay_dir, user_dir):
 		overlay_path = os.path.join(overlay_dir, name)
 		shutil.copyfile(displaced_path, overlay_path)
 
+def seed_overlay(overlay_dir, mac):
+	with open(os.path.join(overlay_dir, 'cert_req.txt'), 'w') as f:
+		f.write('''\
+.
+.
+.
+.
+.
+%(mac)s.device.ssl
+.
+
+
+
+''' % locals())
+
 @contextlib.contextmanager
 def get_overlay_dir(mac, port):
 	session = get_Session()()
@@ -73,6 +88,7 @@ def get_overlay_dir(mac, port):
 		overlay_dir = tempfile.mkdtemp(prefix='%s.' % mac, dir=data_dir)
 		device = session.query(Device).filter(Device.mac == mac).first()
 		if device is None:
+			seed_overlay(overlay_dir, mac)
 			device = Device(mac=mac, overlay_dir=overlay_dir)
 			session.add(device)
 			try:
