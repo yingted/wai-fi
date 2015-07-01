@@ -19,8 +19,8 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
-bool secure_connected = false;
-struct espconn con;
+bool connmgr_connected = false;
+struct espconn conn;
 
 static void ssl_connect();
 ICACHE_FLASH_ATTR
@@ -28,11 +28,12 @@ static void schedule_reconnect() {
     assert_heap();
 
     USER_INTR_LOCK();
-    if (!secure_connected) {
+    if (!connmgr_connected) {
         user_dprintf("warning: disconnect: already disconnected");
         return;
     }
-    secure_connected = false;
+    connmgr_connected = false;
+    connmgr_disconnect_cb();
 #ifdef DEBUG_ESP
     ssl_connect();
 #else
@@ -43,11 +44,12 @@ static void schedule_reconnect() {
 
 ICACHE_FLASH_ATTR
 static void ssl_disconnect() {
-    assert(secure_connected);
-    if (espconn_secure_disconnect(&con) != ESPCONN_OK) {
+    assert(connmgr_connected);
+    if (espconn_secure_disconnect(&conn) != ESPCONN_OK) {
         user_dprintf("disconnect: failed");
     }
-    secure_connected = false;
+    connmgr_connected = false;
+    connmgr_disconnect_cb();
 }
 
 ICACHE_FLASH_ATTR
@@ -83,9 +85,9 @@ static void espconn_connect_cb(void *arg) {
     espconn_set_keepalive(conn, ESPCONN_KEEPCNT, &keepalive_count);
 
     user_dprintf("connected");
-    espconn_regist_disconcb(&con, espconn_disconnect_cb);
-    espconn_regist_recvcb(&con, (espconn_recv_callback)connmgr_recv_cb);
-    espconn_regist_sentcb(&con, (espconn_sent_callback)connmgr_sent_cb);
+    espconn_regist_disconcb(conn, espconn_disconnect_cb);
+    espconn_regist_recvcb(conn, (espconn_recv_callback)connmgr_recv_cb);
+    espconn_regist_sentcb(conn, (espconn_sent_callback)connmgr_sent_cb);
 
     connmgr_connect_cb(arg);
 }
@@ -94,15 +96,15 @@ ICACHE_FLASH_ATTR
 static void ssl_connect() {
     USER_INTR_LOCK();
 
-    if (secure_connected) {
+    if (connmgr_connected) {
         user_dprintf("error: already connected");
         USER_INTR_UNLOCK();
         return;
     }
 
-    os_memset(&con, 0, sizeof(con));
-    con.type = ESPCONN_TCP;
-    con.state = ESPCONN_NONE;
+    os_memset(&conn, 0, sizeof(conn));
+    conn.type = ESPCONN_TCP;
+    conn.state = ESPCONN_NONE;
     {
         static esp_tcp tcp;
         memset(&tcp, 0, sizeof(tcp));
@@ -110,21 +112,21 @@ static void ssl_connect() {
         os_memcpy(tcp.local_ip, &icmp_tap.ip_addr, sizeof(struct ip_addr));
         os_memcpy(tcp.remote_ip, &icmp_tap.gw, sizeof(struct ip_addr));
 
-        con.proto.tcp = &tcp;
+        conn.proto.tcp = &tcp;
     }
     assert_heap();
-    espconn_regist_connectcb(&con, espconn_connect_cb);
-    espconn_regist_reconcb(&con, espconn_reconnect_cb);
+    espconn_regist_connectcb(&conn, espconn_connect_cb);
+    espconn_regist_reconcb(&conn, espconn_reconnect_cb);
     assert_heap();
 
     user_dprintf("starting connection");
     assert_heap();
-    assert(!secure_connected);
-    sint8 rc = espconn_secure_connect(&con);
+    assert(!connmgr_connected);
+    sint8 rc = espconn_secure_connect(&conn);
     if (rc) {
         user_dprintf("espconn_secure_connect: error %u", rc);
     } else {
-        secure_connected = true;
+        connmgr_connected = true;
     }
     assert_heap();
     user_dprintf("started connection: %d", rc);
@@ -164,7 +166,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
             user_dprintf("disconnected");
 
             USER_INTR_LOCK();
-            if (secure_connected) {
+            if (connmgr_connected) {
                 ssl_disconnect();
             }
             USER_INTR_UNLOCK();

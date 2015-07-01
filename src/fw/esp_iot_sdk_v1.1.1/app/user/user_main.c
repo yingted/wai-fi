@@ -41,3 +41,11 @@ void connmgr_recv_cb(struct espconn *conn, char *buf, unsigned short len) {
     }
     // TODO
 }
+
+
+ICACHE_FLASH_ATTR
+void connmgr_disconnect_cb() {
+    user_dprintf("");
+
+    // TODO
+}
