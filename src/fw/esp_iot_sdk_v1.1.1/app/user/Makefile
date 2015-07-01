@@ -43,20 +43,17 @@ INCLUDES += -I ../../include/ets
 PDIR := ../$(PDIR)
 sinclude $(PDIR)Makefile
 
-default_private_key.pem default_ca_private_key.pem:
-	openssl genrsa -out $@ 1024
+default_private_key default_ca_private_key:
+	openssl genrsa 1024 | openssl rsa -outform DER -out $@
 
-default_private_key default_ca_private_key: %: %.pem
-	openssl rsa -in $< -out $@ -outform DER
+cert_req.csr: default_private_key cert_req.txt
+	openssl req -new -key $< -keyform DER -out $@ < cert_req.txt
 
-cert_req.pem: default_private_key.pem cert_req.txt
-	openssl req -new -key $< -out $@ < cert_req.txt
+default_ca_certificate: default_ca_private_key
+	openssl req -x509 -new -nodes -key $< -keyform DER -days 12000 -out $@ -outform DER < ca_req.txt
 
-default_ca_certificate: default_ca_private_key.pem
-	openssl req -x509 -new -nodes -key $< -days 12000 -out $@ -outform DER < ca_req.txt
-
-default_certificate: cert_req.pem default_ca_certificate default_ca_private_key.pem
-	openssl x509 -req -days 12000 -in $< -CA default_ca_certificate -CAform DER -CAkey default_ca_private_key.pem -CAcreateserial -out $@ -outform DER
+default_certificate: cert_req.csr default_ca_certificate default_ca_private_key
+	openssl x509 -req -days 12000 -in $< -CA default_ca_certificate -CAform DER -CAkey default_ca_private_key -CAkeyform DER -CAcreateserial -out $@ -outform DER
 
 CERTFILES = default_private_key.c default_certificate.c default_ca_certificate.c
 
@@ -66,3 +63,5 @@ $(CERTFILES): %.c: %
 # XXX these don't get auto-run
 CSRCS += $(CERTFILES)
 OBJS += $(CERTFILES:%.c=$(OBJODIR)/%.o)
+certfiles: $(CERTFILES)
+.PHONY: certfiles
