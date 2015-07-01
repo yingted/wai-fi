@@ -8,15 +8,25 @@ import subprocess
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import exists
-from models import Device
+from models import Base, Device
 
 data_dir = 'data/pki'
 db_path = os.path.join(data_dir, 'index.db')
+
+def make_data_dir():
+	try:
+		os.makedirs(data_dir)
+	except:
+		pass
+
 _engine = None
 def get_engine():
 	global _engine
 	if _engine is None:
-		_engine = create_engine('sqlite:///%s' % db_path, echo=True)
+		make_data_dir()
+		engine = create_engine('sqlite:///%s' % db_path, echo=True)
+		Base.metadata.create_all(engine)
+		_engine = engine
 	return _engine
 
 _Session = None
@@ -42,7 +52,8 @@ def overlay_applied(overlay_dir, user_dir):
 	for name in overlay_file_names:
 		displaced_path = os.path.join(user_dir, name)
 		overlay_path = os.path.join(overlay_dir, name)
-		shutil.copyfile(overlay_path, displaced_path)
+		if os.path.exists(overlay_path):
+			shutil.copyfile(overlay_path, displaced_path)
 	subprocess.check_call(('make', '-C', user_dir) + overlay_file_names)
 	try:
 		yield
@@ -56,13 +67,13 @@ def overlay_applied(overlay_dir, user_dir):
 		shutil.copyfile(displaced_path, overlay_path)
 
 @contextlib.contextmanager
-def get_overlay_dir(mac_str, port):
+def get_overlay_dir(mac, port):
 	session = get_Session()()
 	try:
-		overlay_dir = tempfile.mkdtemp(prefix='%s.' % macstr, dir=data_dir)
-		device = session.query(Device).filter(Device.mac == mac_str).first()
+		overlay_dir = tempfile.mkdtemp(prefix='%s.' % mac, dir=data_dir)
+		device = session.query(Device).filter(Device.mac == mac).first()
 		if device is None:
-			device = Device(mac=mac_str, overlay_dir=overlay_dir)
+			device = Device(mac=mac, overlay_dir=overlay_dir)
 			session.add(device)
 			try:
 				yield overlay_dir
