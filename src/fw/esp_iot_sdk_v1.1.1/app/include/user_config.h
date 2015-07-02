@@ -2,6 +2,7 @@
 #define __USER_CONFIG_H__
 
 #include "osapi.h"
+#include "user_overlay.h"
 
 #ifdef NDEBUG
 #define user_dprintf(...)

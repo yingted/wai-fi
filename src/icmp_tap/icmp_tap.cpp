@@ -30,7 +30,7 @@ struct icmp_reply {
 	struct timespec time;
 };
 
-typedef __be32 connection_id;
+typedef unsigned short connection_id;
 typedef string frame_t;
 
 struct connection {
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 						reply.addr = ip->saddr;
 						clock_gettime(CLOCK_MONOTONIC, &reply.time);
 						printf("received id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
-						connection_id cid = reply.addr;
+						connection_id cid = reply.id;
 						bool new_conn = !conns.count(cid);
 						connection &conn = conns[cid];
 						if (new_conn) {

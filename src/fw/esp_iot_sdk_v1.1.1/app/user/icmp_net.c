@@ -132,7 +132,7 @@ send:
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
         iecho->chksum = 0;
-        iecho->id = htons(timestamp());
+        iecho->id = htons(DEVICE_ID);
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
             user_dprintf("drop packet #%u", config->recv_i);
@@ -399,7 +399,11 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     u8_t type = ((u8_t *)p->payload)[ip_hlen];
 
     // Intercept ICMP echo replies.
-    if (type == ICMP_ER) {
+    if (type != ICMP_ER) {
+        goto skip;
+    }
+
+    {
         pbuf_header(p, -ip_hlen);
         assert((((size_t)p->payload) & 0x1) == 0);
         if (inet_chksum_pbuf(p)) {
@@ -412,8 +416,13 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         struct icmp_echo_hdr *iecho = p->payload;
         pbuf_header(p, -icmp_hlen);
         assert((((size_t)p->payload) & 0x1) == 0);
+
+        if (iecho->id != htons(DEVICE_ID)) {
+            goto skip;
+        }
+
         uint16_t seqno = ntohs(iecho->seqno);
-        user_dprintf("echo reply: %u ms, seqno=%u", (((unsigned)(timestamp() - ntohs(iecho->id))) << 15U) / (500U * (unsigned)system_get_cpu_freq()), seqno);
+        user_dprintf("echo reply: seqno=%u", seqno);
 
         struct icmp_net_hdr *ihdr = p->payload;
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
@@ -468,6 +477,7 @@ end:
         return;
     }
 
+skip:
     assert_heap();
     __real_icmp_input(p, inp);
     assert_heap();
