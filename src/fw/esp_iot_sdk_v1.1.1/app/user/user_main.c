@@ -16,6 +16,9 @@ void user_init(void) {
 
     connmgr_init();
     connmgr_start();
+
+    //wifi_promiscuous_enable(1);
+    //wifi_set_opmode_current(STATION_MODE);
 }
 
 ICACHE_FLASH_ATTR

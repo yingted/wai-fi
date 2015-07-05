@@ -198,6 +198,8 @@ void connmgr_init() {
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
 
+    wifi_station_set_auto_connect(0);
+
     icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
 
     // Create the ICMP tap device and never delete it.
@@ -218,6 +220,8 @@ void connmgr_init() {
 }
 
 void connmgr_start() {
+    wifi_promiscuous_enable(0);
+
     wifi_set_opmode_current(NULL_MODE);
     wifi_set_event_handler_cb(wifi_handle_event_cb);
     wifi_set_opmode_current(STATION_MODE);
@@ -227,7 +231,8 @@ void connmgr_start() {
         os_memcpy(config->ssid, ssid, os_strlen(ssid));
         wifi_station_set_config_current(config);
     }
-    wifi_station_set_auto_connect(1);
+    wifi_station_disconnect();
+    wifi_station_connect();
     wifi_station_set_reconnect_policy(true);
 
     user_dprintf("started");
