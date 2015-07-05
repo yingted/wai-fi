@@ -6,8 +6,9 @@ import contextlib
 import overlay
 import shutil
 import tempfile
+import config
 
-sdk_dir = 'fw/esp_iot_sdk_v1.1.1'
+sdk_dir = config.sdk_dir
 bin_dir = os.path.join(sdk_dir, 'bin')
 app_dir = os.path.join(sdk_dir, 'app')
 user_dir = os.path.join(app_dir, 'user')

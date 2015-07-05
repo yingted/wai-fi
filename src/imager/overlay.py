@@ -9,8 +9,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import exists
 from models import Base, Device
+import config
 
-data_dir = 'data/pki'
+data_dir = config.data_dir
 db_path = os.path.join(data_dir, 'index.db')
 
 def make_data_dir():

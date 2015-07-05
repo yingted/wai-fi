@@ -55,6 +55,12 @@ default_ca_certificate: default_ca_private_key
 default_certificate: cert_req.csr default_ca_certificate default_ca_private_key
 	openssl x509 -req -days 12000 -in $< -CA default_ca_certificate -CAform DER -CAkey default_ca_private_key -CAkeyform DER -CAcreateserial -out $@ -outform DER
 
+default_ca_certificate.pem: default_ca_certificate
+	openssl x509 -in $< -inform DER -out $@
+
+default_ca_private_key.pem: default_ca_private_key
+	openssl rsa -in $< -inform DER -out $@
+
 CERTFILES = default_private_key.c default_certificate.c default_ca_certificate.c
 
 $(CERTFILES): %.c: %
