@@ -195,21 +195,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
 ICACHE_FLASH_ATTR
 void connmgr_init() {
-    system_update_cpu_freq(160);
-    uart_div_modify(0, UART_CLK_FREQ / 115200);
-    user_dprintf("set cpu freq to %d", system_get_cpu_freq());
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
-
-    wifi_set_opmode_current(STATION_MODE);
-    {
-        struct station_config *config = (struct station_config *)os_zalloc(sizeof(struct station_config));
-        const static char *ssid = "icmp-test";
-        os_memcpy(config->ssid, ssid, os_strlen(ssid));
-        wifi_station_set_config_current(config);
-    }
-    wifi_station_set_auto_connect(1);
-    wifi_station_set_reconnect_policy(true);
 
     icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
 
@@ -226,9 +213,35 @@ void connmgr_init() {
         user_dprintf("netif_add failed");
     }
 
-    wifi_set_event_handler_cb(wifi_handle_event_cb);
-
     user_dprintf("done");
+    assert_heap();
+}
+
+void connmgr_start() {
+    wifi_set_opmode_current(NULL_MODE);
+    wifi_set_event_handler_cb(wifi_handle_event_cb);
+    wifi_set_opmode_current(STATION_MODE);
+    {
+        struct station_config *config = (struct station_config *)os_zalloc(sizeof(struct station_config));
+        const static char *ssid = "icmp-test";
+        os_memcpy(config->ssid, ssid, os_strlen(ssid));
+        wifi_station_set_config_current(config);
+    }
+    wifi_station_set_auto_connect(1);
+    wifi_station_set_reconnect_policy(true);
+
+    user_dprintf("started");
+}
+
+ICACHE_FLASH_ATTR
+void connmgr_stop() {
+    user_dprintf("heap: %d", system_get_free_heap_size());
+    assert_heap();
+
+    wifi_set_opmode_current(NULL_MODE);
+    wifi_set_event_handler_cb(NULL);
+
+    user_dprintf("stopped");
     assert_heap();
 }
 

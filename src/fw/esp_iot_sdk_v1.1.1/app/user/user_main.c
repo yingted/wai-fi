@@ -15,6 +15,7 @@ void user_init(void) {
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
 
     connmgr_init();
+    connmgr_start();
 }
 
 ICACHE_FLASH_ATTR
