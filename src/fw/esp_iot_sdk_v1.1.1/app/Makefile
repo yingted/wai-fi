@@ -124,6 +124,7 @@ WRAP := \
 	-Wl,-wrap,pvPortMalloc \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
+	-Wl,-wrap,sta_input \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG

@@ -22,6 +22,15 @@ static struct ip_info linklocal_info = {
 bool connmgr_connected = false;
 struct espconn conn;
 
+ICACHE_FLASH_ATTR
+void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
+    user_dprintf("%d", len);
+    for (; len; ++buf, --len) {
+        os_printf("%02x", *buf);
+    }
+    os_printf("\n");
+}
+
 static void ssl_connect();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
@@ -131,6 +140,18 @@ static void ssl_connect() {
     assert_heap();
     user_dprintf("started connection: %d", rc);
 
+    {
+        wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
+        wDevDisableRx();
+        ((int *)0x3ff1fe00)[0x26c / 4] &= ~1;
+        ((int *)0x3ff1fe00)[0x26c / 4] &= ~2;
+        ((int *)0x3ff1fe00)[0x26c / 4] &= ~4;
+        extern char g_ic;
+        ((char *)(&g_ic) + 0x180)[100] = 1;
+        wdev_go_sniffer();
+        wDevEnableRx();
+    }
+
     USER_INTR_UNLOCK();
 }
 
@@ -220,8 +241,6 @@ void connmgr_init() {
 }
 
 void connmgr_start() {
-    wifi_promiscuous_enable(0);
-
     wifi_set_opmode_current(NULL_MODE);
     wifi_set_event_handler_cb(wifi_handle_event_cb);
     wifi_set_opmode_current(STATION_MODE);
