@@ -1,6 +1,17 @@
 #ifndef __DEBUG_ESP_H__
 #define __DEBUG_ESP_H__
 
+#ifndef NDEBUG
+void print_stack();
+#define print_stack_once() do { \
+    static bool printed = 0; \
+    if (printed) \
+        break; \
+    printed = 1; \
+    print_stack(); \
+} while (0)
+#endif
+
 #ifdef DEBUG_ESP
 extern size_t icmp_net_lwip_entry_count;
 

@@ -24,7 +24,12 @@ struct espconn conn;
 
 ICACHE_FLASH_ATTR
 void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
-    user_dprintf("%d", len);
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    user_dprintf("%d @ %p", len, a0);
+    return;
+    print_stack();
+    return;
     for (; len; ++buf, --len) {
         os_printf("%02x", *buf);
     }
@@ -143,16 +148,104 @@ static void ssl_connect() {
     {
         wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
         wDevDisableRx();
-        ((int *)0x3ff1fe00)[0x26c / 4] &= ~1;
-        ((int *)0x3ff1fe00)[0x26c / 4] &= ~2;
-        ((int *)0x3ff1fe00)[0x26c / 4] &= ~4;
         extern char g_ic;
-        ((char *)(&g_ic) + 0x180)[100] = 1;
-        wdev_go_sniffer();
+        char flags = 4;
+        int alpha = ((int *)0x3ff1fe00)[0x26c / 4];
+        char beta = ((char *)(&g_ic) + 0x180)[100];
+        if (flags & 1) {
+            ((int *)0x3ff1fe00)[0x26c / 4] &= ~1;
+            ((int *)0x3ff1fe00)[0x26c / 4] &= ~2;
+            ((int *)0x3ff1fe00)[0x26c / 4] &= ~4;
+        }
+        if (flags & 2) {
+            ((char *)(&g_ic) + 0x180)[100] = 1;
+        }
+        if (flags & 4) {
+            wdev_go_sniffer();
+        }
+        assert(alpha == ((int *)0x3ff1fe00)[0x26c / 4]);
+        assert(beta == ((char *)(&g_ic) + 0x180)[100]);
         wDevEnableRx();
     }
 
     USER_INTR_UNLOCK();
+}
+
+size_t __real_ets_post(size_t a, size_t b, size_t c, size_t d);
+ICACHE_FLASH_ATTR
+size_t __wrap_ets_post(size_t a, size_t b, size_t c, size_t d) {
+#if 0
+    user_dprintf("%d", b);
+    if (b == 5) {
+        print_stack_once();
+    } else if (b == 9) {
+        print_stack_once();
+    }
+#endif
+    return __real_ets_post(a, b, c, d);
+}
+
+size_t is_in_fiq;
+
+void __real_wDev_ProcessFiq();
+ICACHE_FLASH_ATTR
+void __wrap_wDev_ProcessFiq() {
+    user_dprintf("%p %p", ((void **)0x3ff20a00)[0x220 / 4], ((void **)0x3ff20a00)[0x284 / 4]);
+    //size_t bit = ((size_t *)0x3ff20a00)[0x220 / 4] & (4 | 8);
+    //((size_t *)0x3ff20a00)[0x220 / 4] &= ~bit;
+    is_in_fiq = true;
+    __real_wDev_ProcessFiq();
+    is_in_fiq = false;
+    //((size_t *)0x3ff20a00)[0x220 / 4] |= bit;
+}
+
+size_t __real_lmacIsActive();
+ICACHE_FLASH_ATTR
+size_t __wrap_lmacIsActive() {
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    size_t ret = __real_lmacIsActive();
+    if (is_in_fiq) {
+        user_dprintf("%d @ %p", ret, a0);
+    }
+    return ret;
+}
+
+struct sta_input_pkt {
+    char pad_0_[4];
+    struct {
+        char pad_0_[4];
+        uint8_t *payload;
+    } *packet;
+    char pad_8_[20 - 8];
+    short header_len;
+    short body_len;
+    // byte 24
+};
+
+int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
+ICACHE_FLASH_ATTR
+int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
+    register void *a0_ asm("a0");
+    void *a0 = a0_;
+    USER_INTR_LOCK();
+    user_dprintf("sta_input: %p %d @ %p", m, rssi, a0);
+#if 0
+    print_stack_once();
+    assert(nf == 0);
+    assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
+    assert(m->header_len == (int)((short *)m)[10]);
+    assert(m->body_len == (int)((short *)m)[11]);
+    int i, len = m->header_len + m->body_len;
+    os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
+    for (i = 0; i < len; ++i) {
+        os_printf("%02x", m->packet->payload[i]);
+    }
+    os_printf("\n");
+#endif
+    int ret = __real_sta_input(ni, m, rssi, nf);
+    USER_INTR_UNLOCK();
+    return ret;
 }
 
 ICACHE_FLASH_ATTR

@@ -64,7 +64,7 @@ default_ca_private_key.pem: default_ca_private_key
 CERTFILES = default_private_key.c default_certificate.c default_ca_certificate.c
 
 $(CERTFILES): %.c: %
-	xxd -i $< > $@
+	xxd -i $< | sed 's/^unsigned/ICACHE_RODATA_ATTR &/' > $@
 
 # XXX these don't get auto-run
 CSRCS += $(CERTFILES)

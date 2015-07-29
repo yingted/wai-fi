@@ -30,7 +30,7 @@ endif # } PDIR
 APPDIR = .
 LDDIR = ../ld
 
-CCFLAGS += -Os -MMD -flto
+CCFLAGS += -Os -MMD -flto -include ../include/user_config.h
 
 TARGET_LDFLAGS =		\
 	-nostdlib		\
@@ -125,6 +125,9 @@ WRAP := \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
+	-Wl,-wrap,ets_post \
+	-Wl,-wrap,wDev_ProcessFiq \
+	-Wl,-wrap,lmacIsActive \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG

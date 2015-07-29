@@ -9,6 +9,35 @@
 #include "lwip/netif/etharp.h"
 #include <stddef.h>
 
+__attribute__((always_inline))
+static inline void print_stack_() {
+    void *sp;
+    asm volatile("mov %0, a1" : "=r" (sp));
+    {
+        os_printf("forward from sp=%p:", sp);
+        int i;
+        for (i = 0; i < 64; ++i) {
+            os_printf(" %p", ((void **)sp)[i]);
+        }
+        os_printf("\n");
+    }
+    {
+        os_printf("back from sp=%p:", sp);
+        int i;
+        for (i = 0; i < 64; ++i) {
+            os_printf(" %p", ((void **)sp)[~i]);
+        }
+        os_printf("\n");
+    }
+}
+
+#ifndef NDEBUG
+ICACHE_FLASH_ATTR
+void print_stack() {
+    print_stack_();
+}
+#endif
+
 #ifdef DEBUG_ESP
 
 size_t icmp_net_lwip_entry_count = 0;
@@ -55,10 +84,9 @@ struct exc_arg {
 ICACHE_FLASH_ATTR
 static void exc_handler(struct exc_arg *exc) {
     size_t exc_cause;
-    void *exc_vaddr, *sp;
+    void *exc_vaddr;
     asm volatile("rsr.exccause %0" : "=r" (exc_cause));
     asm volatile("rsr.excvaddr %0" : "=r" (exc_vaddr));
-    asm volatile("mov %0, a1" : "=r" (sp));
 
     if (exc) {
         struct exc_arg data = *exc;
@@ -68,22 +96,7 @@ static void exc_handler(struct exc_arg *exc) {
             data.xt_pc, data.xt_ps, data.xt_sar, data.xt_vpri, data.xt_a2, data.xt_a3, data.xt_a4, data.xt_a5, data.xt_exccause, data.xt_lcount, data.xt_lbeg, data.xt_lend
         );
     }
-    {
-        os_printf("forward from sp=%p:", sp);
-        int i;
-        for (i = 0; i < 64; ++i) {
-            os_printf(" %p", ((void **)sp)[i]);
-        }
-        os_printf("\n");
-    }
-    {
-        os_printf("back from sp=%p:", sp);
-        int i;
-        for (i = 0; i < 64; ++i) {
-            os_printf(" %p", ((void **)sp)[~i]);
-        }
-        os_printf("\n");
-    }
+    print_stack_();
     assert(false);
 }
 
@@ -330,6 +343,7 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
 #else
 
 void *__real_pvPortMalloc(size_t size);
+// ICACHE_FLASH_ATTR
 void *__wrap_pvPortMalloc(size_t size) {
     void *ret = __real_pvPortMalloc(size);
     if (!ret) {
