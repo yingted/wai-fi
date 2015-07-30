@@ -38,6 +38,7 @@ void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
 
 ICACHE_FLASH_ATTR
 static void ensure_promiscuous() {
+    return;
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
     size_t flags = 0x10000; // 0xfffff
@@ -213,7 +214,7 @@ static void ssl_connect() {
     assert_heap();
     user_dprintf("started connection: %d", rc);
 
-    ensure_promiscuous();
+    //ensure_promiscuous();
 
     USER_INTR_UNLOCK();
 }

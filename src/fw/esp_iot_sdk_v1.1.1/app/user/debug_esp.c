@@ -54,7 +54,7 @@ void assert_heap_(char *file, int line) {
         user_dprintf("heap: %d", heap);
         assert(false);
     }
-    show_esf_buf();
+    //show_esf_buf();
     esf_buf_printf("ok\n");
 }
 
@@ -102,6 +102,7 @@ static void exc_handler(struct exc_arg *exc) {
 
 ICACHE_FLASH_ATTR
 void debug_esp_install_exc_handler() {
+    //_xtos_set_exception_handler(3, exc_handler);
     _xtos_set_exception_handler(9, exc_handler);
     _xtos_set_exception_handler(28, exc_handler);
     _xtos_set_exception_handler(29, exc_handler);
@@ -127,7 +128,9 @@ __wrap_inet_chksum_pseudo(struct pbuf *p,
     // from: 0x401052ba
     // func: 0x401051b4
     // from: 0x40262a78 (tcp_output)
-    return __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
+    u16_t ret = __real_inet_chksum_pseudo(p, src, dest, proto, proto_len);
+    user_dprintf("%u", (unsigned)ret);
+    return ret;
 }
 
 u16_t

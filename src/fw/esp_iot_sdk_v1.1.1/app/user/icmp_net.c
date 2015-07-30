@@ -243,6 +243,7 @@ static void process_queued_pbufs() {
         assert(config);
         user_dprintf("netif->input %p len=%d", p, p->tot_len);
         assert(p->ref >= 1);
+        assert(config->netif->input == ethernet_input);
 
         err_t rc = config->netif->input(p, config->netif);
         if (rc != ERR_OK) {
@@ -309,7 +310,7 @@ err_t icmp_net_init(struct netif *netif) {
     root = config;
     USER_INTR_UNLOCK();
 
-    assert_heap();
+    //assert_heap(); // esf_buf not initialized
     user_dprintf("done");
 
     return ERR_OK;

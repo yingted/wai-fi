@@ -13,6 +13,7 @@ void user_init(void) {
     system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
+    wifi_promiscuous_enable(0);
 
     connmgr_init();
     connmgr_start();
