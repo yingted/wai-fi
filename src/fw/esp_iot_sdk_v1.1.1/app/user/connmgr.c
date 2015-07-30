@@ -37,12 +37,11 @@ void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
 }
 
 ICACHE_FLASH_ATTR
-static void ensure_promiscuous() {
-    return;
+static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
-    size_t flags = 0x10000; // 0xfffff
-    flags = 0;
+    size_t flags = 0b11111111111111111111;
+    //               666g4650000555552s66
     extern char g_ic[0];
 	size_t *a6 = (size_t *)0x3ff1fe00;
 	size_t *a2 = (size_t *)0x60009a00;
@@ -214,7 +213,7 @@ static void ssl_connect() {
     assert_heap();
     user_dprintf("started connection: %d", rc);
 
-    //ensure_promiscuous();
+    enable_promiscuous();
 
     USER_INTR_UNLOCK();
 }
@@ -238,7 +237,7 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     void *a0 = a0_;
     USER_INTR_LOCK();
     user_dprintf("sta_input: %p %d @ %p", m, rssi, a0);
-#if 0
+#if 1
     print_stack_once();
     assert(nf == 0);
     assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
@@ -246,6 +245,9 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     assert(m->body_len == (int)((short *)m)[11]);
     int i, len = m->header_len + m->body_len;
     os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
+    if (len > 22) {
+        len = 22;
+    }
     for (i = 0; i < len; ++i) {
         os_printf("%02x", m->packet->payload[i]);
     }
