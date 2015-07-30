@@ -218,53 +218,6 @@ static void ssl_connect() {
     USER_INTR_UNLOCK();
 }
 
-size_t __real_ets_post(size_t a, size_t b, size_t c, size_t d);
-ICACHE_FLASH_ATTR
-size_t __wrap_ets_post(size_t a, size_t b, size_t c, size_t d) {
-#if 0
-    user_dprintf("%d", b);
-    if (b == 5) {
-        print_stack_once();
-    } else if (b == 9) {
-        print_stack_once();
-    }
-#endif
-    return __real_ets_post(a, b, c, d);
-}
-
-size_t is_in_fiq;
-
-void __real_wDev_ProcessFiq();
-ICACHE_FLASH_ATTR
-void __wrap_wDev_ProcessFiq() {
-    user_dprintf("%p %p", ((void **)0x3ff20a00)[0x220 / 4], ((void **)0x3ff20a00)[0x284 / 4]);
-    //size_t bit = ((size_t *)0x3ff20a00)[0x220 / 4] & (4 | 8);
-    //((size_t *)0x3ff20a00)[0x220 / 4] &= ~bit;
-    is_in_fiq = true;
-    __real_wDev_ProcessFiq();
-    is_in_fiq = false;
-    //((size_t *)0x3ff20a00)[0x220 / 4] |= bit;
-}
-
-size_t __real_lmacIsActive();
-ICACHE_FLASH_ATTR
-size_t __wrap_lmacIsActive() {
-    register void *a0_ asm("a0");
-    void *a0 = a0_;
-    size_t ret = __real_lmacIsActive();
-    if (is_in_fiq) {
-        user_dprintf("%d @ %p", ret, a0);
-    }
-    return ret;
-}
-
-void __real_lmacProcessTXStartData(size_t a2);
-ICACHE_FLASH_ATTR
-void __wrap_lmacProcessTXStartData(size_t a2) {
-    user_dprintf("%p", (void *)a2);
-    __real_lmacProcessTXStartData(a2);
-}
-
 struct sta_input_pkt {
     char pad_0_[4];
     struct {

@@ -125,10 +125,6 @@ WRAP := \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
-	-Wl,-wrap,ets_post \
-	-Wl,-wrap,wDev_ProcessFiq \
-	-Wl,-wrap,lmacIsActive \
-	-Wl,-wrap,lmacProcessTXStartData \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
