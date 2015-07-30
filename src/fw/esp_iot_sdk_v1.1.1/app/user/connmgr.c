@@ -36,6 +36,35 @@ void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
     os_printf("\n");
 }
 
+ICACHE_FLASH_ATTR
+static void my_wdev_go_sniffer() {
+    wdev_go_sniffer();
+}
+
+ICACHE_FLASH_ATTR
+static void ensure_promiscuous() {
+    wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
+    wDevDisableRx();
+    extern char g_ic;
+    char flags = 4;
+    int alpha = ((int *)0x3ff1fe00)[0x26c / 4];
+    char beta = ((char *)(&g_ic) + 0x180)[100];
+    if (flags & 1) {
+        ((int *)0x3ff1fe00)[0x26c / 4] &= ~1;
+        ((int *)0x3ff1fe00)[0x26c / 4] &= ~2;
+        ((int *)0x3ff1fe00)[0x26c / 4] &= ~4;
+    }
+    if (flags & 2) {
+        ((char *)(&g_ic) + 0x180)[100] = 1;
+    }
+    if (flags & 4) {
+        my_wdev_go_sniffer();
+    }
+    assert(alpha == ((int *)0x3ff1fe00)[0x26c / 4]);
+    assert(beta == ((char *)(&g_ic) + 0x180)[100]);
+    wDevEnableRx();
+}
+
 static void ssl_connect();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
@@ -145,28 +174,7 @@ static void ssl_connect() {
     assert_heap();
     user_dprintf("started connection: %d", rc);
 
-    {
-        wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
-        wDevDisableRx();
-        extern char g_ic;
-        char flags = 4;
-        int alpha = ((int *)0x3ff1fe00)[0x26c / 4];
-        char beta = ((char *)(&g_ic) + 0x180)[100];
-        if (flags & 1) {
-            ((int *)0x3ff1fe00)[0x26c / 4] &= ~1;
-            ((int *)0x3ff1fe00)[0x26c / 4] &= ~2;
-            ((int *)0x3ff1fe00)[0x26c / 4] &= ~4;
-        }
-        if (flags & 2) {
-            ((char *)(&g_ic) + 0x180)[100] = 1;
-        }
-        if (flags & 4) {
-            wdev_go_sniffer();
-        }
-        assert(alpha == ((int *)0x3ff1fe00)[0x26c / 4]);
-        assert(beta == ((char *)(&g_ic) + 0x180)[100]);
-        wDevEnableRx();
-    }
+    ensure_promiscuous();
 
     USER_INTR_UNLOCK();
 }
@@ -194,6 +202,7 @@ void __wrap_wDev_ProcessFiq() {
     //size_t bit = ((size_t *)0x3ff20a00)[0x220 / 4] & (4 | 8);
     //((size_t *)0x3ff20a00)[0x220 / 4] &= ~bit;
     is_in_fiq = true;
+    //ensure_promiscuous();
     __real_wDev_ProcessFiq();
     is_in_fiq = false;
     //((size_t *)0x3ff20a00)[0x220 / 4] |= bit;
@@ -209,6 +218,13 @@ size_t __wrap_lmacIsActive() {
         user_dprintf("%d @ %p", ret, a0);
     }
     return ret;
+}
+
+void __real_lmacProcessTXStartData(size_t a2);
+ICACHE_FLASH_ATTR
+void __wrap_lmacProcessTXStartData(size_t a2) {
+    user_dprintf("%p", (void *)a2);
+    __real_lmacProcessTXStartData(a2);
 }
 
 struct sta_input_pkt {

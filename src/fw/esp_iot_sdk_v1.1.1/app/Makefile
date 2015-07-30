@@ -128,6 +128,7 @@ WRAP := \
 	-Wl,-wrap,ets_post \
 	-Wl,-wrap,wDev_ProcessFiq \
 	-Wl,-wrap,lmacIsActive \
+	-Wl,-wrap,lmacProcessTXStartData \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
