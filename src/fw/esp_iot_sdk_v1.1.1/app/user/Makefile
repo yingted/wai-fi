@@ -64,9 +64,10 @@ default_ca_certificate.pem: default_ca_certificate
 default_ca_private_key.pem: default_ca_private_key
 	openssl rsa -in $< -inform DER -out $@
 
-CERTFILES = default_private_key.c default_certificate.c default_ca_certificate.c default_ca_certificate.pem default_ca_private_key.pem
+CERTFILES_C = default_private_key.c default_certificate.c default_ca_certificate.c
+CERTFILES = $(CERTFILES_C) default_ca_certificate.pem default_ca_private_key.pem
 
-$(CERTFILES): %.c: %
+$(CERTFILES_C): %.c: %
 	xxd -i $< | sed 's:^unsigned:USER_DATA32_ATTR &:' > $@
 
 # XXX these don't get auto-run
