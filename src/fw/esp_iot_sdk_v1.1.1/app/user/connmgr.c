@@ -40,10 +40,8 @@ ICACHE_FLASH_ATTR
 static void ensure_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
-    extern char g_ic;
     size_t flags = 0xfffff;
-    int alpha = ((int *)0x3ff1fe00)[0x26c / 4];
-    char beta = ((char *)(&g_ic) + 0x180)[100];
+    extern char g_ic[0];
 	size_t *a6 = (size_t *)0x3ff1fe00;
 	size_t *a2 = (size_t *)0x60009a00;
 	size_t *a10 = (size_t *)0x3ff20600;
@@ -57,7 +55,7 @@ static void ensure_promiscuous() {
     if (flags & 0x4)
         ((int *)0x3ff1fe00)[0x26c / 4] &= ~4;
     if (flags & 0x8)
-        ((char *)(&g_ic) + 0x180)[100] = 1;
+        (g_ic + 0x180)[100] = 1;
     if (flags & 0x10)
         ((char *)a4)[5] = 1;
     if (flags & 0x20)
@@ -90,8 +88,6 @@ static void ensure_promiscuous() {
         a6 = (size_t *)0x3ff20a00;
     if (flags & 0x80000)
         a6[0x294 / 4] &= ~1;
-    assert(alpha == ((int *)0x3ff1fe00)[0x26c / 4]);
-    assert(beta == ((char *)(&g_ic) + 0x180)[100]);
     wDevEnableRx();
 }
 
