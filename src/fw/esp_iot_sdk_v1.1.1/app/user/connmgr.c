@@ -38,7 +38,28 @@ void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
 
 ICACHE_FLASH_ATTR
 static void my_wdev_go_sniffer() {
-    wdev_go_sniffer();
+	size_t *a6 = (size_t *)0x3ff1fe00;
+	size_t *a2 = (size_t *)0x60009a00;
+	size_t *a10 = (size_t *)0x3ff20600;
+	extern size_t wDevCtrl[0];
+	size_t *a4 = wDevCtrl;
+	((char *)a4)[5] = 1;
+	size_t *a5 = (size_t *)0x3ff20a00;
+	a6[0x20c / 4] = a4[12];
+	a5[0x288 / 4] |= 0x00040000;
+	a10[0x200 / 4] |= 0x03000000;
+	a10[0x200 / 4] &= ~0x00010000;
+	a10[0x204 / 4] |= 0x03000000;
+	a10[0x204 / 4] &= ~0x00010000;
+	a5[0x258 / 4] = 0;
+	a5[0x25c / 4] = 0x00010000;
+	a5[0x238 / 4] = 0;
+	a5[0x23c / 4] = 0x00010000;
+	a5[0x218 / 4] |= 12;
+	a2[0x344 / 4] &= 0xdbffffff;
+	ets_delay_us(15000);
+	a6 = (size_t *)0x3ff20a00;
+	a6[0x294 / 4] &= ~1;
 }
 
 ICACHE_FLASH_ATTR
@@ -202,7 +223,6 @@ void __wrap_wDev_ProcessFiq() {
     //size_t bit = ((size_t *)0x3ff20a00)[0x220 / 4] & (4 | 8);
     //((size_t *)0x3ff20a00)[0x220 / 4] &= ~bit;
     is_in_fiq = true;
-    //ensure_promiscuous();
     __real_wDev_ProcessFiq();
     is_in_fiq = false;
     //((size_t *)0x3ff20a00)[0x220 / 4] |= bit;
