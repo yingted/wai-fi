@@ -378,11 +378,7 @@ EXP_FUNC SSL_CTX *STDCALL __wrap_ssl_ctx_new(uint32_t options, int num_sessions)
     options &= ~(SSL_SERVER_VERIFY_LATER | SSL_DISPLAY_CERTS | SSL_NO_DEFAULT_KEY);
     SSL_CTX *ret = __real_ssl_ctx_new(options, num_sessions);
     if (ca_cert == NULL) {
-        void *cert_buf = (void *)os_malloc(default_ca_certificate_len);
-        os_memcpy(cert_buf, default_ca_certificate, default_ca_certificate_len);
-        int rc = add_cert_auth(ret, cert_buf, default_ca_certificate_len);
-        os_free(cert_buf);
-
+        int rc = add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
         assert(rc == SSL_OK);
         assert(ret->ca_cert_ctx);
         assert(ret->ca_cert_ctx->cert[0] != NULL);
