@@ -26,7 +26,8 @@ ICACHE_FLASH_ATTR
 void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
     register void *a0_ asm("a0");
     void *a0 = a0_;
-    user_dprintf("%d @ %p", len, a0);
+    os_printf("@");
+    //user_dprintf("%d @ %p", len, a0);
     return;
     print_stack();
     return;
@@ -36,18 +37,22 @@ void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
     os_printf("\n");
 }
 
+static bool is_promiscuous = false;
 ICACHE_FLASH_ATTR
 static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
-    size_t flags = 0b11111111111111111111;
+    is_promiscuous = true;
+    //size_t flags = 0b00000001111000000000;
+    //size_t flags = 0b00000001100000000100;
+    size_t flags = 0b11101110011111101111;
     //               666g4650000555552s66
     extern char g_ic[0];
-	size_t *a6 = (size_t *)0x3ff1fe00;
-	size_t *a2 = (size_t *)0x60009a00;
-	size_t *a10 = (size_t *)0x3ff20600;
-	extern size_t wDevCtrl[0];
-	size_t *a4 = wDevCtrl;
+    size_t *a6 = (size_t *)0x3ff1fe00;
+    size_t *a2 = (size_t *)0x60009a00;
+    size_t *a10 = (size_t *)0x3ff20600;
+    extern size_t wDevCtrl[0];
+    size_t *a4 = wDevCtrl;
     size_t *a5 = (size_t *)0x3ff20a00;
     {
         if (flags & 0x1)
@@ -91,7 +96,7 @@ static void enable_promiscuous() {
             a5[0x218 / 4] |= 12;
 
         if (flags & 0x10000)
-            a2[0x344 / 4] &= 0xdbffffff;
+            a2[0x344 / 4] &= ~0x24000000;
 
         if (flags & 0x20000)
             ets_delay_us(15000);
@@ -171,6 +176,8 @@ static void espconn_connect_cb(void *arg) {
     espconn_regist_recvcb(conn, (espconn_recv_callback)connmgr_recv_cb);
     espconn_regist_sentcb(conn, (espconn_sent_callback)connmgr_sent_cb);
 
+    enable_promiscuous();
+
     connmgr_connect_cb(arg);
 }
 
@@ -213,8 +220,6 @@ static void ssl_connect() {
     assert_heap();
     user_dprintf("started connection: %d", rc);
 
-    enable_promiscuous();
-
     USER_INTR_UNLOCK();
 }
 
@@ -236,8 +241,12 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     register void *a0_ asm("a0");
     void *a0 = a0_;
     USER_INTR_LOCK();
-    user_dprintf("sta_input: %p %d @ %p", m, rssi, a0);
-#if 1
+    user_dprintf("sta_input: %p %p %d @ %p", ni, m, rssi, a0);
+    const static u8_t
+        mac1[6] = {0x18, 0xfe, 0x34, 0xa4, 0x4f, 0xbc},
+        mac2[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+        mac3[6] = {0xc8, 0xf7, 0x33, 0x0c, 0x09, 0xb9};
+#if 0
     print_stack_once();
     assert(nf == 0);
     assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
@@ -251,9 +260,23 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     for (i = 0; i < len; ++i) {
         os_printf("%02x", m->packet->payload[i]);
     }
-    os_printf("\n");
 #endif
-    int ret = __real_sta_input(ni, m, rssi, nf);
+    int ret = ERR_OK;
+    if (
+            is_promiscuous &&
+            m->header_len >= 22 &&
+            (
+                (memcmp(mac1, m->packet->payload + 4, 6) && memcmp(mac2, m->packet->payload + 4, 6)) ||
+                memcmp(mac3, m->packet->payload + 10, 6) ||
+                memcmp(mac3, m->packet->payload + 16, 6)
+            )
+        ) {
+        ppRecycleRxPkt(m);
+    } else {
+        //os_printf(" *");
+        ret = __real_sta_input(ni, m, rssi, nf);
+    }
+    //os_printf("\n");
     USER_INTR_UNLOCK();
     return ret;
 }
@@ -297,6 +320,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
             if (netif_default == &icmp_tap) {
                 dhcp_stop(&icmp_tap);
+                netif_set_down(&icmp_tap);
 
                 icmp_net_unenslave(&icmp_config);
                 netif_default = saved_default;
