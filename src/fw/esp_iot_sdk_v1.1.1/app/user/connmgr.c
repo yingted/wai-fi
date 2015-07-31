@@ -24,10 +24,10 @@ struct espconn conn;
 
 ICACHE_FLASH_ATTR
 void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
+    return;
     register void *a0_ asm("a0");
     void *a0 = a0_;
-    os_printf("@");
-    //user_dprintf("%d @ %p", len, a0);
+    user_dprintf("%d @ %p", len, a0);
     return;
     print_stack();
     return;
@@ -43,8 +43,10 @@ static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
     is_promiscuous = true;
-    size_t flags = 0b11111110011111100111;
+    //size_t flags = 0b11011110011111100111;
+    size_t flags = 0b11011110011111100111;
     //               66s2555550000564g666
+    //flags = 0;
     extern char g_ic[0];
     size_t *a6 = (size_t *)0x3ff1fe00;
     size_t *a2 = (size_t *)0x60009a00;
@@ -91,7 +93,7 @@ static void enable_promiscuous() {
         if (flags & 0x4000)
             a5[0x23c / 4] = 0x00010000;
         if (flags & 0x8000)
-            a5[0x218 / 4] |= 12; // promiscuous cb
+            a5[0x218 / 4] |= 12;
 
         if (flags & 0x10000)
             a2[0x344 / 4] &= ~0x24000000;
@@ -245,28 +247,23 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
         mac1[6] = {0x18, 0xfe, 0x34, 0xa4, 0x4f, 0xbc},
         mac2[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
         mac3[6] = {0xc8, 0xf7, 0x33, 0x0c, 0x09, 0xb9};
-    if (m->header_len == 24 && m->packet->payload[0] == (uint8_t)0x80) {
-        user_dprintf("beacon: " MACSTR, MAC2STR(m->packet->payload + 16));
 #if 1
-        //print_stack_once();
-        assert(nf == 0);
-        assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
-        assert(m->header_len == (int)((short *)m)[10]);
-        assert(m->body_len == (int)((short *)m)[11]);
-        int i, len = m->header_len + m->body_len;
-        os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
-        if (len > 22) {
-            len = 22;
-        }
-        for (i = 0; i < len; ++i) {
-            os_printf("%02x", m->packet->payload[i]);
-        }
-        os_printf("\n");
-#endif
+    //print_stack_once();
+    assert(nf == 0);
+    assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
+    assert(m->header_len == (int)((short *)m)[10]);
+    assert(m->body_len == (int)((short *)m)[11]);
+    int i, len = m->header_len + m->body_len;
+    os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
+    if (len > 22) {
+        len = 22;
     }
+    for (i = 0; i < len; ++i) {
+        os_printf("%02x", m->packet->payload[i]);
+    }
+#endif
     int ret = ERR_OK;
     if (
-            false &&
             is_promiscuous &&
             m->header_len >= 22 &&
             (
@@ -277,8 +274,10 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
         ) {
         ppRecycleRxPkt(m);
     } else {
+        os_printf("*");
         ret = __real_sta_input(ni, m, rssi, nf);
     }
+    os_printf("\n");
     USER_INTR_UNLOCK();
     return ret;
 }
