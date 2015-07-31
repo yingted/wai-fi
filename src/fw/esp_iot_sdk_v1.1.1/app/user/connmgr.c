@@ -43,10 +43,15 @@ static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
     is_promiscuous = true;
-    //size_t flags = 0b00000001111000000000;
-    //size_t flags = 0b00000001100000000100;
-    size_t flags = 0b11101110011111101111;
-    //               666g4650000555552s66
+    //size_t flags = 0b00000001111000000000; // disables filter
+    //size_t flags = 0b00000001100000000100; // disables filter
+    //size_t flags = 0b11111110011111101111;
+    //size_t flags = 0b11101110011111101111;
+    //size_t flags = 0b11101111111111101011;
+    //size_t flags = 0b11101110011111101011;
+    size_t flags = 0b11111110011111100111;
+    //               66s2555550000564g666
+    //flags = 0;
     extern char g_ic[0];
     size_t *a6 = (size_t *)0x3ff1fe00;
     size_t *a2 = (size_t *)0x60009a00;
@@ -93,7 +98,7 @@ static void enable_promiscuous() {
         if (flags & 0x4000)
             a5[0x23c / 4] = 0x00010000;
         if (flags & 0x8000)
-            a5[0x218 / 4] |= 12;
+            a5[0x218 / 4] |= 12; // promiscuous cb
 
         if (flags & 0x10000)
             a2[0x344 / 4] &= ~0x24000000;
@@ -106,6 +111,7 @@ static void enable_promiscuous() {
         if (flags & 0x80000)
             a6[0x294 / 4] &= ~1;
     }
+    assert((g_ic + 0x180)[100] != 1);
     wDevEnableRx();
 }
 
@@ -141,7 +147,7 @@ static void ssl_disconnect() {
 
 ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
-    user_dprintf("reconnect due to %d", err);
+    user_dprintf("reconnect due to %d\x1b[35m", err);
 
     switch (err) {
         case ESPCONN_CONN: // -11
@@ -171,7 +177,7 @@ static void espconn_connect_cb(void *arg) {
     int keepalive_count = 3; // 3 * 10 s = 30 s
     espconn_set_keepalive(conn, ESPCONN_KEEPCNT, &keepalive_count);
 
-    user_dprintf("connected");
+    user_dprintf("connected\x1b[34m");
     espconn_regist_disconcb(conn, espconn_disconnect_cb);
     espconn_regist_recvcb(conn, (espconn_recv_callback)connmgr_recv_cb);
     espconn_regist_sentcb(conn, (espconn_sent_callback)connmgr_sent_cb);
@@ -218,7 +224,7 @@ static void ssl_connect() {
         connmgr_connected = true;
     }
     assert_heap();
-    user_dprintf("started connection: %d", rc);
+    user_dprintf("started connection: %d\x1b[33m", rc);
 
     USER_INTR_UNLOCK();
 }
@@ -241,28 +247,33 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     register void *a0_ asm("a0");
     void *a0 = a0_;
     USER_INTR_LOCK();
-    user_dprintf("sta_input: %p %p %d @ %p", ni, m, rssi, a0);
+    //user_dprintf("sta_input: %p %p %d @ %p", ni, m, rssi, a0);
     const static u8_t
         mac1[6] = {0x18, 0xfe, 0x34, 0xa4, 0x4f, 0xbc},
         mac2[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
         mac3[6] = {0xc8, 0xf7, 0x33, 0x0c, 0x09, 0xb9};
-#if 0
-    print_stack_once();
-    assert(nf == 0);
-    assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
-    assert(m->header_len == (int)((short *)m)[10]);
-    assert(m->body_len == (int)((short *)m)[11]);
-    int i, len = m->header_len + m->body_len;
-    os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
-    if (len > 22) {
-        len = 22;
-    }
-    for (i = 0; i < len; ++i) {
-        os_printf("%02x", m->packet->payload[i]);
-    }
+    if (m->header_len == 24 && m->packet->payload[0] == (uint8_t)0x80) {
+        user_dprintf("beacon: " MACSTR, MAC2STR(m->packet->payload + 16));
+#if 1
+        //print_stack_once();
+        assert(nf == 0);
+        assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
+        assert(m->header_len == (int)((short *)m)[10]);
+        assert(m->body_len == (int)((short *)m)[11]);
+        int i, len = m->header_len + m->body_len;
+        os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
+        if (len > 22) {
+            len = 22;
+        }
+        for (i = 0; i < len; ++i) {
+            os_printf("%02x", m->packet->payload[i]);
+        }
+        os_printf("\n");
 #endif
+    }
     int ret = ERR_OK;
     if (
+            false &&
             is_promiscuous &&
             m->header_len >= 22 &&
             (
@@ -273,12 +284,48 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
         ) {
         ppRecycleRxPkt(m);
     } else {
-        //os_printf(" *");
         ret = __real_sta_input(ni, m, rssi, nf);
     }
-    //os_printf("\n");
     USER_INTR_UNLOCK();
     return ret;
+}
+
+void __real_cnx_sta_associated(size_t a2, size_t a3);
+ICACHE_FLASH_ATTR
+void __wrap_cnx_sta_associated(size_t a2, size_t a3) {
+    user_dprintf("");
+    __real_cnx_sta_associated(a2, a3);
+}
+
+void __real_ets_timer_arm_new(size_t a2, size_t a3, size_t a4, size_t a5);
+ICACHE_FLASH_ATTR
+void __wrap_ets_timer_arm_new(size_t a2, size_t a3, size_t a4, size_t a5) {
+    user_dprintf("%p %u %d %d", (void *)a2, a3, a4, a5);
+    if (a3 == 3000 && a4 == 0 && a5 == 1) {
+        print_stack_once();
+    }
+    __real_ets_timer_arm_new(a2, a3, a4, a5);
+}
+
+void __real_ets_timer_disarm(size_t a2);
+ICACHE_FLASH_ATTR
+void __wrap_ets_timer_disarm(size_t a2) {
+    user_dprintf("%p", (void *)a2);
+    __real_ets_timer_disarm(a2);
+}
+
+void __real_ets_timer_setfn(size_t a2, size_t a3);
+ICACHE_FLASH_ATTR
+void __wrap_ets_timer_setfn(size_t a2, size_t a3) {
+    user_dprintf("%p %p", (void *)a2, (void *)a3);
+    __real_ets_timer_setfn(a2, a3);
+}
+
+void __real_ets_bzero(void *s, size_t n);
+ICACHE_FLASH_ATTR
+void __wrap_ets_bzero(void *s, size_t n) {
+    user_dprintf("%p %u", s, n);
+    __real_ets_bzero(s, n);
 }
 
 ICACHE_FLASH_ATTR
@@ -327,7 +374,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 saved_default = NULL;
             }
         case EVENT_STAMODE_CONNECTED:
-            user_dprintf("connected");
+            user_dprintf("connected\x1b[32m");
             assert_heap();
             break;
         case EVENT_STAMODE_AUTHMODE_CHANGE:
@@ -381,7 +428,7 @@ void connmgr_start() {
     wifi_station_connect();
     wifi_station_set_reconnect_policy(true);
 
-    user_dprintf("started");
+    user_dprintf("started\x1b[31m");
 }
 
 ICACHE_FLASH_ATTR

@@ -12,8 +12,8 @@
 #     a generated lib/image xxx.a ()
 #
 TARGET = eagle
-FLAVOR = release
-#FLAVOR = debug
+#FLAVOR = release
+FLAVOR = debug
 DEBUG_ESP = 0
 
 #EXTRA_CCFLAGS += -u
@@ -125,6 +125,11 @@ WRAP := \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
+	-Wl,-wrap,cnx_sta_associated \
+	-Wl,-wrap,ets_timer_disarm \
+	-Wl,-wrap,ets_timer_arm_new \
+	-Wl,-wrap,ets_timer_setfn \
+	-Wl,-wrap,ets_bzero \
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
