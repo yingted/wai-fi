@@ -43,15 +43,8 @@ static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
     is_promiscuous = true;
-    //size_t flags = 0b00000001111000000000; // disables filter
-    //size_t flags = 0b00000001100000000100; // disables filter
-    //size_t flags = 0b11111110011111101111;
-    //size_t flags = 0b11101110011111101111;
-    //size_t flags = 0b11101111111111101011;
-    //size_t flags = 0b11101110011111101011;
     size_t flags = 0b11111110011111100111;
     //               66s2555550000564g666
-    //flags = 0;
     extern char g_ic[0];
     size_t *a6 = (size_t *)0x3ff1fe00;
     size_t *a2 = (size_t *)0x60009a00;
@@ -288,44 +281,6 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     }
     USER_INTR_UNLOCK();
     return ret;
-}
-
-void __real_cnx_sta_associated(size_t a2, size_t a3);
-ICACHE_FLASH_ATTR
-void __wrap_cnx_sta_associated(size_t a2, size_t a3) {
-    user_dprintf("");
-    __real_cnx_sta_associated(a2, a3);
-}
-
-void __real_ets_timer_arm_new(size_t a2, size_t a3, size_t a4, size_t a5);
-ICACHE_FLASH_ATTR
-void __wrap_ets_timer_arm_new(size_t a2, size_t a3, size_t a4, size_t a5) {
-    user_dprintf("%p %u %d %d", (void *)a2, a3, a4, a5);
-    if (a3 == 3000 && a4 == 0 && a5 == 1) {
-        print_stack_once();
-    }
-    __real_ets_timer_arm_new(a2, a3, a4, a5);
-}
-
-void __real_ets_timer_disarm(size_t a2);
-ICACHE_FLASH_ATTR
-void __wrap_ets_timer_disarm(size_t a2) {
-    user_dprintf("%p", (void *)a2);
-    __real_ets_timer_disarm(a2);
-}
-
-void __real_ets_timer_setfn(size_t a2, size_t a3);
-ICACHE_FLASH_ATTR
-void __wrap_ets_timer_setfn(size_t a2, size_t a3) {
-    user_dprintf("%p %p", (void *)a2, (void *)a3);
-    __real_ets_timer_setfn(a2, a3);
-}
-
-void __real_ets_bzero(void *s, size_t n);
-ICACHE_FLASH_ATTR
-void __wrap_ets_bzero(void *s, size_t n) {
-    user_dprintf("%p %u", s, n);
-    __real_ets_bzero(s, n);
 }
 
 ICACHE_FLASH_ATTR
