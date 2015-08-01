@@ -43,8 +43,10 @@ static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
     is_promiscuous = true;
-    //size_t flags = 0b11011110011111100111;
-    size_t flags = 0b11011110011111100111;
+    //size_t flags = 0b11011110011111100111; // tx, no rx
+    //size_t flags = 0b00000000011111100000; // broken
+    //size_t flags = 0b00000000010101100000; // works
+    size_t flags = 0b11011110000001100111;
     //               66s2555550000564g666
     //flags = 0;
     extern char g_ic[0];
@@ -102,7 +104,7 @@ static void enable_promiscuous() {
             ets_delay_us(15000);
 
         if (flags & 0x40000)
-            a6 = (size_t *)0x3ff20a00;
+            a6 = (size_t *)a5;
         if (flags & 0x80000)
             a6[0x294 / 4] &= ~1;
     }
