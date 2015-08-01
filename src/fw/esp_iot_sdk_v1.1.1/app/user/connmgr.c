@@ -144,11 +144,13 @@ ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
 
+#if 0
     switch (err) {
         case ESPCONN_CONN: // -11
-            // We probably took too long to respond to something MAC-level
+            // Connection timeout
             system_restart(); // seems unrecoverable
     }
+#endif
 
     schedule_reconnect();
 }
