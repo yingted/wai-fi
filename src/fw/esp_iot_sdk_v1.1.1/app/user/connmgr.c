@@ -24,21 +24,9 @@ static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 bool connmgr_connected = false;
 struct espconn conn;
 
-ICACHE_FLASH_ATTR
-void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
-    // XXX
-    os_printf("%d: ", len);
-    return;
-    for (; len; ++buf, --len) {
-        os_printf("%02x", *buf);
-    }
-    os_printf("\n");
-}
-
 static bool filter_dest = false, filter_bssid = false;
 ICACHE_FLASH_ATTR
 static void enable_promiscuous() {
-    wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
     filter_dest = filter_bssid = true;
     //size_t flags = 0b11011110011111100111; // tx, no rx
