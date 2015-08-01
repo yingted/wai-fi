@@ -12,13 +12,14 @@ class FifoBuffer(object):
 	>>> f.read(2)
 	'34'
 	'''
-	def __init__(self):
+	def __init__(self, empty_cb=None):
 		'''
 		Make an empty fifo buffer.
 		'''
 		self._first = ''
 		self._index = 0
 		self._rest = Queue.Queue()
+		self._empty_cb = empty_cb
 	def read(self, n):
 		'''
 		Block and read the next n bytes.
@@ -29,7 +30,15 @@ class FifoBuffer(object):
 			assert 0 <= self._index <= len(self._first)
 			ret += self._first[self._index:]
 			self._index = None # try to throw an error
-			self._first = self._rest.get()
+			while True:
+				try:
+					self._first = self._rest.get_nowait()
+				except Queue.Empty:
+					if not self._empty_cb:
+						raise
+					self._empty_cb()
+				else:
+					break
 			self._index = 0
 
 		# Pad it

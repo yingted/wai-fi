@@ -1,3 +1,6 @@
+import geventreactor
+geventreactor.install()
+
 from OpenSSL import SSL
 from twisted.internet import ssl, reactor
 from twisted.internet.protocol import Factory
