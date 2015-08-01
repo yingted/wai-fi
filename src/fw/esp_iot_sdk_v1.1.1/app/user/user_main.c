@@ -27,6 +27,9 @@ void connmgr_connect_cb(struct espconn *conn) {
     can_send = true;
 }
 
+struct msg_header {
+    enum {MSG_LOG} type;
+};
 #define LOGBUF_SIZE 2048
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
 
@@ -38,10 +41,16 @@ ICACHE_FLASH_ATTR
 void try_send_log() {
     if (can_send && logbuf_head != logbuf_tail) {
         struct pbuf *const to_send = logbuf_head;
-        logbuf_head = pbuf_dechain(logbuf_head);
-        size_t logged_size = LOGBUF_SIZE - logbuf_head->len;
+        assert(to_send);
+        pbuf_ref(logbuf_head = to_send->next);
+        assert(logbuf_head);
+        assert(pbuf_clen(to_send) > 1);
+        pbuf_dechain(to_send);
+        assert(logbuf_head->ref >= 1);
+        size_t logged_size = LOGBUF_SIZE - to_send->len;
         can_send = false;
-        espconn_secure_sent(&conn, (char *)logbuf_head->payload - logged_size, logged_size);
+        espconn_secure_sent(&conn, (char *)to_send->payload - logged_size, logged_size);
+        pbuf_free(to_send);
     }
 }
 
@@ -96,6 +105,8 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
             user_dprintf("dropping log entry");
             goto out;
         }
+        ((struct msg_header *)new_tail->payload)->type = MSG_LOG;
+        pbuf_header(new_tail, -1);
         logbuf_tail = new_tail;
         if (logbuf_head) {
             pbuf_cat(logbuf_head, logbuf_tail);
