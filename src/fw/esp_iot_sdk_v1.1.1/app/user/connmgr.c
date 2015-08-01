@@ -19,6 +19,8 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
+static uint8 last_bssid[6], sta_mac[6];
+static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 bool connmgr_connected = false;
 struct espconn conn;
 
@@ -37,12 +39,12 @@ void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
     os_printf("\n");
 }
 
-static bool is_promiscuous = false;
+static bool filter_dest = false, filter_bssid = false;
 ICACHE_FLASH_ATTR
 static void enable_promiscuous() {
     wifi_set_promiscuous_rx_cb(wifi_promiscuous_rx_cb);
     wDevDisableRx();
-    is_promiscuous = true;
+    filter_dest = filter_bssid = true;
     //size_t flags = 0b11011110011111100111; // tx, no rx
     //size_t flags = 0b00000000011111100000; // broken
     //size_t flags = 0b00000000010101100000; // works
@@ -244,10 +246,6 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     register void *a0_ asm("a0");
     void *a0 = a0_;
     //user_dprintf("sta_input: %p %p %d @ %p", ni, m, rssi, a0);
-    const static u8_t
-        mac1[6] = {0x18, 0xfe, 0x34, 0xa4, 0x4f, 0xbc},
-        mac2[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-        mac3[6] = {0xc8, 0xf7, 0x33, 0x0c, 0x09, 0xb9};
 #if 1
     //print_stack_once();
     assert(nf == 0);
@@ -265,12 +263,15 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
 #endif
     int ret = ERR_OK;
     if (
-            is_promiscuous &&
-            m->header_len >= 22 &&
-            (
-                (memcmp(mac1, m->packet->payload + 4, 6) && memcmp(mac2, m->packet->payload + 4, 6)) ||
-                memcmp(mac3, m->packet->payload + 10, 6) ||
-                memcmp(mac3, m->packet->payload + 16, 6)
+            m->header_len >= 22 && (
+                filter_dest && (
+                    memcmp(bcast_mac, m->packet->payload + 4, 6) &&
+                    memcmp(sta_mac, m->packet->payload + 4, 6)
+                ) ||
+                filter_bssid && (
+                    memcmp(last_bssid, m->packet->payload + 10, 6) ||
+                    memcmp(last_bssid, m->packet->payload + 16, 6)
+                )
             )
         ) {
         ppRecycleRxPkt(m);
@@ -327,8 +328,13 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 netif_default = saved_default;
                 saved_default = NULL;
             }
+            filter_bssid = false;
+            filter_dest = true;
+            break;
         case EVENT_STAMODE_CONNECTED:
             user_dprintf("connected\x1b[32m");
+            os_memcpy(last_bssid, event->event_info.connected.bssid, sizeof(last_bssid));
+            wifi_get_macaddr(STATION_IF, sta_mac);
             assert_heap();
             break;
         case EVENT_STAMODE_AUTHMODE_CHANGE:
