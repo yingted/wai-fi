@@ -215,40 +215,43 @@ static void ssl_connect() {
 }
 
 struct sta_input_pkt {
-    char pad_0_[4];
+    uint8_t pad_0_[4];
     struct {
-        char pad_0_[4];
+        uint8_t pad_0_[4];
         uint8_t *payload;
     } *packet;
-    char pad_8_[20 - 8];
+    uint8_t pad_8_[20 - 8];
     short header_len;
     short body_len;
     // byte 24
 };
 
-int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
 ICACHE_FLASH_ATTR
-int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
-    user_dprintf("sta_input: %p %p %d", ni, m, rssi);
-    // XXX
-#if 0
-    //print_stack_once();
-    assert(nf == 0);
-    assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
-    assert(m->header_len == (int)((short *)m)[10]);
-    assert(m->body_len == (int)((short *)m)[11]);
-    int i, len = m->header_len + m->body_len;
-    os_printf("payload (len=%d+%d): ", m->header_len, m->body_len);
+static void handle_packet(uint8_t *payload, short header_len, short body_len, int rssi) {
+    os_printf("payload (len=%d+%d, rssi=%d): ", header_len, body_len, rssi);
+#if 1
+    int i, len = header_len + body_len;
     if (len > 22) {
         len = 22;
     }
     for (i = 0; i < len; ++i) {
-        os_printf("%02x", m->packet->payload[i]);
+        os_printf("%02x", payload[i]);
     }
+    os_printf("\n");
 #endif
-    int ret = ERR_OK;
-    if (
-            m->header_len >= 22 && (
+}
+
+int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
+ICACHE_FLASH_ATTR
+int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
+    if (m->header_len >= 22) {
+        assert(nf == 0);
+        assert(m->packet->payload == ((uint8_t ***)m)[1][1]);
+        assert(m->header_len == (int)((short *)m)[10]);
+        assert(m->body_len == (int)((short *)m)[11]);
+        handle_packet(m->packet->payload, m->header_len, m->body_len, rssi);
+
+        if (
                 filter_dest && (
                     memcmp(bcast_mac, m->packet->payload + 4, 6) &&
                     memcmp(sta_mac, m->packet->payload + 4, 6)
@@ -257,15 +260,13 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
                     memcmp(last_bssid, m->packet->payload + 10, 6) ||
                     memcmp(last_bssid, m->packet->payload + 16, 6)
                 )
-            )
-        ) {
-        ppRecycleRxPkt(m);
-    } else {
-        //os_printf("*");
-        ret = __real_sta_input(ni, m, rssi, nf);
+            ) {
+            ppRecycleRxPkt(m);
+            return ERR_OK;
+        }
     }
-    //os_printf("\n");
-    return ret;
+
+    return __real_sta_input(ni, m, rssi, nf);
 }
 
 ICACHE_FLASH_ATTR
