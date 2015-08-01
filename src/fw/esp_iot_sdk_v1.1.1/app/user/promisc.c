@@ -7,7 +7,7 @@ void promisc_start() {
     //size_t flags = 0b11011110011111100111; // tx, no rx
     //size_t flags = 0b00000000011111100000; // broken
     //size_t flags = 0b00000000010101100000; // works
-    size_t flags = 0b11011110000001100111;
+    const static size_t flags = 0b11011110000001100111;
     //               66s2555550000564g666
     //flags = 0;
     extern char g_ic[0];
