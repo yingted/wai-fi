@@ -26,12 +26,8 @@ struct espconn conn;
 
 ICACHE_FLASH_ATTR
 void wifi_promiscuous_rx_cb(uint8 *buf, uint16 len) {
-    return;
-    register void *a0_ asm("a0");
-    void *a0 = a0_;
-    user_dprintf("%d @ %p", len, a0);
-    return;
-    print_stack();
+    // XXX
+    os_printf("%d: ", len);
     return;
     for (; len; ++buf, --len) {
         os_printf("%02x", *buf);
@@ -243,10 +239,9 @@ struct sta_input_pkt {
 int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
 ICACHE_FLASH_ATTR
 int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
-    register void *a0_ asm("a0");
-    void *a0 = a0_;
-    //user_dprintf("sta_input: %p %p %d @ %p", ni, m, rssi, a0);
-#if 1
+    user_dprintf("sta_input: %p %p %d", ni, m, rssi);
+    // XXX
+#if 0
     //print_stack_once();
     assert(nf == 0);
     assert(m->packet->payload == ((unsigned char ***)m)[1][1]);
@@ -276,10 +271,10 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
         ) {
         ppRecycleRxPkt(m);
     } else {
-        os_printf("*");
+        //os_printf("*");
         ret = __real_sta_input(ni, m, rssi, nf);
     }
-    os_printf("\n");
+    //os_printf("\n");
     return ret;
 }
 
