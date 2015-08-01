@@ -22,15 +22,25 @@ void user_init(void) {
 static bool can_send = false;
 
 ICACHE_FLASH_ATTR
+void set_can_send() {
+    assert(can_send == false);
+    USER_INTR_LOCK();
+    can_send = true;
+    try_send_log();
+    USER_INTR_UNLOCK();
+}
+
+ICACHE_FLASH_ATTR
 void connmgr_connect_cb(struct espconn *conn) {
     user_dprintf("%p", conn);
-    can_send = true;
+    set_can_send();
 }
 
 struct msg_header {
     enum {MSG_LOG} type;
 };
 #define LOGBUF_SIZE 2048
+#define MAX_LOGBUF 3
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
 
 /**
@@ -57,12 +67,7 @@ void try_send_log() {
 ICACHE_FLASH_ATTR
 void connmgr_sent_cb(struct espconn *conn) {
     user_dprintf("%p", conn);
-
-    assert(can_send == false);
-    USER_INTR_LOCK();
-    can_send = true;
-    try_send_log();
-    USER_INTR_UNLOCK();
+    set_can_send();
 }
 
 ICACHE_FLASH_ATTR
@@ -94,7 +99,7 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         if (logbuf_head) {
             num_bufs = pbuf_clen(logbuf_head);
         }
-        if (num_bufs >= 5) {
+        if (num_bufs >= MAX_LOGBUF) {
             user_dprintf("hit alloc limit");
             goto out;
         }
