@@ -243,7 +243,6 @@ ICACHE_FLASH_ATTR
 int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
     register void *a0_ asm("a0");
     void *a0 = a0_;
-    USER_INTR_LOCK();
     //user_dprintf("sta_input: %p %p %d @ %p", ni, m, rssi, a0);
     const static u8_t
         mac1[6] = {0x18, 0xfe, 0x34, 0xa4, 0x4f, 0xbc},
@@ -280,7 +279,6 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
         ret = __real_sta_input(ni, m, rssi, nf);
     }
     os_printf("\n");
-    USER_INTR_UNLOCK();
     return ret;
 }
 
