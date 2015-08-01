@@ -19,8 +19,16 @@ void user_init(void) {
     connmgr_start();
 }
 
+enum { MSG_LOG=0 };
 struct msg_header {
-    enum {MSG_LOG} type;
+    char type;
+    char pad_;
+    union {
+        struct {
+            s16_t len;
+            // ...
+        } log;
+    };
 };
 #define LOGBUF_SIZE 2048
 #define MAX_LOGBUF 3
@@ -42,6 +50,14 @@ void try_send_log() {
         pbuf_dechain(to_send);
         assert(logbuf_head->ref >= 1);
         size_t logged_size = LOGBUF_SIZE - to_send->len;
+        struct msg_header *header = (struct msg_header *)((char *)to_send->payload - logged_size);
+        switch (header->type) {
+            case MSG_LOG:
+                header->log.len = logged_size - sizeof(*header);
+                break;
+            default:
+                assert(false);
+        }
         can_send = false;
         espconn_secure_sent(&conn, (char *)to_send->payload - logged_size, logged_size);
         pbuf_free(to_send);
@@ -93,24 +109,34 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
 
     USER_INTR_LOCK();
     while (!logbuf_tail || pbuf_header(logbuf_tail, -(s16_t)sizeof(struct logentry))) {
-        u8_t num_bufs = 0;
+        {
+            u8_t num_bufs = 0;
 
-        if (logbuf_head) {
-            num_bufs = pbuf_clen(logbuf_head);
-        }
-        if (num_bufs >= MAX_LOGBUF) {
-            user_dprintf("hit alloc limit");
-            goto out;
+            if (logbuf_head) {
+                num_bufs = pbuf_clen(logbuf_head);
+            }
+            if (num_bufs >= MAX_LOGBUF) {
+                user_dprintf("hit alloc limit");
+                goto out;
+            }
         }
 
         user_dprintf("allocating new buf");
         struct pbuf *new_tail = pbuf_alloc(PBUF_RAW, LOGBUF_SIZE, PBUF_RAM);
+        assert(new_tail->len == LOGBUF_SIZE);
         if (!new_tail) {
             user_dprintf("dropping log entry");
             goto out;
         }
-        ((struct msg_header *)new_tail->payload)->type = MSG_LOG;
-        pbuf_header(new_tail, -(u16_t)sizeof(struct msg_header));
+
+        {
+            _Static_assert(sizeof(struct msg_header) == 4, "msg header wrong size");
+            struct msg_header *const header = (struct msg_header *)new_tail->payload;
+            pbuf_header(new_tail, -(u16_t)sizeof(*header));
+            os_memset(header, 0, sizeof(*header));
+            header->type = MSG_LOG;
+        }
+
         logbuf_tail = new_tail;
         if (logbuf_head) {
             pbuf_cat(logbuf_head, logbuf_tail);
@@ -120,7 +146,7 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         }
     }
 
-    struct logentry *const dst = ((struct logentry *)logbuf_tail->payload) - 1;
+    struct logentry *const dst = (struct logentry *)logbuf_tail->payload - 1;
     os_memcpy(dst->header_prefix, payload, sizeof(dst->header_prefix));
     dst->rssi = rssi;
 
