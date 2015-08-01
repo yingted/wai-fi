@@ -106,7 +106,7 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
             goto out;
         }
         ((struct msg_header *)new_tail->payload)->type = MSG_LOG;
-        pbuf_header(new_tail, -1);
+        pbuf_header(new_tail, -(u16_t)sizeof(struct msg_header));
         logbuf_tail = new_tail;
         if (logbuf_head) {
             pbuf_cat(logbuf_head, logbuf_tail);
