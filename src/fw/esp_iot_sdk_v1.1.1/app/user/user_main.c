@@ -19,29 +19,13 @@ void user_init(void) {
     connmgr_start();
 }
 
-static bool can_send = false;
-
-ICACHE_FLASH_ATTR
-void set_can_send() {
-    assert(can_send == false);
-    USER_INTR_LOCK();
-    can_send = true;
-    try_send_log();
-    USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_connect_cb(struct espconn *conn) {
-    user_dprintf("%p", conn);
-    set_can_send();
-}
-
 struct msg_header {
     enum {MSG_LOG} type;
 };
 #define LOGBUF_SIZE 2048
 #define MAX_LOGBUF 3
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
+static bool can_send = false;
 
 /**
  * Try to send logbuf_head.
@@ -62,6 +46,21 @@ void try_send_log() {
         espconn_secure_sent(&conn, (char *)to_send->payload - logged_size, logged_size);
         pbuf_free(to_send);
     }
+}
+
+ICACHE_FLASH_ATTR
+void set_can_send() {
+    assert(can_send == false);
+    USER_INTR_LOCK();
+    can_send = true;
+    try_send_log();
+    USER_INTR_UNLOCK();
+}
+
+ICACHE_FLASH_ATTR
+void connmgr_connect_cb(struct espconn *conn) {
+    user_dprintf("%p", conn);
+    set_can_send();
 }
 
 ICACHE_FLASH_ATTR
