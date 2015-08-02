@@ -2,7 +2,9 @@
 #include "user_config.h"
 #include "xtensa/xtruntime-frames.h"
 #include "xtensa/corebits.h"
+#include "espressif/esp8266/uart_register.h"
 #include "gdb_stub.h"
+#include "eagle_soc.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -12,7 +14,7 @@
 #define IF(cond, then, else) IF_ ## cond(then, else)
 
 struct GdbRegister {
-    size_t val;
+    size_t value;
     bool valid;
 };
 
@@ -24,26 +26,52 @@ struct GdbFrame {
 
 static struct GdbFrame regs;
 
+#define GDB_UART 0
+
 ICACHE_FLASH_ATTR
 void real_putc1(char c) {
-    XXX
+    for (;;) {
+        size_t fifo_cnt = (((size_t)READ_PERI_REG(UART_STATUS(GDB_UART))) >> UART_TXFIFO_CNT_S) & UART_TXFIFO_CNT;
+        if (fifo_cnt < 126) {
+            break;
+        }
+        // busy loop
+    }
+    WRITE_PERI_REG(UART_FIFO(GDB_UART), c);
+}
+
+ICACHE_FLASH_ATTR
+char real_getc1() {
+    for (;;) {
+        size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
+        // if (status & UART_FRM_ERR_INT_ST) ...
+        if (status & (UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST)) {
+            size_t queued = (READ_PERI_REG(UART_STATUS(GDB_UART)) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
+            if (queued) {
+                return (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
+            }
+            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
+        }
+        // if (status & UART_TXFIFO_EMPTY_INT_ST) ...
+        // if (status & UART_RXFIFO_OVF_INT_ST) ...
+    }
 }
 
 ICACHE_FLASH_ATTR
 void gdb_restore_state() {
     os_install_putc1(real_putc1);
-    for (;;); // too bad
+    for (;;); // XXX too bad
 }
 
-bool gdb_read_err;
-uint8_t gdb_read_cksum;
+static bool gdb_read_err;
+static uint8_t gdb_read_cksum;
 
 ICACHE_FLASH_ATTR
 char gdb_read_char() {
     if (gdb_read_err) {
         return 0;
     }
-    char ch = XXX;
+    char ch = real_getc1();
     if (ch == '#') {
         gdb_read_err = true;
     } else {
@@ -52,7 +80,7 @@ char gdb_read_char() {
     return ch;
 }
 
-uint8_t gdb_write_cksum;
+static uint8_t gdb_write_cksum;
 
 ICACHE_FLASH_ATTR
 void gdb_write_packet(char *buf) {
@@ -75,7 +103,8 @@ void gdb_flush_packet() {
     gdb_write_byte(gdb_write_cksum);
 }
 
-char outbuf[256], uint16_t outbuf_head, uint16_t outbuf_tail;
+static char outbuf[256];
+static uint16_t outbuf_head, outbuf_tail;
 ICACHE_FLASH_ATTR
 void gdb_putc1(char c) {
     outbuf[outbuf_tail++] = c;
@@ -103,7 +132,7 @@ bool gdb_read_to_cksum() {
         gdb_read_char();
     }
     bool ret = gdb_read_byte() == gdb_read_cksum;
-    real_put1c(ret ? '+' : '-');
+    real_putc1(ret ? '+' : '-');
     return ret;
 }
 
@@ -130,8 +159,16 @@ size_t gdb_read_int() {
 }
 
 ICACHE_FLASH_ATTR
+uint8_t gdb_read_memory(size_t addr) {
+    if (!(0x20000000 <= addr && addr < 0x60001800)) {
+        return 0;
+    }
+    return *(size_t *)(addr & ~3) >> (8 * (addr & 3));
+}
+
+ICACHE_FLASH_ATTR
 void gdb_attach() {
-    bool has_breakpoint = false;
+    bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;
     register size_t saved_ps asm("a2");
     char buf[18];
@@ -180,22 +217,26 @@ retrans:
                     gdb_write_packet("S09");
                     break;
                 case 'D':
-                case 'c':
+                case 'c': {
                     size_t pc = gdb_read_int();
-                    if (gdb_read_err) {
-                        pc = regs.pc;
-                    }
+                    bool set_pc = !gdb_read_err;
                     GDB_READ();
-                    regs.pc = pc;
+                    if (set_pc) {
+                        regs.pc.value = pc;
+                    } else if (!regs.pc.valid) {
+                        gdb_write_packet("E01");
+                        goto cont;
+                    }
                     gdb_write_packet("OK");
                     goto cont;
+                }
                 // read addr, length
                 case 'm':
                     addr = gdb_read_int();
                     len = gdb_read_int();
                     GDB_READ();
                     for (; len; ++addr, --len) {
-                        gdb_write_byte(gdb_read_addr(addr));
+                        gdb_write_byte(gdb_read_memory(addr));
                     }
                     break;
                 // write addr, length, binary
@@ -213,46 +254,79 @@ retrans:
                         for (; end - begin; ++begin) {
                             os_strcpy(buf, "x*%");
                             if (begin->valid) {
-                                os_sprintf(buf, "%08x", begin->val);
+                                os_sprintf(buf, "%08x", begin->value);
                             }
-                            gdb_send_packet(buf);
+                            gdb_write_packet(buf);
                         }
                     }
                     break;
                 case 'z':
                 case 'Z': {
-                    char kind = gdb_read_char();
-                    addr;
-                    if (kind == 1) {
+                    char type = gdb_read_char();
+                    size_t kind; // not used
+                    if (1 <= type && type <= 4) {
                         addr = gdb_read_int();
-                        gdb_read_int();
+                        kind = gdb_read_int();
                     }
                     GDB_READ();
-                    if (kind != 1) {
-                        gdb_write_packet("");
-                        break;
-                    }
-                    switch (cmd) {
-                        case 'z':
-                            if (!has_breakpoint) {
-                                break;
-                            }
-                            break;
-                        case 'Z':
-                            if (has_breakpoint) {
-                                if (addr == breakpoint_addr) {
+                    if (type == 1) {
+                        switch (cmd) {
+                            case 'z':
+                                if (!has_breakpoint) {
                                     break;
                                 }
-                                gdb_write_packet("E00");
+                                __asm__("wsr.ibreakenable %0"::"r"(0));
                                 break;
-                            }
-                            __asm__("wsr.ibreaka1 %0"::"r"(addr));
-                            __asm__("wsr.ibreakenable %0"::"r"(1));
-                            break;
+                            case 'Z':
+                                if (has_breakpoint) {
+                                    if (addr == breakpoint_addr) {
+                                        break;
+                                    }
+                                    gdb_write_packet("E00");
+                                    break;
+                                }
+                                __asm__("wsr.ibreaka0 %0"::"r"(addr));
+                                __asm__("wsr.ibreakenable %0"::"r"(1));
+                                break;
+                        }
+                    } else if (2 <= type && type <= 4) {
+                        if (!kind || (kind != (kind & -kind)) || (kind > 64)) {
+                            break; // kind must be 1, 2, ..., 64
+                        }
+                        switch (cmd) {
+                            case 'z':
+                                if (!has_watchpoint) {
+                                    break;
+                                }
+                                __asm__("wsr.dbreakc0 %0"::"r"(0));
+                                break;
+                            case 'Z':
+                                if (has_watchpoint) {
+                                    if (addr == breakpoint_addr) {
+                                        break;
+                                    }
+                                    gdb_write_packet("E03");
+                                    break;
+                                }
+                                size_t dbreakc = 0;
+                                if (type != 2) { // write
+                                    dbreakc |= XCHAL_DBREAKC_LOADBREAK_MASK;
+                                }
+                                if (type != 3) { // read
+                                    dbreakc |= XCHAL_DBREAKC_STOREBREAK_MASK;
+                                }
+                                dbreakc |= (kind - 1) ^ 63;
+                                __asm__("wsr.dbreaka0 %0"::"r"(addr));
+                                __asm__("wsr.dbreakc0 %0"::"r"(dbreakc));
+                                break;
+                        }
+                    } else {
+                        break;
                     }
                     gdb_write_packet("OK");
                     break;
                 }
+#undef EXPECT_REG
                 case 'k':
                     system_restart();
                     break;
@@ -262,6 +336,8 @@ retrans:
                     break;
                 // qXfer:memory-map:read
                 case 'q':
+                // i [addr [instruction count]]
+                case 'i':
                 // unsupported
                 default:
                     GDB_READ();
@@ -292,7 +368,7 @@ static void exception_handler(UserFrame *frame) {
     asm("rsr.litbase %0":"=r"(litbase));
     os_memset(&regs, 0, sizeof(regs));
 #define REGISTER_ARG(x, arg) do { \
-    regs.x.val = arg; \
+    regs.x.value = arg; \
     regs.x.valid = true; \
 } while (0)
 #define REGISTER(x) REGISTER_ARG(x, frame->x)
