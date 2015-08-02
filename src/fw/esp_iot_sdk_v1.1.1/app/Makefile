@@ -58,7 +58,6 @@ LINKFLAGS_eagle.app.v6 = \
     -u call_user_start	\
 	-Wl,-static						\
 	-Wl,--start-group					\
-	-lc					\
 	-lgcc					\
 	-lhal					\
 	-lphy	\
@@ -67,12 +66,14 @@ LINKFLAGS_eagle.app.v6 = \
 	-llwip	\
 	-lwpa	\
 	-lmain	\
-	-ljson	\
 	-lssl	\
-	-lupgrade	\
-	-lsmartconfig \
 	$(DEP_LIBS_eagle.app.v6)					\
 	-Wl,--end-group
+
+#	-lupgrade	\
+#	-lc					\
+#	-ljson	\
+#	-lsmartconfig \
 
 DEPENDS_eagle.app.v6 = \
                 $(LD_FILE) \
