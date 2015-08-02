@@ -12,31 +12,12 @@ from models import Base, Device
 import config
 
 data_dir = config.data_dir
-db_path = os.path.join(data_dir, 'index.db')
 
 def make_data_dir():
 	try:
 		os.makedirs(data_dir)
 	except:
 		pass
-
-_engine = None
-def get_engine():
-	global _engine
-	if _engine is None:
-		make_data_dir()
-		engine = create_engine('sqlite:///%s' % db_path, echo=True)
-		Base.metadata.create_all(engine)
-		_engine = engine
-	return _engine
-
-_Session = None
-def get_Session():
-	global _Session
-	if _Session is None:
-		Session = sessionmaker(bind=get_engine())
-		_Session = Session
-	return _Session
 
 overlay_file_names = 'default_private_key', 'default_certificate', 'default_private_key.c', 'default_certificate.c', 'cert_req.txt'
 
@@ -84,7 +65,7 @@ def seed_overlay(overlay_dir, mac):
 
 @contextlib.contextmanager
 def get_overlay_dir(mac, port):
-	session = get_Session()()
+	session = config.sql_Session()
 	try:
 		overlay_dir = tempfile.mkdtemp(prefix='%s.' % mac, dir=data_dir)
 		device = session.query(Device).filter(Device.mac == mac).first()
