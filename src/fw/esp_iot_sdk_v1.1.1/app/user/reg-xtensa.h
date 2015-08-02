@@ -1,4 +1,6 @@
 #include "xtensa/config/core-isa.h"
+#include "xtensa/corebits.h"
+#include "xtensa/xtruntime-frames.h"
 
 #ifdef REG_XTENSA_expedite
 // REG_XTENSA_expedite(x, have)
@@ -60,4 +62,4 @@ REG_XTENSA_reg32(sr208, 0) // ???
 REG_XTENSA_reg32(ps, 1)
 REG_XTENSA_reg32(threadptr, XCHAL_HAVE_THREADPTR)
 REG_XTENSA_reg32(scompare1, 0) // multithread
-#undef REG_XTENSA_reg32
+#endif

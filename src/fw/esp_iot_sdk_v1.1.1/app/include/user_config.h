@@ -4,8 +4,6 @@
 #include "osapi.h"
 #include "user_overlay.h"
 
-#define GDB_STUB
-
 #ifdef NDEBUG
 #define user_dprintf(...)
 #define assert(...)

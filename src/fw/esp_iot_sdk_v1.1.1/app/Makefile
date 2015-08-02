@@ -15,6 +15,7 @@ TARGET = eagle
 #FLAVOR = release
 FLAVOR = debug
 DEBUG_ESP = 0
+GDB_STUB = 1
 
 #EXTRA_CCFLAGS += -u
 
@@ -31,6 +32,18 @@ APPDIR = .
 LDDIR = ../ld
 
 CCFLAGS += -Os -MMD -flto -include ../include/user_config.h
+
+ifeq ($(FLAVOR),release)
+	DEFINES += -DNDEBUG
+	DEBUG_ESP = 0
+    GDB_STUB = 0
+endif
+ifeq ($(GDB_STUB),1)
+    DEBUG_ESP = 0
+endif
+
+# Now, we need to use MY_LD_FILE instead of LD_FILE
+include $(PWD)/gdb_stub.mk
 
 TARGET_LDFLAGS =		\
 	-nostdlib		\
@@ -53,9 +66,9 @@ COMPONENTS_eagle.app.v6 = \
 LINKFLAGS_eagle.app.v6 = \
 	-L../lib        \
 	-nostdlib	\
-    -T$(LD_FILE)   \
+	-T$(MY_LD_FILE)   \
 	-Wl,--no-check-sections	\
-    -u call_user_start	\
+	-u call_user_start	\
 	-Wl,-static						\
 	-Wl,--start-group					\
 	-lgcc					\
@@ -76,7 +89,7 @@ LINKFLAGS_eagle.app.v6 = \
 #	-lsmartconfig \
 
 DEPENDS_eagle.app.v6 = \
-                $(LD_FILE) \
+                $(MY_LD_FILE) \
                 $(LDDIR)/eagle.rom.addr.v6.ld
 
 #############################################################
@@ -127,10 +140,6 @@ WRAP := \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
 
-ifeq ($(FLAVOR),release)
-	DEFINES += -DNDEBUG
-	DEBUG_ESP = 0
-endif
 ifeq ($(DEBUG_ESP),1)
 	DEFINES += -DDEBUG_ESP
 	WRAP += \
