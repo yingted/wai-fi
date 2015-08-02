@@ -4,26 +4,17 @@ import verify
 import inspect
 import decoder
 import struct
-import collections
+import models
 
 class IcmpNet(Protocol):
 	MSG_LOG = 0
-	Header = collections.namedtuple('Header', (
-		'fc_type',
-		'fc_flags',
-		'dur',
-		'addr1',
-		'addr2',
-		'addr3',
-		'seqid',
-		'rssi',
-	))
-	MSG_LOG_FMT = '!bbh6s6s6shb'
+	MSG_LOG_FMT = '!BBH6s6s6sHb'
 	MSG_LOG_FMT_SIZE = struct.calcsize(MSG_LOG_FMT)
 
 	def __init__(self, *args, **kwargs):
 		self._device_name = None
 		self._decoder = decoder.Decoder(self, self._decode)
+		self._session = models.Session()
 
 	def _decode(self, decoder):
 		while True:
@@ -35,8 +26,9 @@ class IcmpNet(Protocol):
 					log.err('invalid message length %d' % msg_len)
 				headers = []
 				for _ in xrange(count):
-					headers.append(self.Header(*decoder.read_struct(self.MSG_LOG_FMT)))
-				print 'read', len(headers), 'headers'
+					headers.append(models.Header.from_tuple(decoder.read_struct(self.MSG_LOG_FMT)))
+				self._session.bulk_save_objects(headers)
+				self._session.commit()
 			else:
 				log.err('invalid message type %d' % msg_type)
 				self.abortConnection()
