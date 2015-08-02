@@ -250,6 +250,7 @@ retrans:
             size_t addr, len;
             switch (cmd) {
                 case '?':
+                    GDB_READ();
                     gdb_write_string("S09");
                     break;
                 case 'D':
@@ -290,7 +291,10 @@ retrans:
                         for (; end - begin; ++begin) {
                             os_strcpy(buf, "x*%");
                             if (begin->valid) {
-                                os_sprintf(buf, "%08x", begin->value);
+                                int i;
+                                for (i = 0; i < 4; ++i) {
+                                    os_sprintf(&buf[2 * i], "%02x", ((char *)&begin->value)[i]);
+                                }
                             }
                             gdb_write_string(buf);
                         }
@@ -366,10 +370,10 @@ retrans:
                 case 'k':
                     system_restart();
                     break;
+                // no reply
                 case 'F': // io reply
-                case 'H': // set thread
                     GDB_READ();
-                    break;
+                    continue;
                 // qXfer:memory-map:read
                 case 'q':
                 // i [addr [instruction count]]

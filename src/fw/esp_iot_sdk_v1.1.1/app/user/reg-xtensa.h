@@ -17,7 +17,6 @@ REG_XTENSA_expedite(windowstart, XCHAL_HAVE_WINDOWED)
 
 #ifdef REG_XTENSA_reg32
 // REG_XTENSA_reg32(x, have)
-REG_XTENSA_reg32(pc, 1)
 REG_XTENSA_reg32(a0, REG_XTENSA_HAVE_CALL0)
 REG_XTENSA_reg32(a1, 1)
 REG_XTENSA_reg32(a2, 1)
@@ -50,6 +49,8 @@ REG_XTENSA_reg32(a28, 0)
 REG_XTENSA_reg32(a29, 0)
 REG_XTENSA_reg32(a30, 0)
 REG_XTENSA_reg32(a31, 0)
+// move pc up here for some reason
+REG_XTENSA_reg32(pc, 1)
 REG_XTENSA_reg32(lbeg, XCHAL_HAVE_LOOPS)
 REG_XTENSA_reg32(lend, XCHAL_HAVE_LOOPS)
 REG_XTENSA_reg32(lcount, XCHAL_HAVE_LOOPS)
