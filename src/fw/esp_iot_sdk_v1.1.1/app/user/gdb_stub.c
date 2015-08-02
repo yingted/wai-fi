@@ -31,12 +31,12 @@ void real_putc1(char c) {
 
 ICACHE_FLASH_ATTR
 void gdb_putc1(char c) {
-    XXX
+    // no-op?
 }
 
 ICACHE_FLASH_ATTR
 void gdb_restore_state() {
-    ets_install_putc1(real_putc1);
+    os_install_putc1(real_putc1);
     for (;;); // too bad
 }
 
@@ -82,7 +82,7 @@ void gdb_flush_packet() {
 
 ICACHE_FLASH_ATTR
 void gdb_install_io() {
-    ets_install_putc1(gdb_put1c);
+    ets_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
@@ -100,7 +100,7 @@ bool gdb_read_to_cksum() {
         gdb_read_char();
     }
     bool ret = gdb_read_byte() == gdb_read_cksum;
-    gdb_write_packet(ret ? "+" : "-");
+    real_put1c(ret ? '+' : '-');
     return ret;
 }
 
@@ -135,124 +135,120 @@ void gdb_attach() {
     gdb_install_io();
     gdb_write_packet("vStopped");
     for (;;) {
-        gdb_read_err = false;
-        char dollar = gdb_read_char();
-        if (gdb_read_err || dollar != '$') {
-            if (gdb_read_to_cksum()) {
-                gdb_write_packet("");
-            }
-            break;
-        }
-        gdb_read_cksum = 0;
+#define GDB_READ() \
+    if (!gdb_read_to_cksum()) { \
+        goto retrans; \
+    }
         gdb_write_packet("$");
         gdb_write_cksum = 0;
-        gdb_read_to_cksum();
-        char cmd = gdb_read_char();
-        size_t addr, len;
-        switch (cmd) {
-            case '?':
-                gdb_write_packet("S09");
-                break;
-            case 'D':
-            case 'c':
-                size_t pc = gdb_read_int();
-                if (gdb_read_err) {
-                    pc = regs.pc;
-                }
-                if (!gdb_read_to_cksum()) {
+retrans:
+        gdb_read_err = false;
+        gdb_read_cksum = 0;
+        char dollar = gdb_read_char();
+        if (gdb_read_err || dollar != '$') {
+            GDB_READ();
+            goto next;
+        }
+        {
+            char cmd = gdb_read_char();
+            size_t addr, len;
+            switch (cmd) {
+                case '?':
+                    gdb_write_packet("S09");
                     break;
-                }
-                regs.pc = pc;
-                gdb_write_packet("OK");
-                goto cont;
-            // read addr, length
-            case 'm':
-                addr = gdb_read_int();
-                len = gdb_read_int();
-                if (!gdb_read_to_cksum()) {
-                    break;
-                }
-                for (; len; ++addr, --len) {
-                    gdb_write_byte(gdb_read_addr(addr));
-                }
-                break;
-            // write addr, length, binary
-            case 'M':
-                addr = gdb_read_int();
-                len = gdb_read_int();
-                gdb_download(addr, len);
-                break;
-            // read all registers
-            case 'g':
-                if (!gdb_read_to_cksum()) {
-                    break;
-                }
-                {
-                    struct GdbRegister *begin = (struct GdbRegister *)&regs;
-                    struct GdbRegister *end = (struct GdbRegister *)((char *)&regs + sizeof(regs));
-                    for (; end - begin; ++begin) {
-                        char buf[9];
-                        os_memcpy(buf, "xxxxxxxx", sizeof(buf));
-                        if (begin->valid) {
-                            os_sprintf(buf, "%08x", begin->val);
-                        }
-                        gdb_send_packet(buf);
+                case 'D':
+                case 'c':
+                    size_t pc = gdb_read_int();
+                    if (gdb_read_err) {
+                        pc = regs.pc;
                     }
-                }
-                break;
-            case 'z':
-            case 'Z': {
-                char kind = gdb_read_char();
-                addr;
-                if (kind == 1) {
+                    GDB_READ();
+                    regs.pc = pc;
+                    gdb_write_packet("OK");
+                    goto cont;
+                // read addr, length
+                case 'm':
                     addr = gdb_read_int();
-                    gdb_read_int();
-                }
-                if (!gdb_read_to_cksum()) {
+                    len = gdb_read_int();
+                    GDB_READ();
+                    for (; len; ++addr, --len) {
+                        gdb_write_byte(gdb_read_addr(addr));
+                    }
                     break;
-                }
-                if (kind != 1) {
-                    gdb_write_packet("");
+                // write addr, length, binary
+                case 'M':
+                    addr = gdb_read_int();
+                    len = gdb_read_int();
+                    gdb_download(addr, len);
                     break;
-                }
-                switch (cmd) {
-                    case 'z':
-                        if (!has_breakpoint) {
-                            break;
+                // read all registers
+                case 'g':
+                    GDB_READ();
+                    {
+                        struct GdbRegister *begin = (struct GdbRegister *)&regs;
+                        struct GdbRegister *end = (struct GdbRegister *)((char *)&regs + sizeof(regs));
+                        for (; end - begin; ++begin) {
+                            char buf[9];
+                            os_strcpy(buf, "x*%");
+                            if (begin->valid) {
+                                os_sprintf(buf, "%08x", begin->val);
+                            }
+                            gdb_send_packet(buf);
                         }
+                    }
+                    break;
+                case 'z':
+                case 'Z': {
+                    char kind = gdb_read_char();
+                    addr;
+                    if (kind == 1) {
+                        addr = gdb_read_int();
+                        gdb_read_int();
+                    }
+                    GDB_READ();
+                    if (kind != 1) {
+                        gdb_write_packet("");
                         break;
-                    case 'Z':
-                        if (has_breakpoint) {
-                            if (addr == breakpoint_addr) {
+                    }
+                    switch (cmd) {
+                        case 'z':
+                            if (!has_breakpoint) {
                                 break;
                             }
-                            gdb_write_packet("E00");
                             break;
-                        }
-                        __asm__("wsr.ibreaka1 %0"::"r"(addr));
-                        __asm__("wsr.ibreakenable %0"::"r"(1));
-                        break;
+                        case 'Z':
+                            if (has_breakpoint) {
+                                if (addr == breakpoint_addr) {
+                                    break;
+                                }
+                                gdb_write_packet("E00");
+                                break;
+                            }
+                            __asm__("wsr.ibreaka1 %0"::"r"(addr));
+                            __asm__("wsr.ibreakenable %0"::"r"(1));
+                            break;
+                    }
+                    gdb_write_packet("OK");
+                    break;
                 }
-                gdb_write_packet("OK");
-                break;
+                case 'k':
+                    system_restart();
+                    break;
+                // discard silently
+                case 'F':
+                    GDB_READ();
+                    break;
+                // qXfer:memory-map:read
+                case 'q':
+                // unsupported
+                default:
+                    GDB_READ();
+                    break;
             }
-            case 'k':
-                system_restart();
-                break;
-            // discard silently
-            case 'F':
-                gdb_read_to_cksum();
-                break;
-            // qXfer:memory-map:read
-            case 'q':
-            // unsupported
-            default:
-                if (gdb_read_to_cksum()) {
-                    gdb_write_packet("");
-                }
-                break;
         }
+next:
         gdb_flush_packet();
+#undef GDB_READ
     }
 cont:
     asm("wsr.ps %0"::"r"(saved_ps));
