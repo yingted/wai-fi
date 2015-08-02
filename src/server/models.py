@@ -30,13 +30,13 @@ class Header(Base, FromTupleMixin):
 	__tablename__ = 'logged_headers'
 	id = Column(Integer, primary_key=True)
 	created_at = Column(DateTime, default=datetime.datetime.utcnow)
-	logging_device = Column(String, ForeignKey('devices.mac'))
+	logging_device = Column(String, ForeignKey(imager.models.Device.mac))
 	fc_type = Column(Integer)
 	fc_flags = Column(Integer)
 	dur = Column(Integer)
-	addr1 = Column(BINARY(6))
-	addr2 = Column(BINARY(6))
-	addr3 = Column(BINARY(6))
+	addr1 = Column(String)
+	addr2 = Column(String)
+	addr3 = Column(String)
 	seqid = Column(Integer)
 	rssi = Column(Integer)
 
