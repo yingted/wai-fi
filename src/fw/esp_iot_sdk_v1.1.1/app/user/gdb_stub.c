@@ -30,11 +30,6 @@ void real_putc1(char c) {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_putc1(char c) {
-    // no-op?
-}
-
-ICACHE_FLASH_ATTR
 void gdb_restore_state() {
     os_install_putc1(real_putc1);
     for (;;); // too bad
@@ -80,8 +75,16 @@ void gdb_flush_packet() {
     gdb_write_byte(gdb_write_cksum);
 }
 
+char outbuf[256], uint16_t outbuf_head, uint16_t outbuf_tail;
+ICACHE_FLASH_ATTR
+void gdb_putc1(char c) {
+    outbuf[outbuf_tail++] = c;
+    outbuf_tail %= sizeof(outbuf);
+}
+
 ICACHE_FLASH_ATTR
 void gdb_install_io() {
+    outbuf_head = outbuf_tail = 0;
     ets_install_putc1(gdb_putc1);
 }
 
@@ -131,6 +134,7 @@ void gdb_attach() {
     bool has_breakpoint = false;
     size_t breakpoint_addr;
     register size_t saved_ps asm("a2");
+    char buf[18];
     asm("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
     gdb_write_packet("vStopped");
@@ -141,6 +145,25 @@ void gdb_attach() {
     }
         gdb_write_packet("$");
         gdb_write_cksum = 0;
+        {
+            int diff = outbuf_tail - outbuf_head;
+            if (diff) {
+                uint16_t start, end;
+                if (diff < 0) {
+                    start = outbuf_head;
+                    end = sizeof(outbuf);
+                    outbuf_head = 0;
+                } else {
+                    start = 0;
+                    end = outbuf_tail;
+                    outbuf_head = outbuf_tail;
+                }
+                gdb_write_packet("Fwrite,1,");
+                os_sprintf(buf, "%08x,%08x", ((size_t)outbuf) + start, (uint16_t)(end - start));
+                gdb_write_packet(buf);
+                goto next;
+            }
+        }
 retrans:
         gdb_read_err = false;
         gdb_read_cksum = 0;
@@ -188,7 +211,6 @@ retrans:
                         struct GdbRegister *begin = (struct GdbRegister *)&regs;
                         struct GdbRegister *end = (struct GdbRegister *)((char *)&regs + sizeof(regs));
                         for (; end - begin; ++begin) {
-                            char buf[9];
                             os_strcpy(buf, "x*%");
                             if (begin->valid) {
                                 os_sprintf(buf, "%08x", begin->val);
