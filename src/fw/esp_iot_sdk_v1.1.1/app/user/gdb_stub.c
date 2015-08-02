@@ -83,9 +83,14 @@ char gdb_read_char() {
 }
 
 static uint8_t gdb_write_cksum;
+static bool wrote_dollar;
 
 ICACHE_FLASH_ATTR
-void gdb_write_packet(char *buf) {
+void gdb_write_string(char *buf) {
+    if (!wrote_dollar) {
+        wrote_dollar = true;
+        real_putc1('$');
+    }
     for (; *buf; ++buf) {
         gdb_write_cksum += *buf;
         real_putc1(*buf);
@@ -93,14 +98,20 @@ void gdb_write_packet(char *buf) {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_write_byte(uint8_t b) {
-    char buf[3];
-    os_sprintf(buf, "%02x", b);
-    gdb_write_packet(buf);
+void gdb_write_reset() {
+    gdb_write_cksum = 0;
+    wrote_dollar = false;
 }
 
 ICACHE_FLASH_ATTR
-void gdb_flush_packet() {
+void gdb_write_byte(uint8_t b) {
+    char buf[3];
+    os_sprintf(buf, "%02x", b);
+    gdb_write_string(buf);
+}
+
+ICACHE_FLASH_ATTR
+void gdb_write_flush() {
     real_putc1('#');
     gdb_write_byte(gdb_write_cksum);
 }
@@ -176,14 +187,17 @@ void gdb_attach() {
     char buf[18];
     __asm__("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
-    gdb_write_packet("vStopped");
+
+    gdb_write_reset();
+    gdb_write_string("vStopped");
+    gdb_write_flush();
+
     for (;;) {
 #define GDB_READ() \
     if (!gdb_read_to_cksum()) { \
         goto retrans; \
     }
-        gdb_write_packet("$");
-        gdb_write_cksum = 0;
+        gdb_write_reset();
         {
             int diff = outbuf_tail - outbuf_head;
             if (diff) {
@@ -197,9 +211,9 @@ void gdb_attach() {
                     end = outbuf_tail;
                     outbuf_head = outbuf_tail;
                 }
-                gdb_write_packet("Fwrite,1,");
+                gdb_write_string("Fwrite,1,");
                 os_sprintf(buf, "%08x,%08x", ((size_t)outbuf) + start, (uint16_t)(end - start));
-                gdb_write_packet(buf);
+                gdb_write_string(buf);
                 goto next;
             }
         }
@@ -216,7 +230,7 @@ retrans:
             size_t addr, len;
             switch (cmd) {
                 case '?':
-                    gdb_write_packet("S09");
+                    gdb_write_string("S09");
                     break;
                 case 'D':
                 case 'c': {
@@ -226,10 +240,10 @@ retrans:
                     if (set_pc) {
                         regs.pc.value = pc;
                     } else if (!regs.pc.valid) {
-                        gdb_write_packet("E01");
+                        gdb_write_string("E01");
                         goto cont;
                     }
-                    gdb_write_packet("OK");
+                    gdb_write_string("OK");
                     goto cont;
                 }
                 // read addr, length
@@ -258,7 +272,7 @@ retrans:
                             if (begin->valid) {
                                 os_sprintf(buf, "%08x", begin->value);
                             }
-                            gdb_write_packet(buf);
+                            gdb_write_string(buf);
                         }
                     }
                     break;
@@ -284,7 +298,7 @@ retrans:
                                     if (addr == breakpoint_addr) {
                                         break;
                                     }
-                                    gdb_write_packet("E00");
+                                    gdb_write_string("E00");
                                     break;
                                 }
                                 __asm__("wsr.ibreaka0 %0"::"r"(addr));
@@ -307,7 +321,7 @@ retrans:
                                     if (addr == breakpoint_addr) {
                                         break;
                                     }
-                                    gdb_write_packet("E03");
+                                    gdb_write_string("E03");
                                     break;
                                 }
                                 size_t dbreakc = 0;
@@ -325,7 +339,7 @@ retrans:
                     } else {
                         break;
                     }
-                    gdb_write_packet("OK");
+                    gdb_write_string("OK");
                     break;
                 }
 #undef EXPECT_REG
@@ -347,7 +361,7 @@ retrans:
             }
         }
 next:
-        gdb_flush_packet();
+        gdb_write_flush();
 #undef GDB_READ
     }
 cont:
