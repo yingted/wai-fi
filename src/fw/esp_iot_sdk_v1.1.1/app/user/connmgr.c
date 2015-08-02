@@ -116,7 +116,7 @@ static void ssl_connect() {
     conn.state = ESPCONN_NONE;
     {
         static esp_tcp tcp;
-        memset(&tcp, 0, sizeof(tcp));
+        os_memset(&tcp, 0, sizeof(tcp));
         tcp.remote_port = 55555;
         os_memcpy(tcp.local_ip, &icmp_tap.ip_addr, sizeof(struct ip_addr));
         os_memcpy(tcp.remote_ip, &icmp_tap.gw, sizeof(struct ip_addr));
