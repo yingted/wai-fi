@@ -3,10 +3,12 @@
 #include "debug_esp.h"
 #include "connmgr.h"
 #include "espconn.h"
+#include "gdb_stub.h"
 
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {
     debug_esp_install_exc_handler();
+    gdb_stub_init();
 }
 
 ICACHE_FLASH_ATTR
@@ -14,6 +16,8 @@ void user_init(void) {
     system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
+
+    *(int *)NULL = 0;
 
     connmgr_init();
     connmgr_start();
