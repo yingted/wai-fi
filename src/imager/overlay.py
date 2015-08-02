@@ -78,6 +78,7 @@ def seed_overlay(overlay_dir, mac, device_id):
 @contextlib.contextmanager
 def get_overlay_dir(mac, port):
 	session = config.sql_Session()
+	overlay_dir = None
 	try:
 		overlay_dir = tempfile.mkdtemp(prefix='%s.' % mac, dir=data_dir)
 		device = session.query(Device).filter(Device.mac == mac).first()
@@ -104,5 +105,9 @@ def get_overlay_dir(mac, port):
 		else:
 			os.rmdir(overlay_dir)
 			yield device.overlay_dir
+	except Exception as e:
+		if overlay_dir is not None:
+			shutil.rmtree(overlay_dir)
+		raise e
 	finally:
 		session.close()
