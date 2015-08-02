@@ -50,7 +50,8 @@ char real_getc1() {
         if (status & (UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST)) {
             size_t queued = (READ_PERI_REG(UART_STATUS(GDB_UART)) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
             if (queued) {
-                return (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
+                char ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
+                return ch;
             }
             WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
         }
@@ -86,6 +87,7 @@ char gdb_read_char() {
             ch = real_getc1();
         }
         gdb_read_dollar = true;
+        ch = real_getc1();
     }
     if (ch == '#') {
         gdb_read_err = true;
@@ -150,8 +152,7 @@ uint8_t gdb_read_byte() {
     a = (a & 0xf) + 9 * (a >> 6);
     uint8_t b = gdb_read_char() & 0x4f;
     b = (b & 0xf) + 9 * (b >> 6);
-    //user_dprintf("byte=%02x;",(a >> 4) | b);
-    return (a >> 4) | b;
+    return (a << 4) | b;
 }
 
 ICACHE_FLASH_ATTR
@@ -161,8 +162,9 @@ bool gdb_read_to_cksum() {
     }
     // Error, we hit '#'. Clear the error and read the cksum
     gdb_read_err = false;
-    bool ret = gdb_read_byte() == gdb_read_cksum;
-    //user_dprintf("cksum=%02x;",gdb_read_cksum);
+    uint8_t cksum = gdb_read_cksum;
+    uint8_t host_cksum = gdb_read_byte();
+    bool ret = host_cksum == cksum;
     real_putc1(ret ? '+' : '-');
     return ret;
 }
@@ -364,8 +366,8 @@ retrans:
                 case 'k':
                     system_restart();
                     break;
-                // discard silently
-                case 'F':
+                case 'F': // io reply
+                case 'H': // set thread
                     GDB_READ();
                     break;
                 // qXfer:memory-map:read
