@@ -17,6 +17,7 @@ void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
 
+    //gdb_stub_break();
     asm("\
         mov.n a10, a0\n\
         mov.n a11, a1\n\
