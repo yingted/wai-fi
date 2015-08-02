@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+void gdb_stub_DebugExceptionVector();
+
 // Template function macros
 #define IF_0(then, else) else
 #define IF_1(then, else) then
@@ -170,9 +172,9 @@ ICACHE_FLASH_ATTR
 void gdb_attach() {
     bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;
-    register size_t saved_ps asm("a2");
+    register size_t saved_ps __asm__("a2");
     char buf[18];
-    asm("rsil %0, 15":"+r"(saved_ps));
+    __asm__("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
     gdb_write_packet("vStopped");
     for (;;) {
@@ -349,7 +351,7 @@ next:
 #undef GDB_READ
     }
 cont:
-    asm("wsr.ps %0"::"r"(saved_ps));
+    __asm__("wsr.ps %0"::"r"(saved_ps));
     gdb_restore_state();
 }
 
@@ -364,8 +366,8 @@ cont:
 ICACHE_FLASH_ATTR
 static void exception_handler(UserFrame *frame) {
     size_t excvaddr, litbase;
-    asm("rsr.excvaddr %0":"=r"(excvaddr));
-    asm("rsr.litbase %0":"=r"(litbase));
+    __asm__("rsr.excvaddr %0":"=r"(excvaddr));
+    __asm__("rsr.litbase %0":"=r"(litbase));
     os_memset(&regs, 0, sizeof(regs));
 #define REGISTER_ARG(x, arg) do { \
     regs.x.value = arg; \
@@ -396,6 +398,9 @@ static void exception_handler(UserFrame *frame) {
 #undef REGISTER_ARG
 
     user_dprintf("vpri=%d exccause=%d excvaddr=%p pc=%p", frame->vpri, frame->exccause, (void *)excvaddr, (void *)frame->pc);
+    if (excvaddr * excvaddr == 3) { // impossible due to quadratic reciprocity
+        gdb_stub_DebugExceptionVector(); // reference the symbol
+    }
     gdb_attach();
 }
 

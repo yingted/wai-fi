@@ -18,9 +18,8 @@ void user_init(void) {
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
 
     //gdb_stub_break();
+    *(int *)NULL = 0;
     asm("\
-        mov.n a10, a0\n\
-        mov.n a11, a1\n\
         movi.n a2, 0x22\n\
         movi.n a3, 0x33\n\
         movi.n a4, 0x44\n\
@@ -29,8 +28,15 @@ void user_init(void) {
         movi.n a7, 0x77\n\
         movi.n a8, 0x88\n\
         movi.n a9, 0x99\n\
-        s32i.n a0, a0, 0\n\
+        mov.n a10, a0\n\
+        mov.n a11, a1\n\
+        movi.n a12, 0x12\n\
+        movi.n a13, 0x14\n\
+        movi.n a14, 0x14\n\
+        movi.n a15, 0x15\n\
+        s32i.n a2, a2, 0\n\
     ");
+    user_dprintf("should never get here");
 
     connmgr_init();
     connmgr_start();
