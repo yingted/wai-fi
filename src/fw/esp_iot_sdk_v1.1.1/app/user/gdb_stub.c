@@ -65,8 +65,15 @@ void gdb_restore_state() {
     for (;;); // XXX too bad
 }
 
-static bool gdb_read_err;
+static bool gdb_read_err, gdb_read_dollar;
 static uint8_t gdb_read_cksum;
+
+ICACHE_FLASH_ATTR
+void gdb_read_reset() {
+    gdb_read_err = false;
+    gdb_read_dollar = false;
+    gdb_read_cksum = 0;
+}
 
 ICACHE_FLASH_ATTR
 char gdb_read_char() {
@@ -74,6 +81,12 @@ char gdb_read_char() {
         return 0;
     }
     char ch = real_getc1();
+    if (!gdb_read_dollar) {
+        while (ch != '$') { // jump to the packet start
+            ch = real_getc1();
+        }
+        gdb_read_dollar = true;
+    }
     if (ch == '#') {
         gdb_read_err = true;
     } else {
@@ -112,6 +125,7 @@ void gdb_write_byte(uint8_t b) {
 
 ICACHE_FLASH_ATTR
 void gdb_write_flush() {
+    gdb_write_string("");
     real_putc1('#');
     gdb_write_byte(gdb_write_cksum);
 }
@@ -127,7 +141,7 @@ void gdb_putc1(char c) {
 ICACHE_FLASH_ATTR
 void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
-    ets_install_putc1(gdb_putc1);
+    //ets_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
@@ -136,6 +150,7 @@ uint8_t gdb_read_byte() {
     a = (a & 0xf) + 9 * (a >> 6);
     uint8_t b = gdb_read_char() & 0x4f;
     b = (b & 0xf) + 9 * (b >> 6);
+    //user_dprintf("byte=%02x;",(a >> 4) | b);
     return (a >> 4) | b;
 }
 
@@ -144,7 +159,10 @@ bool gdb_read_to_cksum() {
     while (!gdb_read_err) {
         gdb_read_char();
     }
+    // Error, we hit '#'. Clear the error and read the cksum
+    gdb_read_err = false;
     bool ret = gdb_read_byte() == gdb_read_cksum;
+    //user_dprintf("cksum=%02x;",gdb_read_cksum);
     real_putc1(ret ? '+' : '-');
     return ret;
 }
@@ -183,7 +201,9 @@ ICACHE_FLASH_ATTR
 void gdb_attach() {
     bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;
-    register size_t saved_ps __asm__("a2");
+    size_t saved_ps;
+    size_t saved_wdt_mode = ets_wdt_get_mode();
+    ets_wdt_disable();
     char buf[18];
     __asm__("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
@@ -218,15 +238,13 @@ void gdb_attach() {
             }
         }
 retrans:
-        gdb_read_err = false;
-        gdb_read_cksum = 0;
-        char dollar = gdb_read_char();
-        if (gdb_read_err || dollar != '$') {
-            GDB_READ();
-            goto next;
-        }
+        gdb_read_reset();
         {
             char cmd = gdb_read_char();
+            if (gdb_read_err) {
+                GDB_READ();
+                goto next;
+            }
             size_t addr, len;
             switch (cmd) {
                 case '?':
@@ -365,6 +383,7 @@ next:
 #undef GDB_READ
     }
 cont:
+    ets_wdt_restore(saved_wdt_mode);
     __asm__("wsr.ps %0"::"r"(saved_ps));
     gdb_restore_state();
 }
