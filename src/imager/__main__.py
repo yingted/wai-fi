@@ -7,7 +7,7 @@ def main():
 	dev_dir = '/dev'
 	dev_pat = 'ttyUSB*'
 	dev = None
-	for dev in fnmatch.filter(os.listdir(dev_dir), dev_pat):
+	for dev in sorted(fnmatch.filter(os.listdir(dev_dir), dev_pat)):
 		port = os.path.join(dev_dir, dev)
 		flasher.flash_port(port)
 	if dev is None:

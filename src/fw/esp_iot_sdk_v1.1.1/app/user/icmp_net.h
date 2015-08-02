@@ -42,6 +42,7 @@ err_t icmp_net_init(struct netif *netif);
 void icmp_net_set_dhcp_bound_callback(struct netif *netif, netif_status_callback_fn cb);
 void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave);
 void icmp_net_unenslave(struct icmp_net_config *config);
+extern short icmp_net_device_id;
 
 #endif
 

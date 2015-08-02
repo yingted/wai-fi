@@ -132,7 +132,7 @@ send:
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
         iecho->chksum = 0;
-        iecho->id = htons(DEVICE_ID);
+        iecho->id = htons(icmp_net_device_id);
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
             user_dprintf("drop packet #%u", config->recv_i);
@@ -418,7 +418,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         pbuf_header(p, -icmp_hlen);
         assert((((size_t)p->payload) & 0x1) == 0);
 
-        if (iecho->id != htons(DEVICE_ID)) {
+        if (iecho->id != htons(icmp_net_device_id)) {
             goto skip;
         }
 

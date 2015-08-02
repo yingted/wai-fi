@@ -61,6 +61,9 @@ default_ca_certificate.pem: default_ca_certificate
 default_ca_private_key.pem: default_ca_private_key
 	openssl rsa -in $< -inform DER -out $@
 
+icmp_net_device_id.txt:
+	echo 0 > $@
+
 CERTFILES_C = default_private_key.c default_certificate.c default_ca_certificate.c
 CERTFILES = $(CERTFILES_C) default_ca_certificate.pem default_ca_private_key.pem
 

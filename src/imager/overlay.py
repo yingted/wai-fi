@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import exists
 from models import Base, Device
 import config
+import random
 
 data_dir = config.data_dir
 
@@ -19,7 +20,9 @@ def make_data_dir():
 	except:
 		pass
 
-overlay_file_names = 'default_private_key', 'default_certificate', 'default_private_key.c', 'default_certificate.c', 'cert_req.txt'
+cert_req_name = 'cert_req.txt'
+device_id_name = 'icmp_net_device_id.txt'
+overlay_file_names = 'default_private_key', 'default_certificate', 'default_private_key.c', 'default_certificate.c', cert_req_name, device_id_name
 
 @contextlib.contextmanager
 def overlay_applied(overlay_dir, user_dir):
@@ -32,12 +35,19 @@ def overlay_applied(overlay_dir, user_dir):
 				backup_path = os.path.join(backup_dir, name)
 				shutil.copyfile(displaced_path, backup_path)
 				backups[displaced_path] = backup_path
+
 		for name in overlay_file_names:
 			displaced_path = os.path.join(user_dir, name)
 			overlay_path = os.path.join(overlay_dir, name)
 			if os.path.exists(overlay_path):
 				shutil.copyfile(overlay_path, displaced_path)
-		subprocess.check_call(('make', '-C', user_dir) + overlay_file_names)
+			else:
+				try:
+					os.remove(displaced_path)
+				except OSError:
+					pass # already removed
+
+		subprocess.check_call(('make', '-C', user_dir, 'CC=true') + overlay_file_names)
 		yield
 	finally:
 		for displaced_path, backup_path in backups.iteritems():
@@ -48,8 +58,8 @@ def overlay_applied(overlay_dir, user_dir):
 		overlay_path = os.path.join(overlay_dir, name)
 		shutil.copyfile(displaced_path, overlay_path)
 
-def seed_overlay(overlay_dir, mac):
-	with open(os.path.join(overlay_dir, 'cert_req.txt'), 'w') as f:
+def seed_overlay(overlay_dir, mac, device_id):
+	with open(os.path.join(overlay_dir, cert_req_name), 'w') as f:
 		f.write('''\
 .
 .
@@ -62,6 +72,8 @@ def seed_overlay(overlay_dir, mac):
 
 
 ''' % locals())
+	with open(os.path.join(overlay_dir, device_id_name), 'w') as f:
+		print >> f, device_id
 
 @contextlib.contextmanager
 def get_overlay_dir(mac, port):
@@ -70,10 +82,18 @@ def get_overlay_dir(mac, port):
 		overlay_dir = tempfile.mkdtemp(prefix='%s.' % mac, dir=data_dir)
 		device = session.query(Device).filter(Device.mac == mac).first()
 		if device is None:
-			seed_overlay(overlay_dir, mac)
-			device = Device(mac=mac, overlay_dir=overlay_dir)
-			session.add(device)
+			while True:
+				device_id = random.randrange(2**16)
+				if not session.query(
+						session.query(Device).filter(Device.id == device_id).exists()
+					).scalar():
+					break
+
+			seed_overlay(overlay_dir=overlay_dir, mac=mac, device_id=device_id)
+			device = Device(mac=mac, overlay_dir=overlay_dir, id=device_id)
 			try:
+				# Could conflict due to unique constraint
+				session.add(device)
 				yield overlay_dir
 			except:
 				shutil.rmtree(overlay_dir)
