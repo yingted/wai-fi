@@ -4,6 +4,12 @@
 #include "xtensa/corebits.h"
 #include "xtensa/xtruntime-frames.h"
 
+// Template function macros
+#define EXPAND_CALL(macro, arg) macro(arg)
+#define IF_0(then, else) else
+#define IF_1(then, else) then
+#define IF(cond, then, else) EXPAND_CALL(IF_ ## cond, then, else)
+
 static void exception_handler(UserFrame *frame) {
     size_t exccause, excvaddr, litbase;
     asm("rsr.exccause %0":"=r"(exccause));

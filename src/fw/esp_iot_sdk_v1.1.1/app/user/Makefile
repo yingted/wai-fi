@@ -71,7 +71,7 @@ $(CERTFILES_C): %.c: %
 	xxd -i $< | sed 's:^unsigned:USER_DATA32_ATTR &:' > $@
 
 # XXX these don't get auto-run
-CSRCS += $(CERTFILES)
-OBJS += $(CERTFILES:%.c=$(OBJODIR)/%.o)
+CSRCS += $(CERTFILES_C)
+OBJS += $(CERTFILES_C:%.c=$(OBJODIR)/%.o)
 certfiles: $(CERTFILES)
 .PHONY: certfiles
