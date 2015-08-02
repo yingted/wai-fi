@@ -53,7 +53,7 @@ void try_send_log() {
         struct msg_header *header = (struct msg_header *)((char *)to_send->payload - logged_size);
         switch (header->type) {
             case MSG_LOG:
-                header->log.len = logged_size - sizeof(*header);
+                header->log.len = htons((short)(logged_size - sizeof(*header)));
                 break;
             default:
                 assert(false);

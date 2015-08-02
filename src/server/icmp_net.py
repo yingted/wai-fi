@@ -2,10 +2,44 @@ from twisted.internet.protocol import Protocol
 from twisted.python import log
 import verify
 import inspect
+import decoder
+import struct
+import collections
 
 class IcmpNet(Protocol):
+	MSG_LOG = 0
+	Header = collections.namedtuple('Header', (
+		'fc_type',
+		'fc_flags',
+		'dur',
+		'addr1',
+		'addr2',
+		'addr3',
+		'seqid',
+		'rssi',
+	))
+	MSG_LOG_FMT = '!bbh6s6s6shb'
+	MSG_LOG_FMT_SIZE = struct.calcsize(MSG_LOG_FMT)
+
 	def __init__(self, *args, **kwargs):
 		self._device_name = None
+		self._decoder = decoder.Decoder(self, self._decode)
+
+	def _decode(self, decoder):
+		while True:
+			msg_type, _ = decoder.read_struct('!bb')
+			if msg_type == self.MSG_LOG:
+				msg_len, = decoder.read_struct('!h')
+				count, rem = divmod(msg_len, self.MSG_LOG_FMT_SIZE)
+				if rem != 0:
+					log.err('invalid message length %d' % msg_len)
+				headers = []
+				for _ in xrange(count):
+					headers.append(self.Header(*decoder.read_struct(self.MSG_LOG_FMT)))
+				print 'read', len(headers), 'headers'
+			else:
+				log.err('invalid message type %d' % msg_type)
+				self.abortConnection()
 
 	def log(self, *args, **kwargs):
 		log.msg('icmp_net://%s' % self._device_name, *args, **kwargs)
@@ -20,7 +54,7 @@ class IcmpNet(Protocol):
 		self.log('connected')
 
 	def dataReceived(self, data):
-		self.log('received:', repr(data))
+		self._decoder.write(data)
 
 	def connectionLost(self, reason):
 		self.log('disconnected:', reason.value)

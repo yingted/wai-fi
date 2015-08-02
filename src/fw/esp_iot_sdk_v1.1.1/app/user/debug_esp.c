@@ -351,6 +351,7 @@ void *__wrap_pvPortMalloc(size_t size) {
     void *ret = __real_pvPortMalloc(size);
     if (!ret) {
         user_dprintf("malloc(%d) failed", size);
+        os_printf("restarting due to failed malloc\n");
         system_restart();
     }
     return ret;

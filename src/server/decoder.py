@@ -1,5 +1,6 @@
 import fifobuffer
 import gevent
+import struct
 
 class Decoder(object):
 	r'''
@@ -19,15 +20,22 @@ class Decoder(object):
 	>>> d.write('\n')
 	ABC
 	'''
+
 	def __init__(self, delegate, dec):
 		self.delegate = delegate
 		self._buf = fifobuffer.FifoBuffer(self._switch_into_main)
 		self._gen = gevent.Greenlet(dec, self)
 		self._main = None
+
 	def _switch_into_main(self):
 		self._main.switch()
+
 	def read(self, n):
 		return self._buf.read(n)
+
+	def read_struct(self, fmt):
+		return struct.unpack(fmt, self._buf.read(struct.calcsize(fmt)))
+
 	def write(self, data):
 		assert self._main is None
 		self._buf.write(data)
