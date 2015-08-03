@@ -97,7 +97,6 @@ char gdb_read_char() {
     } else {
         gdb_read_cksum += ch;
     }
-    os_printf("{%c}", ch);
     return ch;
 }
 
@@ -208,9 +207,7 @@ void gdb_download(size_t addr, size_t len) {
 
 ICACHE_FLASH_ATTR
 size_t gdb_read_int() {
-    os_printf("<");
     size_t ret = gdb_read_impl(SIZE_MAX);
-    os_printf(">");
     gdb_read_err = gdb_read_hash;
     return ret;
 }

@@ -1,4 +1,3 @@
 file .output/eagle/debug/image/eagle.app.v6.out
-add-symbol-file bootrom.elf
+# set remotelogfile /dev/stdout
 target remote /dev/ttyUSB0
-set serial baud 115200
