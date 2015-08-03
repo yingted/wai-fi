@@ -546,12 +546,12 @@ cont:
     ets_wdt_restore(saved_wdt_mode);
     regs.pc.value += debug_break_size;
     regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value += debug_break_size;
-    gdb_restore_state();
     __asm__ __volatile__("\
         esync\n\
         wsr.ps %0\n\
         esync\n\
     "::"r"(saved_ps));
+    gdb_restore_state();
 }
 
 /**
@@ -635,10 +635,6 @@ __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
     gdb_stub_DebugExceptionVector:\n\
-        xsr.epc2 a2\n\
-        addi.n a2, a2, 3\n\
-        xsr.epc2 a2\n\
-        rfi " STR(XCHAL_DEBUGLEVEL) "\n\
         j gdb_stub_DebugExceptionVector_1\n\
 ");
 //__attribute__((naked)) // not supported
@@ -677,8 +673,9 @@ void gdb_stub_DebugExceptionVector_1() {
 #else
 __asm__("\
     .section .DebugExceptionVector.text\n\
-    .global gdb_stub_DebugExceptionVector \n\
+    .global gdb_stub_DebugExceptionVector\n\
     gdb_stub_DebugExceptionVector:\n\
-        rfi " STR(XCHAL_DEBUGLEVEL) "\n\
+        waiti " STR(XCHAL_DEBUGLEVEL) "\n\
+        j gdb_stub_DebugExceptionVector\n\
 ");
 #endif
