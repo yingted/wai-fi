@@ -257,8 +257,13 @@ void gdb_attach(int exccause, int debugcause) {
     size_t saved_wdt_mode = ets_wdt_get_mode();
     ets_wdt_disable();
     char buf[18];
-    __asm__("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
+
+    __asm__ __volatile__("\
+        esync\n\
+        rsil %0, 15\n\
+        esync\n\
+    ":"+r"(saved_ps));
 
     if (should_output_stopped) {
         gdb_write_reset();
@@ -460,7 +465,11 @@ cont:
     gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
     gdb_restore_state();
-    __asm__("wsr.ps %0"::"r"(saved_ps));
+    __asm__ __volatile__("\
+        esync\n\
+        wsr.ps %0\n\
+        esync\n\
+    "::"r"(saved_ps));
 }
 
 /**
