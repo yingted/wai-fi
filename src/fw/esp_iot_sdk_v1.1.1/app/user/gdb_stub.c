@@ -13,9 +13,12 @@
 void gdb_stub_DebugExceptionVector();
 
 // Template function macros
-#define IF_0(then, else) else
-#define IF_1(then, else) then
-#define IF(cond, then, else) IF_ ## cond(then, else)
+#define XTREG_x1(...)
+#define XTREG_x0(ty, ...) \
+    XTREG_ty ## ty(__VA_ARGS__)
+#define XTREG(index,ofs,bsz,sz,al,tnum,flg,cp,ty,gr,name,fet,sto,mas,ct,x,y) \
+    XTREG_x ## x(ty, name, tnum, index)
+#define XTREG_ty9(...) XTREG_ty8(__VA_ARGS__)
 
 struct GdbRegister {
     size_t value;
@@ -23,12 +26,21 @@ struct GdbRegister {
 };
 
 struct GdbFrame {
-#define REG_XTENSA_reg32(x, have) IF(have, struct GdbRegister x;, )
-#include "reg-xtensa.h"
-#undef REG_XTENSA_reg32
+#define XTREG_ty2(name, tnum, ...) \
+    struct GdbRegister name;
+#define XTREG_ty8(...) XTREG_ty2(__VA_ARGS__)
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty2
+#undef XTREG_ty8
 };
 
+#define XTREG_ty6(...) // mask
+
 static struct GdbFrame regs;
+#define REGISTER_ARG(x, arg) do { \
+    regs.x.value = arg; \
+    regs.x.valid = true; \
+} while (0)
 
 #define GDB_UART 0
 
@@ -305,27 +317,24 @@ retrans:
                             reg_i = gdb_read_byte();
                         }
                         GDB_READ();
-                        int begin_i = 0, end_i = sizeof(regs) / sizeof(struct GdbRegister);
-                        if (cmd == 'p') {
-                            if (!(begin_i <= reg_i && reg_i < end_i)) {
-                                gdb_write_string("E04");
-                                break;
-                            }
-                            begin_i = reg_i;
-                            end_i = begin_i + 1;
-                        }
-                        struct GdbRegister *begin = (struct GdbRegister *)&regs + begin_i;
-                        struct GdbRegister *end = (struct GdbRegister *)&regs + end_i;
-                        for (; end - begin; ++begin) {
-                            os_strcpy(buf, "x*%");
-                            if (begin->valid) {
-                                int i;
-                                for (i = 0; i < 4; ++i) {
-                                    os_sprintf(&buf[2 * i], "%02x", ((char *)&begin->value)[i]);
-                                }
-                            }
-                            gdb_write_string(buf);
-                        }
+                        int cur_i = 0;
+#define XTREG_ty2(...) XTREG_ty8(__VA_ARGS__)
+#define XTREG_ty8(name, tnum, index, ...) \
+    do { \
+        if (cur_i++ == index && regs.name.valid) { \
+            int i; \
+            for (i = 0; i < 4; ++i) { \
+                os_sprintf(&buf[2 * i], "%02x", ((char *)&regs.name.value)[i]); \
+            } \
+            gdb_write_string(buf); \
+        } else { \
+            gdb_write_string("x*$"); \
+            continue; \
+        } \
+    } while (0);
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty8
+#undef XTREG_ty2
                     }
                     break;
                 case 'z':
@@ -435,16 +444,14 @@ cont:
  */
 ICACHE_FLASH_ATTR
 static void exception_handler(UserFrame *frame) {
-    size_t excvaddr, litbase, epc, excsave;
-    __asm__("rsr.excvaddr %0":"=r"(excvaddr));
-    __asm__("rsr.litbase %0":"=r"(litbase));
-    __asm__("rsr.epc1 %0":"=r"(epc));
-    __asm__("rsr.excsave1 %0":"=r"(excsave));
+#define XTREG_ty8(...) // regular
+#define XTREG_ty2(name, tnum, ...) \
+    size_t sr_ ## name; \
+    __asm__("rsr %0, %1":"=r"(sr_ ## name):"i"(tnum & 0xff)); // special
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty2
+
     os_memset(&regs, 0, sizeof(regs));
-#define REGISTER_ARG(x, arg) do { \
-    regs.x.value = arg; \
-    regs.x.valid = true; \
-} while (0)
 #define REGISTER(x) REGISTER_ARG(x, frame->x)
     REGISTER(pc);
     REGISTER(ps);
@@ -465,20 +472,21 @@ static void exception_handler(UserFrame *frame) {
     REGISTER(a13);
     REGISTER(a14);
     REGISTER(a15);
-    REGISTER_ARG(litbase, litbase);
-    REGISTER_ARG(sr176, epc); // actually sr177
-    REGISTER_ARG(sr208, excsave); // actually sr209
 #undef REGISTER
-#undef REGISTER_ARG
+
+#define XTREG_ty2(name, tnum, ...) \
+    REGISTER_ARG(name, sr_ ## name);
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty2
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == 15) { // max intlevel, vpri=-1, debug
         ;
     } else {
         // Print once to terminal and once to gdb
-        user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)excvaddr, (void *)frame->pc);
+        user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)sr_excvaddr, (void *)frame->pc);
         // No-op
-        if (excvaddr * excvaddr == 3) { // impossible due to quadratic reciprocity
+        if (sr_excvaddr * sr_excvaddr == 3) { // impossible due to quadratic reciprocity
             gdb_stub_DebugExceptionVector(); // reference the symbol
         }
     }
