@@ -10,10 +10,10 @@
 
 #ifdef REG_XTENSA_reg32
 // REG_XTENSA_reg32(x, have)
-REG_XTENSA_reg32(pc, 1)
-REG_XTENSA_reg32(ps, 1)
-REG_XTENSA_reg32(sar, 1)
-REG_XTENSA_reg32(vpri, 1)
+REG_XTENSA_reg32(pc, REG_XTENSA_special)
+REG_XTENSA_reg32(ps, REG_XTENSA_special)
+REG_XTENSA_reg32(sar, REG_XTENSA_special)
+REG_XTENSA_reg32(vpri, REG_XTENSA_special)
 REG_XTENSA_reg32(a0, REG_XTENSA_HAVE_CALL0)
 //REG_XTENSA_reg32(a1, 1)
 REG_XTENSA_reg32(a2, 1)

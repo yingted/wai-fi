@@ -11,11 +11,12 @@
 #define SIZE_MAX ((size_t)~0)
 
 void gdb_stub_DebugExceptionVector();
+void gdb_stub_DebugExceptionVector_1();
 
 // Template function macros
-#define IF_0(then, else) else
-#define IF_1(then, else) then
-#define IF(cond, then, else) IF_ ## cond(then, else)
+#define IF_0(then, else, ...) else
+#define IF_1(then, else, ...) then
+#define IF(cond, ...) IF_ ## cond(__VA_ARGS__)
 
 #define XTREG_y1(...)
 #define XTREG_y0(x, ...) XTREG_x ## x(__VA_ARGS__)
@@ -584,6 +585,7 @@ static void exception_handler(UserFrame *frame) {
         // No-op
         if (sr_excvaddr * sr_excvaddr == 3) { // impossible due to quadratic reciprocity
             gdb_stub_DebugExceptionVector(); // reference the symbol
+            gdb_stub_DebugExceptionVector_1(); // reference the symbol
         }
         gdb_attach(sr_exccause, 0);
     }
@@ -607,31 +609,32 @@ void gdb_stub_init() {
     }
 }
 
-__asm__("\
-    .section .DebugExceptionVector.text\n\
-    .global gdb_stub_DebugExceptionVector \n\
-    .type gdb_stub_DebugExceptionVector, @function\n\
-    .align 4\n\
-    gdb_stub_DebugExceptionVector:\n\
-        j gdb_stub_DebugExceptionVector_1\n\
-\n\
-    .section .text\n\
-    .global gdb_stub_DebugExceptionVector_1\n\
-    .type gdb_stub_DebugExceptionVector_1, @function\n\
-    .align 4\n\
-    gdb_stub_DebugExceptionVector_1:\n\
-        addmi   a1, a1, -0x100\n"
+//__attribute__((naked)) // not supported
+__attribute__((section(".DebugExceptionVector.text")))
+void gdb_stub_DebugExceptionVector() {
+    __asm__("\
+        wsr.excsave2 a0\n\
+        call0 gdb_stub_DebugExceptionVector_1\n\
+    ");
+}
+
+//__attribute__((naked)) // not supported
+__attribute__((section(".text")))
+void gdb_stub_DebugExceptionVector_1() {
+    __asm__ __volatile__("rsr.excsave2 a0");
+    __asm__ __volatile__("addmi a1, a1, -0x100");
+#define REG_XTENSA_special 0
 #define REG_XTENSA_reg32(x, have) \
-    IF(have, "s32i.n " #x ", a1, %[" #x "]\n",)
+    IF(have, __asm__("s32i.n " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
 #include "xtruntime-frames-uexc.h"
 #undef REG_XTENSA_reg32
-        "mov.n a2, a1\n\
-"::
-#define REG_XTENSA_reg32(x, have) \
-    [x] "i"(offsetof(UserFrame, x)),
-#include "xtruntime-frames-uexc.h"
-#undef REG_XTENSA_reg32
-);
+    __asm__ __volatile__("mov.n a2, a1");
+    register UserFrame *frame __asm__("a2");
+    __asm__("rsr.sar %0":"=r"(frame->sar));
+    __asm__("rsr.epc2 %0":"=r"(frame->pc));
+    __asm__("rsr.eps2 %0":"=r"(frame->ps));
+    frame->vpri = xthal_intlevel_to_vpri(XCHAL_DEBUGLEVEL);
+}
 #else
 __asm__("\
     .section .DebugExceptionVector.text\n\
