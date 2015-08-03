@@ -75,11 +75,6 @@ char real_getc1() {
     }
 }
 
-ICACHE_FLASH_ATTR
-void gdb_restore_state() {
-    for (;;); // XXX too bad
-}
-
 static bool gdb_read_err, gdb_read_dollar, gdb_read_hash;
 static uint8_t gdb_read_cksum;
 
@@ -248,6 +243,14 @@ void gdb_send_stop_reply() {
 }
 
 ICACHE_FLASH_ATTR
+void gdb_restore_state() {
+    gdb_write_reset();
+    user_dprintf("restoring state");
+    gdb_send_stop_reply();
+    for (;;); // XXX too bad
+}
+
+ICACHE_FLASH_ATTR
 void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
@@ -299,9 +302,9 @@ retrans:
                         regs.pc.value = pc;
                     } else if (!regs.pc.valid) {
                         gdb_write_string("E01");
-                        goto cont;
+                        goto next;
                     }
-                    gdb_write_string("OK");
+                    gdb_write_string("O");
                     goto cont;
                 }
                 // read addr, length
@@ -443,9 +446,13 @@ retrans:
                         REGISTER_ARG(icountlevel, 1);
                         REGISTER_ARG(icount, -2);
                     }
+                    // Send an empty O packet to keep gdb listening
+                    gdb_write_string("O");
                     goto cont;
                 case 'D': // detach
                     GDB_READ();
+                    gdb_write_string("OK");
+                    gdb_write_flush();
                     os_install_putc1(real_putc1);
                     gdb_attached = false;
                     goto cont;
