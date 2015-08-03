@@ -13,6 +13,10 @@
 void gdb_stub_DebugExceptionVector();
 
 // Template function macros
+#define IF_0(then, else) else
+#define IF_1(then, else) then
+#define IF(cond, then, else) IF_ ## cond(then, else)
+
 #define XTREG_y1(...)
 #define XTREG_y0(x, ...) XTREG_x ## x(__VA_ARGS__)
 #define XTREG_x1(...)
@@ -276,7 +280,8 @@ static void gdb_restore_state() {
         "rfe\n"
     ::"r"(frame)
 #define XTREG_ty8(name, tnum, ...) \
-        , [name] "i"(((char *)&regs.name.value) - ((char *)&regs))
+        , [name] "i"(offsetof(struct GdbFrame, name.value))
+        //, [name] "i"(((char *)&regs.name.value) - ((char *)&regs))
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty8
     );
@@ -575,7 +580,7 @@ static void exception_handler(UserFrame *frame) {
         gdb_attach(-1, sr_debugcause);
     } else {
         // Print once to terminal and once to gdb
-        user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)sr_excvaddr, (void *)frame->pc);
+        user_dprintf("exccause=%d excvaddr=%p pc=%p", sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
         // No-op
         if (sr_excvaddr * sr_excvaddr == 3) { // impossible due to quadratic reciprocity
             gdb_stub_DebugExceptionVector(); // reference the symbol
@@ -605,9 +610,28 @@ void gdb_stub_init() {
 __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
+    .type gdb_stub_DebugExceptionVector, @function\n\
+    .align 4\n\
     gdb_stub_DebugExceptionVector:\n\
-        j _UserExceptionVector\n\
-");
+        j gdb_stub_DebugExceptionVector_1\n\
+\n\
+    .section .text\n\
+    .global gdb_stub_DebugExceptionVector_1\n\
+    .type gdb_stub_DebugExceptionVector_1, @function\n\
+    .align 4\n\
+    gdb_stub_DebugExceptionVector_1:\n\
+        addmi   a1, a1, -0x100\n"
+#define REG_XTENSA_reg32(x, have) \
+    IF(have, "s32i.n " #x ", a1, %[" #x "]\n",)
+#include "xtruntime-frames-uexc.h"
+#undef REG_XTENSA_reg32
+        "mov.n a2, a1\n\
+"::
+#define REG_XTENSA_reg32(x, have) \
+    [x] "i"(offsetof(UserFrame, x)),
+#include "xtruntime-frames-uexc.h"
+#undef REG_XTENSA_reg32
+);
 #else
 __asm__("\
     .section .DebugExceptionVector.text\n\
