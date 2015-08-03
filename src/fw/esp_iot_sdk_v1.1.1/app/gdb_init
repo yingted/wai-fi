@@ -6,3 +6,7 @@ set remotelogfile /dev/stdout
 target remote /dev/ttyUSB0
 info all-registers
 bt
+x/5i $pc
+
+hbreak connmgr_init
+si

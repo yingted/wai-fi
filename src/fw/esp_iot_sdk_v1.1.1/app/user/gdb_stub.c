@@ -45,7 +45,7 @@ struct GdbFrame {
 
 static bool gdb_attached;
 static struct GdbFrame regs;
-#define REGISTER_ARG(x, arg) do { \
+#define SET_REG(x, arg) do { \
     regs.x.value = arg; \
     regs.x.valid = true; \
 } while (0)
@@ -160,7 +160,7 @@ static void gdb_putc1(char c) {
 ICACHE_FLASH_ATTR
 static void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
-    os_install_putc1(gdb_putc1);
+    //os_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
@@ -278,8 +278,9 @@ static void gdb_restore_state() {
         "l32i.n " #name ", a15, %[" #name "]\n"
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty8
-        "rfe\n"
-    ::"r"(frame)
+        "extw\n"
+        "rfi %[debuglevel]\n"
+    ::"r"(frame), [debuglevel] "i"(XCHAL_DEBUGLEVEL)
 #define XTREG_ty8(name, tnum, ...) \
         , [name] "i"(offsetof(struct GdbFrame, name.value))
         //, [name] "i"(((char *)&regs.name.value) - ((char *)&regs))
@@ -294,6 +295,29 @@ ICACHE_FLASH_ATTR
 static void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
+    size_t debug_break_size = 0;
+
+    // We can only have 1 debug cause
+    switch (debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
+        case 0: // exception
+            break;
+        case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
+            SET_REG(icountlevel, 0);
+            break;
+        case XCHAL_DEBUGCAUSE_IBREAK_MASK:
+        case XCHAL_DEBUGCAUSE_DBREAK_MASK:
+            break;
+        case XCHAL_DEBUGCAUSE_BREAK_MASK:
+            debug_break_size = 3;
+            break;
+        case XCHAL_DEBUGCAUSE_BREAKN_MASK:
+            debug_break_size = 2;
+            break;
+        case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
+        default:
+            break;
+    }
+
     bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;
     size_t saved_ps;
@@ -339,7 +363,7 @@ retrans:
                     bool set_pc = !gdb_read_err;
                     GDB_READ();
                     if (set_pc) {
-                        REGISTER_ARG(pc, pc);
+                        SET_REG(pc, pc);
                     } else if (!regs.pc.valid) {
                         gdb_write_string("E01");
                         goto next;
@@ -418,7 +442,7 @@ retrans:
                                 if (!has_breakpoint) {
                                     break;
                                 }
-                                __asm__ __volatile__("wsr.ibreakenable %0"::"r"(0));
+                                SET_REG(ibreakenable, 0);
                                 break;
                             case 'Z':
                                 if (has_breakpoint) {
@@ -428,8 +452,8 @@ retrans:
                                     gdb_write_string("E00");
                                     break;
                                 }
-                                __asm__ __volatile__("wsr.ibreaka0 %0"::"r"(addr));
-                                __asm__ __volatile__("wsr.ibreakenable %0"::"r"(1));
+                                SET_REG(ibreaka0, addr);
+                                SET_REG(ibreakenable, 1);
                                 break;
                         }
                     } else if (2 <= type && type <= 4) {
@@ -441,7 +465,7 @@ retrans:
                                 if (!has_watchpoint) {
                                     break;
                                 }
-                                __asm__ __volatile__("wsr.dbreakc0 %0"::"r"(0));
+                                SET_REG(dbreakc0, 0);
                                 break;
                             case 'Z':
                                 if (has_watchpoint) {
@@ -459,8 +483,9 @@ retrans:
                                     dbreakc |= XCHAL_DBREAKC_STOREBREAK_MASK;
                                 }
                                 dbreakc |= (kind - 1) ^ 63;
-                                __asm__ __volatile__("wsr.dbreaka0 %0"::"r"(addr));
-                                __asm__ __volatile__("wsr.dbreakc0 %0"::"r"(dbreakc));
+                                SET_REG(dbreakc0, 0);
+                                SET_REG(dbreaka0, addr);
+                                SET_REG(dbreakc0, dbreakc);
                                 break;
                         }
                     } else {
@@ -484,8 +509,10 @@ retrans:
                         for (;;);
                     }
                     if (cmd == 'S') {
-                        REGISTER_ARG(icountlevel, 1);
-                        REGISTER_ARG(icount, -2);
+                        int intlevel = (regs.ps.value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
+                        user_dprintf("Stepping at intlevel=%d", intlevel);
+                        SET_REG(icountlevel, 1 + intlevel);
+                        SET_REG(icount, -2);
                     }
                     // Send an empty O packet to keep gdb listening
                     gdb_write_string("O");
@@ -512,6 +539,12 @@ next:
 cont:
     gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
+    regs.pc.value += debug_break_size;
+#define CONCAT2(a, b) a ## b
+#define CONCAT(a, b) CONCAT2(a, b)
+    regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value += debug_break_size;
+#undef CONCAT
+#undef CONCAT2
     gdb_restore_state();
     __asm__ __volatile__("\
         esync\n\
@@ -538,10 +571,10 @@ static void exception_handler(UserFrame *frame) {
 #undef XTREG_ty2
 
     os_memset(&regs, 0, sizeof(regs));
-#define REGISTER(x) REGISTER_ARG(x, frame->x)
+#define REGISTER(x) SET_REG(x, frame->x)
     REGISTER(pc);
     REGISTER(a0);
-    REGISTER_ARG(a1, ((size_t)frame) + 0x100);
+    SET_REG(a1, ((size_t)frame) + 0x100);
     REGISTER(a2);
     REGISTER(a3);
     REGISTER(a4);
@@ -559,32 +592,13 @@ static void exception_handler(UserFrame *frame) {
 #undef REGISTER
 
 #define XTREG_ty2(name, tnum, ...) \
-    REGISTER_ARG(name, sr_ ## name);
+    SET_REG(name, sr_ ## name);
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty2
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == XCHAL_DEBUGLEVEL) { // max intlevel, vpri=-1, debug
         user_dprintf("debugcause=%p pc=%p", (void *)sr_debugcause, (void *)regs.pc.value);
-        // We can only have 1 debug cause
-        switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
-            case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
-                __asm__ __volatile__("wsr.icountlevel %0"::"r"(0));
-                __asm__ __volatile__("isync");
-                break;
-            case XCHAL_DEBUGCAUSE_IBREAK_MASK:
-            case XCHAL_DEBUGCAUSE_DBREAK_MASK:
-                break;
-            case XCHAL_DEBUGCAUSE_BREAK_MASK:
-                regs.pc.value += 3;
-                break;
-            case XCHAL_DEBUGCAUSE_BREAKN_MASK:
-                regs.pc.value += 2;
-                break;
-            case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
-            default:
-                break;
-        }
         gdb_attach(-1, sr_debugcause);
     } else {
         // Print once to terminal and once to gdb
@@ -660,6 +674,6 @@ __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
     gdb_stub_DebugExceptionVector:\n\
-        rfe\n\
+        ret.n\n\
 ");
 #endif
