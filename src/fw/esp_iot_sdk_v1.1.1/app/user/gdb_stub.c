@@ -578,7 +578,7 @@ cont:
  */
 ICACHE_FLASH_ATTR
 __attribute__((noreturn))
-static void exception_handler(UserFrame *frame) {
+void gdb_stub_exception_handler(UserFrame *frame, bool is_debug) {
 #define XTREG_ty8(...) // regular
 #define XTREG_ty2(name, tnum, ...) \
     size_t sr_ ## name; \
@@ -613,12 +613,8 @@ static void exception_handler(UserFrame *frame) {
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty2
 
-assert(regs.epc2.valid);
-regs.epc2.value += 3;
-gdb_restore_state();
-
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
-    if (intlevel == XCHAL_DEBUGLEVEL) { // max intlevel, vpri=-1, debug
+    if (is_debug) { // max intlevel, vpri=-1, debug
         assert(regs.epc2.valid);
         user_dprintf("intlevel=%d debugcause=%p pc=%p", intlevel, (void *)sr_debugcause, (void *)regs.pc.value);
         gdb_attach(-1, sr_debugcause);
@@ -627,6 +623,12 @@ gdb_restore_state();
         user_dprintf("intlevel=%d exccause=%d excvaddr=%p pc=%p", intlevel, sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
         gdb_attach(sr_exccause, 0);
     }
+}
+
+ICACHE_FLASH_ATTR
+__attribute__((noreturn))
+static void gdb_stub_exception_handler_exc(UserFrame *frame) {
+    gdb_stub_exception_handler(frame, false);
 }
 
 ICACHE_FLASH_ATTR
@@ -643,7 +645,7 @@ void gdb_stub_init() {
     };
     size_t i;
     for (i = 0; i != sizeof(exceptions); ++i) {
-        _xtos_set_exception_handler(exceptions[i], exception_handler);
+        _xtos_set_exception_handler(exceptions[i], gdb_stub_exception_handler_exc);
     }
 
     // Try to get GCC to reference the symbols
@@ -683,7 +685,8 @@ void gdb_stub_DebugExceptionVector_1() {
         call0 xthal_intlevel_to_vpri\n\
         s32i a2, a1, %[vpri]\n\
         mov a2, a1\n\
-        call0 exception_handler\n\
+        movi a3, 1\n\
+        call0 gdb_stub_exception_handler\n\
     "::
         [sar] "i"(offsetof(UserFrame, sar)),
         [pc] "i"(offsetof(UserFrame, pc)),
