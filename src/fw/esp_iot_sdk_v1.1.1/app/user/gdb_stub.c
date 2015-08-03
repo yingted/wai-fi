@@ -282,6 +282,7 @@ static void gdb_restore_state() {
         "l32i.n " #name ", a15, %[" #name "]\n"
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty8
+        "isync\n"
         "extw\n"
         "rfi %[debuglevel]\n"
     ::"r"(frame), [debuglevel] "i"(XCHAL_DEBUGLEVEL)
@@ -634,6 +635,10 @@ __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
     gdb_stub_DebugExceptionVector:\n\
+        xsr.epc2 a2\n\
+        addi.n a2, a2, 3\n\
+        xsr.epc2 a2\n\
+        rfi " STR(XCHAL_DEBUGLEVEL) "\n\
         j gdb_stub_DebugExceptionVector_1\n\
 ");
 //__attribute__((naked)) // not supported
@@ -674,6 +679,6 @@ __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
     gdb_stub_DebugExceptionVector:\n\
-        ret.n\n\
+        rfi " STR(XCHAL_DEBUGLEVEL) "\n\
 ");
 #endif
