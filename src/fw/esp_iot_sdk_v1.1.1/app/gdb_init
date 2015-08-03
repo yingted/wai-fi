@@ -4,3 +4,5 @@ set remote hardware-breakpoint-limit 1
 #set remote interrupt-sequence Ctrl-C
 set remotelogfile /dev/stdout
 target remote /dev/ttyUSB0
+info all-registers
+bt

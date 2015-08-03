@@ -14,7 +14,7 @@ void gdb_stub_init();
  * Calling this allow the debugger to attach.
  * TODO make this work
  */
-#define gdb_stub_break() __asm__("break 1, 1")
+#define gdb_stub_break() __asm__("break 1, 1\nexcw")
 #else
 #define gdb_stub_init()
 #define gdb_stub_break()

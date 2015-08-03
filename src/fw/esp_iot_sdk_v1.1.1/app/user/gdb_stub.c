@@ -158,7 +158,7 @@ void gdb_putc1(char c) {
 ICACHE_FLASH_ATTR
 void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
-    ets_install_putc1(gdb_putc1);
+    os_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
@@ -508,23 +508,21 @@ static void exception_handler(UserFrame *frame) {
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == 15) { // max intlevel, vpri=-1, debug
-        if (gdb_attached) {
-            user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
-            // We can only have 1 debug cause
-            switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
-                case XCHAL_DEBUGCAUSE_ICOUNT_MASK:
-                    __asm__("wsr.icountlevel %0"::"r"(0));
-                    break;
-                case XCHAL_DEBUGCAUSE_IBREAK_MASK:
-                case XCHAL_DEBUGCAUSE_DBREAK_MASK:
-                case XCHAL_DEBUGCAUSE_BREAK_MASK:
-                case XCHAL_DEBUGCAUSE_BREAKN_MASK:
-                case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
-                default:
-                    break;
-            }
-            gdb_attach(-1, sr_debugcause);
+        user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
+        // We can only have 1 debug cause
+        switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
+            case XCHAL_DEBUGCAUSE_ICOUNT_MASK:
+                //__asm__("wsr.icountlevel %0"::"r"(0));
+                break;
+            case XCHAL_DEBUGCAUSE_IBREAK_MASK:
+            case XCHAL_DEBUGCAUSE_DBREAK_MASK:
+            case XCHAL_DEBUGCAUSE_BREAK_MASK:
+            case XCHAL_DEBUGCAUSE_BREAKN_MASK:
+            case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
+            default:
+                break;
         }
+        gdb_attach(-1, sr_debugcause);
     } else {
         // Print once to terminal and once to gdb
         user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)sr_excvaddr, (void *)frame->pc);
@@ -559,5 +557,12 @@ __asm__("\
     .global gdb_stub_DebugExceptionVector \n\
     gdb_stub_DebugExceptionVector:\n\
         j _UserExceptionVector\n\
+");
+#else
+__asm__("\
+    .section .DebugExceptionVector.text\n\
+    .global gdb_stub_DebugExceptionVector \n\
+    gdb_stub_DebugExceptionVector:\n\
+        rfe\n\
 ");
 #endif

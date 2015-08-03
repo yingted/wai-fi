@@ -34,6 +34,7 @@ void user_init(void) {
         movi.n a14, 0x14\n\
         movi.n a15, 0x15\n\
         break 1, 1\n\
+        excw\n\
     ");
 
     connmgr_init();
