@@ -256,7 +256,7 @@ static void gdb_send_stop_reply() {
 ICACHE_FLASH_ATTR
 static void gdb_restore_state() {
     gdb_write_reset();
-    user_dprintf("Resuming...");
+    user_dprintf("Resuming at %p", (void *)regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value);
     gdb_send_stop_reply();
     // Restore special registers
 #pragma push_macro("XTREG")
@@ -513,7 +513,7 @@ retrans:
                         for (;;);
                     }
                     if (cmd == 'S') {
-                        int intlevel = (regs.ps.value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
+                        int intlevel = (regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
                         user_dprintf("Stepping at intlevel=%d", intlevel);
                         SET_REG(icountlevel, 1 + intlevel);
                         SET_REG(icount, -2);
