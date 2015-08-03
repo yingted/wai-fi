@@ -332,7 +332,7 @@ retrans:
                                     continue;
                                 }
                             } else {
-                                while (cur_i++ != i) {
+                                while (cur_i++ != regno[i]) {
                                     gdb_write_string("xxxxxxxx");
                                 }
                             }
@@ -466,8 +466,6 @@ static void exception_handler(UserFrame *frame) {
     os_memset(&regs, 0, sizeof(regs));
 #define REGISTER(x) REGISTER_ARG(x, frame->x)
     REGISTER(pc);
-    REGISTER(ps);
-    REGISTER(sar);
     REGISTER(a0);
     REGISTER_ARG(a1, ((size_t)frame) + 0x100);
     REGISTER(a2);
@@ -493,7 +491,7 @@ static void exception_handler(UserFrame *frame) {
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == 15) { // max intlevel, vpri=-1, debug
-        ;
+        user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
     } else {
         // Print once to terminal and once to gdb
         user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)sr_excvaddr, (void *)frame->pc);
