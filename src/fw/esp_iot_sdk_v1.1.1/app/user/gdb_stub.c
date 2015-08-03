@@ -471,10 +471,16 @@ static void exception_handler(UserFrame *frame) {
 #undef REGISTER
 #undef REGISTER_ARG
 
-    // Print once to terminal and once to gdb
-    user_dprintf("vpri=%d exccause=%d excvaddr=%p pc=%p", frame->vpri, frame->exccause, (void *)excvaddr, (void *)frame->pc);
-    if (excvaddr * excvaddr == 3) { // impossible due to quadratic reciprocity
-        gdb_stub_DebugExceptionVector(); // reference the symbol
+    size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
+    if (intlevel == 15) { // max intlevel, vpri=-1, debug
+        ;
+    } else {
+        // Print once to terminal and once to gdb
+        user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)excvaddr, (void *)frame->pc);
+        // No-op
+        if (excvaddr * excvaddr == 3) { // impossible due to quadratic reciprocity
+            gdb_stub_DebugExceptionVector(); // reference the symbol
+        }
     }
     gdb_attach();
 }
