@@ -405,7 +405,7 @@ retrans:
                     break;
                 case 'z':
                 case 'Z': {
-                    char type = gdb_read_char();
+                    uint8_t type = gdb_read_char() - '0';
                     size_t kind; // not used
                     if (1 <= type && type <= 4) {
                         addr = gdb_read_int();
@@ -564,16 +564,21 @@ static void exception_handler(UserFrame *frame) {
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == XCHAL_DEBUGLEVEL) { // max intlevel, vpri=-1, debug
-        user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
+        user_dprintf("debugcause=%p pc=%p", (void *)sr_debugcause, (void *)regs.pc.value);
         // We can only have 1 debug cause
         switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
-            case XCHAL_DEBUGCAUSE_ICOUNT_MASK:
-                //__asm__("wsr.icountlevel %0"::"r"(0));
+            case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
+                __asm__("wsr.icountlevel %0"::"r"(0));
                 break;
             case XCHAL_DEBUGCAUSE_IBREAK_MASK:
             case XCHAL_DEBUGCAUSE_DBREAK_MASK:
+                break;
             case XCHAL_DEBUGCAUSE_BREAK_MASK:
+                regs.pc.value += 3;
+                break;
             case XCHAL_DEBUGCAUSE_BREAKN_MASK:
+                regs.pc.value += 2;
+                break;
             case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
             default:
                 break;
@@ -633,8 +638,7 @@ void gdb_stub_DebugExceptionVector_1() {
         s32i.n a2, a1, %[pc]\n\
         rsr.eps2 a2\n\
         s32i.n a2, a1, %[ps]\n\
-        movi.n a2, %[debuglevel]\n\
-        call0 xthal_intlevel_to_vpri\n\
+        extui a2, a2, %[intlevel_shift], %[intlevel_mask]\n\
         s32i.n a2, a1, %[vpri]\n\
         mov.n a2, a1\n\
         call0 exception_handler\n\
@@ -645,7 +649,8 @@ void gdb_stub_DebugExceptionVector_1() {
         [pc] "i"(offsetof(UserFrame, pc)),
         [ps] "i"(offsetof(UserFrame, ps)),
         [vpri] "i"(offsetof(UserFrame, vpri)),
-        [debuglevel] "i"(XCHAL_DEBUGLEVEL)
+        [intlevel_shift] "i"(XCHAL_PS_INTLEVEL_SHIFT),
+        [intlevel_mask] "i"(XCHAL_PS_INTLEVEL_MASK)
     );
 }
 #else
