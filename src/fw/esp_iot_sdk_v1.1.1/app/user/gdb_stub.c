@@ -263,7 +263,7 @@ static void gdb_restore_state() {
 #define XTREG_ty8(...)
 #define XTREG_ty2(name, tnum, ...) \
     if (regs.name.valid) { \
-        __asm__("wsr %0, %1":"=r"(regs.name.value):"i"(tnum & 0xff)); \
+        __asm__ __volatile__("wsr %0, %1":"=r"(regs.name.value):"i"(tnum & 0xff)); \
     }
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty2
@@ -418,7 +418,7 @@ retrans:
                                 if (!has_breakpoint) {
                                     break;
                                 }
-                                __asm__("wsr.ibreakenable %0"::"r"(0));
+                                __asm__ __volatile__("wsr.ibreakenable %0"::"r"(0));
                                 break;
                             case 'Z':
                                 if (has_breakpoint) {
@@ -428,8 +428,8 @@ retrans:
                                     gdb_write_string("E00");
                                     break;
                                 }
-                                __asm__("wsr.ibreaka0 %0"::"r"(addr));
-                                __asm__("wsr.ibreakenable %0"::"r"(1));
+                                __asm__ __volatile__("wsr.ibreaka0 %0"::"r"(addr));
+                                __asm__ __volatile__("wsr.ibreakenable %0"::"r"(1));
                                 break;
                         }
                     } else if (2 <= type && type <= 4) {
@@ -441,7 +441,7 @@ retrans:
                                 if (!has_watchpoint) {
                                     break;
                                 }
-                                __asm__("wsr.dbreakc0 %0"::"r"(0));
+                                __asm__ __volatile__("wsr.dbreakc0 %0"::"r"(0));
                                 break;
                             case 'Z':
                                 if (has_watchpoint) {
@@ -459,13 +459,14 @@ retrans:
                                     dbreakc |= XCHAL_DBREAKC_STOREBREAK_MASK;
                                 }
                                 dbreakc |= (kind - 1) ^ 63;
-                                __asm__("wsr.dbreaka0 %0"::"r"(addr));
-                                __asm__("wsr.dbreakc0 %0"::"r"(dbreakc));
+                                __asm__ __volatile__("wsr.dbreaka0 %0"::"r"(addr));
+                                __asm__ __volatile__("wsr.dbreakc0 %0"::"r"(dbreakc));
                                 break;
                         }
                     } else {
                         break;
                     }
+                    __asm__ __volatile__("isync");
                     gdb_write_string("OK");
                     break;
                 }
@@ -568,7 +569,8 @@ static void exception_handler(UserFrame *frame) {
         // We can only have 1 debug cause
         switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
             case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
-                __asm__("wsr.icountlevel %0"::"r"(0));
+                __asm__ __volatile__("wsr.icountlevel %0"::"r"(0));
+                __asm__ __volatile__("isync");
                 break;
             case XCHAL_DEBUGCAUSE_IBREAK_MASK:
             case XCHAL_DEBUGCAUSE_DBREAK_MASK:
