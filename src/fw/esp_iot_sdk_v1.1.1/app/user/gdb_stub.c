@@ -317,24 +317,36 @@ retrans:
                             reg_i = gdb_read_byte();
                         }
                         GDB_READ();
-                        int cur_i = 0;
+                        const static uint8_t regno[] = {
 #define XTREG_ty2(...) XTREG_ty8(__VA_ARGS__)
-#define XTREG_ty8(name, tnum, index, ...) \
-    do { \
-        if (cur_i++ == index && regs.name.valid) { \
-            int i; \
-            for (i = 0; i < 4; ++i) { \
-                os_sprintf(&buf[2 * i], "%02x", ((char *)&regs.name.value)[i]); \
-            } \
-            gdb_write_string(buf); \
-        } else { \
-            gdb_write_string("x*$"); \
-            continue; \
-        } \
-    } while (0);
+#define XTREG_ty8(name, tnum, index, ...) index,
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty8
 #undef XTREG_ty2
+                        };
+                        size_t cur_i = 0, i, j;
+                        os_strcpy(buf, "xxxxxxxx");
+                        for (i = 0; i != sizeof(regno); ++i) {
+                            if (cmd == 'p') {
+                                if (regno[i] != reg_i) {
+                                    continue;
+                                }
+                            } else {
+                                while (cur_i++ != i) {
+                                    gdb_write_string("xxxxxxxx");
+                                }
+                            }
+                            for (j = 0; j < 4; ++j) {
+                                os_sprintf(&buf[2 * j], "%02x", ((char *)&((struct GdbRegister *)&regs)[i].value)[j]);
+                            }
+                            if (cmd == 'p') {
+                                break; // never print more than 1
+                            }
+                            gdb_write_string(buf);
+                        }
+                        if (cmd == 'p') { // always print something at the end
+                            gdb_write_string(buf);
+                        }
                     }
                     break;
                 case 'z':
