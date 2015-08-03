@@ -257,10 +257,13 @@ ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_restore_state() {
     gdb_write_reset();
+    assert(regs.CONCAT(epc, XCHAL_DEBUGLEVEL).valid);
+    assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
     user_dprintf("Resuming at pc=%p, ps=%p",
         (void *)regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value,
         (void *)regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
     gdb_send_stop_reply();
+
     // Restore special registers
 #pragma push_macro("XTREG")
 #undef XTREG
@@ -276,7 +279,6 @@ static void gdb_restore_state() {
 #undef XTREG_ty2
 #undef XTREG_ty8
 
-    register struct GdbFrame *frame = &regs;
     // ty8 is always valid
 #define XTREG_ty2(...)
     __asm__ __volatile__(
@@ -288,7 +290,7 @@ static void gdb_restore_state() {
         "isync\n"
         "extw\n"
         "rfi %[debuglevel]\n"
-    ::"r"(frame), [debuglevel] "i"(XCHAL_DEBUGLEVEL)
+    ::"r"(&regs), [debuglevel] "i"(XCHAL_DEBUGLEVEL)
 #define XTREG_ty8(name, tnum, ...) \
         , [name] "i"(offsetof(struct GdbFrame, name.value))
         //, [name] "i"(((char *)&regs.name.value) - ((char *)&regs))
@@ -303,10 +305,6 @@ static void gdb_restore_state() {
 ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_attach(int exccause, int debugcause) {
-
-regs.epc2.value += 3;
-gdb_restore_state();
-
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     size_t debug_break_size = 0;
@@ -428,8 +426,12 @@ retrans:
                                     gdb_write_string("xxxxxxxx");
                                 }
                             }
-                            for (j = 0; j < 4; ++j) {
-                                os_sprintf(&buf[2 * j], "%02x", ((char *)&((struct GdbRegister *)&regs)[i].value)[j]);
+                            if (((struct GdbRegister *)&regs)[i].valid) {
+                                for (j = 0; j < 4; ++j) {
+                                    os_sprintf(&buf[2 * j], "%02x", ((char *)&((struct GdbRegister *)&regs)[i].value)[j]);
+                                }
+                            } else {
+                                os_strcpy(buf, "xxxxxxxx");
                             }
                             if (cmd == 'p') {
                                 break; // never print more than 1
@@ -523,6 +525,7 @@ retrans:
                         for (;;);
                     }
                     if (cmd == 'S') {
+                        assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
                         int intlevel = (regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
                         user_dprintf("Stepping at intlevel=%d", intlevel);
                         SET_REG(icountlevel, 1 + intlevel);
@@ -553,7 +556,9 @@ next:
 cont:
     gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
+    assert(regs.pc.valid);
     regs.pc.value += debug_break_size;
+    assert(regs.CONCAT(epc, XCHAL_DEBUGLEVEL).valid);
     regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value += debug_break_size;
     __asm__ __volatile__("\
         esync\n\
@@ -601,47 +606,25 @@ static void exception_handler(UserFrame *frame) {
     REGISTER(a14);
     REGISTER(a15);
 #undef REGISTER
-__asm__ __volatile__("\
-    mov a1, %0\n\
-    l32i a0, a1, 16\n\
-    l32i a2, a1, 20\n\
-    l32i a3, a1, 24\n\
-    l32i a4, a1, 28\n\
-    l32i a5, a1, 32\n\
-    l32i a6, a1, 36\n\
-    l32i a7, a1, 40\n\
-    l32i a8, a1, 44\n\
-    l32i a9, a1, 48\n\
-    l32i a10, a1, 52\n\
-    l32i a11, a1, 56\n\
-    l32i a12, a1, 60\n\
-    l32i a13, a1, 64\n\
-    l32i a14, a1, 68\n\
-    l32i a15, a1, 72\n\
-    xsr.epc2 a2\n\
-    addi a2, a2, 3\n\
-    xsr.epc2 a2\n\
-    addmi a1, a1, 0x100\n\
-    rfi 2\n\
-"::"r"(frame));
 
+    // Save special registers
 #define XTREG_ty2(name, tnum, ...) \
     SET_REG(name, sr_ ## name);
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty2
 
+assert(regs.epc2.valid);
+regs.epc2.value += 3;
+gdb_restore_state();
+
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == XCHAL_DEBUGLEVEL) { // max intlevel, vpri=-1, debug
-        user_dprintf("debugcause=%p pc=%p", (void *)sr_debugcause, (void *)regs.pc.value);
+        assert(regs.epc2.valid);
+        user_dprintf("intlevel=%d debugcause=%p pc=%p", intlevel, (void *)sr_debugcause, (void *)regs.pc.value);
         gdb_attach(-1, sr_debugcause);
     } else {
         // Print once to terminal and once to gdb
         user_dprintf("intlevel=%d exccause=%d excvaddr=%p pc=%p", intlevel, sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
-        // No-op
-        if (sr_excvaddr * sr_excvaddr == 3) { // impossible due to quadratic reciprocity
-            gdb_stub_DebugExceptionVector(); // reference the symbol
-            gdb_stub_DebugExceptionVector_1(); // reference the symbol
-        }
         gdb_attach(sr_exccause, 0);
     }
 }
@@ -661,6 +644,13 @@ void gdb_stub_init() {
     size_t i;
     for (i = 0; i != sizeof(exceptions); ++i) {
         _xtos_set_exception_handler(exceptions[i], exception_handler);
+    }
+
+    // Try to get GCC to reference the symbols
+    __asm__ __volatile__("":"=r"(i));
+    if (i * i == 3) { // impossible due to quadratic reciprocity
+        gdb_stub_DebugExceptionVector(); // reference the symbol
+        gdb_stub_DebugExceptionVector_1(); // reference the symbol
     }
 }
 
@@ -690,6 +680,7 @@ void gdb_stub_DebugExceptionVector_1() {
         rsr.eps" STR(XCHAL_DEBUGLEVEL) " a2\n\
         s32i a2, a1, %[ps]\n\
         extui a2, a2, %[intlevel_shift], %[intlevel_mask]\n\
+        call0 xthal_intlevel_to_vpri\n\
         s32i a2, a1, %[vpri]\n\
         mov a2, a1\n\
         call0 exception_handler\n\
