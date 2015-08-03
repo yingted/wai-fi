@@ -254,9 +254,12 @@ static void gdb_send_stop_reply() {
 }
 
 ICACHE_FLASH_ATTR
+__attribute__((noreturn))
 static void gdb_restore_state() {
     gdb_write_reset();
-    user_dprintf("Resuming at %p", (void *)regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value);
+    user_dprintf("Resuming at pc=%p, ps=%p",
+        (void *)regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value,
+        (void *)regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
     gdb_send_stop_reply();
     // Restore special registers
 #pragma push_macro("XTREG")
@@ -267,7 +270,7 @@ static void gdb_restore_state() {
 #define XTREG_ty8(...)
 #define XTREG_ty2(name, tnum, ...) \
     if (regs.name.valid) { \
-        __asm__ __volatile__("wsr %0, %1":"=r"(regs.name.value):"i"(tnum & 0xff)); \
+        __asm__ __volatile__("wsr %0, %1"::"r"(regs.name.value), "i"(tnum & 0xff)); \
     }
 #include "lx106-overlay/xtensa-config-xtreg.h"
 #undef XTREG_ty2
@@ -294,10 +297,16 @@ static void gdb_restore_state() {
     );
 #undef XTREG_ty2
 #pragma pop_macro("XTREG")
+    for (;;); // unreachable
 }
 
 ICACHE_FLASH_ATTR
+__attribute__((noreturn))
 static void gdb_attach(int exccause, int debugcause) {
+
+regs.epc2.value += 3;
+gdb_restore_state();
+
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     size_t debug_break_size = 0;
@@ -563,6 +572,7 @@ cont:
  * jump to exception_table[a2]
  */
 ICACHE_FLASH_ATTR
+__attribute__((noreturn))
 static void exception_handler(UserFrame *frame) {
 #define XTREG_ty8(...) // regular
 #define XTREG_ty2(name, tnum, ...) \
@@ -646,6 +656,30 @@ void gdb_stub_DebugExceptionVector_1() {
     IF(have, __asm__("s32i.n " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
 #include "xtruntime-frames-uexc.h"
 #undef REG_XTENSA_reg32
+
+__asm__ __volatile__("\
+    mov.n a3, a0\n\
+    rsr.sar a2\n\
+    s32i.n a2, a1, 8\n\
+    rsr.epc" STR(XCHAL_DEBUGLEVEL) " a2\n\
+    s32i.n a2, a1, 0\n\
+    rsr.eps" STR(XCHAL_DEBUGLEVEL) " a2\n\
+    s32i.n a2, a1, 4\n\
+    extui a2, a2, 0, 4\n\
+    s32i.n a2, a1, 12\n\
+    mov.n a2, a1\n\
+");
+__asm__ __volatile__("\
+    l32i.n a0, a1, 16\n\
+    l32i.n a2, a1, 20\n\
+    l32i.n a3, a1, 24\n\
+    xsr.epc2 a2\n\
+    addi.n a2, a2, 3\n\
+    xsr.epc2 a2\n\
+    addmi a1, a1, 0x100\n\
+    rfi 2\n\
+");
+
     // populate the other UserFrame fields
     __asm__ __volatile__("\
         mov.n a3, a0\n\
@@ -659,8 +693,6 @@ void gdb_stub_DebugExceptionVector_1() {
         s32i.n a2, a1, %[vpri]\n\
         mov.n a2, a1\n\
         call0 exception_handler\n\
-        addmi a1, a1, 0x100\n\
-        mov.n a0, a3\n\
     "::
         [sar] "i"(offsetof(UserFrame, sar)),
         [pc] "i"(offsetof(UserFrame, pc)),
