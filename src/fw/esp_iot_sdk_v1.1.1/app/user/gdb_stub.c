@@ -146,7 +146,7 @@ void gdb_putc1(char c) {
 ICACHE_FLASH_ATTR
 void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
-    //ets_install_putc1(gdb_putc1);
+    ets_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
@@ -221,6 +221,21 @@ uint8_t gdb_read_memory(size_t addr) {
 }
 
 ICACHE_FLASH_ATTR
+void gdb_send_stop_reply() {
+    if (outbuf_tail != outbuf_head) {
+        gdb_write_string("O");
+        while (outbuf_tail != outbuf_head) {
+            char buf[3];
+            os_sprintf(buf, "%02x", outbuf[outbuf_head++]);
+            outbuf_head %= sizeof(outbuf);
+            gdb_write_string(buf);
+        }
+        gdb_write_flush();
+        gdb_write_reset();
+    }
+}
+
+ICACHE_FLASH_ATTR
 void gdb_attach() {
     bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;
@@ -231,35 +246,12 @@ void gdb_attach() {
     __asm__("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
 
-    gdb_write_reset();
-    gdb_write_string("vStopped");
-    gdb_write_flush();
-
     for (;;) {
 #define GDB_READ() \
     if (!gdb_read_to_cksum()) { \
         goto retrans; \
     }
         gdb_write_reset();
-        {
-            int diff = outbuf_tail - outbuf_head;
-            if (diff) {
-                uint16_t start, end;
-                if (diff < 0) {
-                    start = outbuf_head;
-                    end = sizeof(outbuf);
-                    outbuf_head = 0;
-                } else {
-                    start = 0;
-                    end = outbuf_tail;
-                    outbuf_head = outbuf_tail;
-                }
-                gdb_write_string("Fwrite,1,");
-                os_sprintf(buf, "%08x,%08x", ((size_t)outbuf) + start, (uint16_t)(end - start));
-                gdb_write_string(buf);
-                goto next;
-            }
-        }
 retrans:
         gdb_read_reset();
         {
@@ -403,13 +395,15 @@ retrans:
                     break;
                 }
 #undef EXPECT_REG
-                case 'k':
-                    system_restart();
-                    break;
-                // no reply
-                case 'F': // io reply
+                case 'C': // cont with signal
+                case 'S': // step with signal
+                case 'k': // kill
                     GDB_READ();
-                    continue;
+                    gdb_send_stop_reply();
+                    gdb_write_string("X09");
+                    gdb_write_flush();
+                    system_restart();
+                    for (;;);
                 // qXfer:memory-map:read
                 case 'q':
                 // i [addr [instruction count]]
@@ -425,6 +419,7 @@ next:
 #undef GDB_READ
     }
 cont:
+    gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
     __asm__("wsr.ps %0"::"r"(saved_ps));
     gdb_restore_state();
@@ -476,6 +471,7 @@ static void exception_handler(UserFrame *frame) {
 #undef REGISTER
 #undef REGISTER_ARG
 
+    // Print once to terminal and once to gdb
     user_dprintf("vpri=%d exccause=%d excvaddr=%p pc=%p", frame->vpri, frame->exccause, (void *)excvaddr, (void *)frame->pc);
     if (excvaddr * excvaddr == 3) { // impossible due to quadratic reciprocity
         gdb_stub_DebugExceptionVector(); // reference the symbol

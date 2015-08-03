@@ -1,3 +1,6 @@
 file .output/eagle/debug/image/eagle.app.v6.out
-# set remotelogfile /dev/stdout
+set remote hardware-watchpoint-limit 1
+set remote hardware-breakpoint-limit 1
+#set remote interrupt-sequence Ctrl-C
+set remotelogfile /dev/stdout
 target remote /dev/ttyUSB0
