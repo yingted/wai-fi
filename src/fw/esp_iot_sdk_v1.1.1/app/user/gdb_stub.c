@@ -563,7 +563,7 @@ static void exception_handler(UserFrame *frame) {
 #undef XTREG_ty2
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
-    if (intlevel == 15) { // max intlevel, vpri=-1, debug
+    if (intlevel == XCHAL_DEBUGLEVEL) { // max intlevel, vpri=-1, debug
         user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
         // We can only have 1 debug cause
         switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
@@ -581,7 +581,7 @@ static void exception_handler(UserFrame *frame) {
         gdb_attach(-1, sr_debugcause);
     } else {
         // Print once to terminal and once to gdb
-        user_dprintf("exccause=%d excvaddr=%p pc=%p", sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
+        user_dprintf("intlevel=%d exccause=%d excvaddr=%p pc=%p", intlevel, sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
         // No-op
         if (sr_excvaddr * sr_excvaddr == 3) { // impossible due to quadratic reciprocity
             gdb_stub_DebugExceptionVector(); // reference the symbol
@@ -609,31 +609,44 @@ void gdb_stub_init() {
     }
 }
 
-//__attribute__((naked)) // not supported
-__attribute__((section(".DebugExceptionVector.text")))
-void gdb_stub_DebugExceptionVector() {
-    __asm__("\
-        wsr.excsave2 a0\n\
-        call0 gdb_stub_DebugExceptionVector_1\n\
-    ");
-}
-
+__asm__("\
+    .section .DebugExceptionVector.text\n\
+    .global gdb_stub_DebugExceptionVector \n\
+    gdb_stub_DebugExceptionVector:\n\
+        j gdb_stub_DebugExceptionVector_1\n\
+");
 //__attribute__((naked)) // not supported
 __attribute__((section(".text")))
 void gdb_stub_DebugExceptionVector_1() {
-    __asm__ __volatile__("rsr.excsave2 a0");
     __asm__ __volatile__("addmi a1, a1, -0x100");
 #define REG_XTENSA_special 0
 #define REG_XTENSA_reg32(x, have) \
     IF(have, __asm__("s32i.n " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
 #include "xtruntime-frames-uexc.h"
 #undef REG_XTENSA_reg32
-    __asm__ __volatile__("mov.n a2, a1");
-    register UserFrame *frame __asm__("a2");
-    __asm__("rsr.sar %0":"=r"(frame->sar));
-    __asm__("rsr.epc2 %0":"=r"(frame->pc));
-    __asm__("rsr.eps2 %0":"=r"(frame->ps));
-    frame->vpri = xthal_intlevel_to_vpri(XCHAL_DEBUGLEVEL);
+    // populate the other UserFrame fields
+    __asm__ __volatile__("\
+        mov.n a3, a0\n\
+        rsr.sar a2\n\
+        s32i.n a2, a1, %[sar]\n\
+        rsr.epc2 a2\n\
+        s32i.n a2, a1, %[pc]\n\
+        rsr.eps2 a2\n\
+        s32i.n a2, a1, %[ps]\n\
+        movi.n a2, %[debuglevel]\n\
+        call0 xthal_intlevel_to_vpri\n\
+        s32i.n a2, a1, %[vpri]\n\
+        mov.n a2, a1\n\
+        call0 exception_handler\n\
+        addmi a1, a1, 0x100\n\
+        mov.n a0, a3\n\
+    "::
+        [sar] "i"(offsetof(UserFrame, sar)),
+        [pc] "i"(offsetof(UserFrame, pc)),
+        [ps] "i"(offsetof(UserFrame, ps)),
+        [vpri] "i"(offsetof(UserFrame, vpri)),
+        [debuglevel] "i"(XCHAL_DEBUGLEVEL)
+    );
 }
 #else
 __asm__("\
