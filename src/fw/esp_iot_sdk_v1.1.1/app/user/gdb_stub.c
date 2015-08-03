@@ -17,6 +17,10 @@ void gdb_stub_DebugExceptionVector_1();
 #define IF_0(then, else, ...) else
 #define IF_1(then, else, ...) then
 #define IF(cond, ...) IF_ ## cond(__VA_ARGS__)
+#define STR2(x) #x
+#define STR(x) STR2(x)
+#define CONCAT2(a, b) a ## b
+#define CONCAT(a, b) CONCAT2(a, b)
 
 #define XTREG_y1(...)
 #define XTREG_y0(x, ...) XTREG_x ## x(__VA_ARGS__)
@@ -540,11 +544,7 @@ cont:
     gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
     regs.pc.value += debug_break_size;
-#define CONCAT2(a, b) a ## b
-#define CONCAT(a, b) CONCAT2(a, b)
     regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value += debug_break_size;
-#undef CONCAT
-#undef CONCAT2
     gdb_restore_state();
     __asm__ __volatile__("\
         esync\n\
@@ -650,9 +650,9 @@ void gdb_stub_DebugExceptionVector_1() {
         mov.n a3, a0\n\
         rsr.sar a2\n\
         s32i.n a2, a1, %[sar]\n\
-        rsr.epc2 a2\n\
+        rsr.epc" STR(XCHAL_DEBUGLEVEL) " a2\n\
         s32i.n a2, a1, %[pc]\n\
-        rsr.eps2 a2\n\
+        rsr.eps" STR(XCHAL_DEBUGLEVEL) " a2\n\
         s32i.n a2, a1, %[ps]\n\
         extui a2, a2, %[intlevel_shift], %[intlevel_mask]\n\
         s32i.n a2, a1, %[vpri]\n\
