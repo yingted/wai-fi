@@ -615,7 +615,9 @@ void gdb_stub_exception_handler(UserFrame *frame, bool is_debug) {
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (is_debug) { // max intlevel, vpri=-1, debug
+        assert(regs.pc.valid);
         assert(regs.epc2.valid);
+        assert(regs.epc2.value == regs.pc.value);
         user_dprintf("intlevel=%d debugcause=%p pc=%p", intlevel, (void *)sr_debugcause, (void *)regs.pc.value);
         gdb_attach(-1, sr_debugcause);
     } else {
