@@ -13,6 +13,8 @@
 void gdb_stub_DebugExceptionVector();
 
 // Template function macros
+#define XTREG_y1(...)
+#define XTREG_y0(x, ...) XTREG_x ## x(__VA_ARGS__)
 #define XTREG_x1(...)
 #define XTREG_x0(ty, ...) \
     XTREG_ty ## ty(__VA_ARGS__)
@@ -245,9 +247,34 @@ void gdb_send_stop_reply() {
 ICACHE_FLASH_ATTR
 void gdb_restore_state() {
     gdb_write_reset();
-    user_dprintf("restoring state");
+    user_dprintf("Resuming...");
     gdb_send_stop_reply();
-    for (;;); // XXX too bad
+    // Restore special registers
+#pragma push_macro("XTREG")
+#undef XTREG
+#define XTREG(index,ofs,bsz,sz,al,tnum,flg,cp,ty,gr,name,fet,sto,mas,ct,x,y) \
+    XTREG_y ## y(x, ty, name, tnum, index)
+
+#define XTREG_ty8(...)
+#define XTREG_ty2(name, tnum, ...) \
+    if (regs.name.valid) { \
+        __asm__("wsr %0, %1":"=r"(regs.name.value):"i"(tnum & 0xff)); \
+    }
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty2
+#undef XTREG_ty8
+
+#define XTREG_ty2(...)
+#define XTREG_ty8(name, tnum, ...) \
+    if (regs.name.valid) { \
+        __asm__("mov.n " #name ", %0"::"r"(regs.name.value)); \
+    }
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty2
+#undef XTREG_ty8
+#pragma pop_macro("XTREG")
+    // XXX this doesn't fix all the variables
+    __asm__("rfe");
 }
 
 ICACHE_FLASH_ATTR
@@ -299,7 +326,7 @@ retrans:
                     bool set_pc = !gdb_read_err;
                     GDB_READ();
                     if (set_pc) {
-                        regs.pc.value = pc;
+                        REGISTER_ARG(pc, pc);
                     } else if (!regs.pc.valid) {
                         gdb_write_string("E01");
                         goto next;
