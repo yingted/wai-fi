@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define SIZE_MAX ((size_t)~0)
+
 void gdb_stub_DebugExceptionVector();
 
 // Template function macros
@@ -66,13 +68,14 @@ void gdb_restore_state() {
     for (;;); // XXX too bad
 }
 
-static bool gdb_read_err, gdb_read_dollar;
+static bool gdb_read_err, gdb_read_dollar, gdb_read_hash;
 static uint8_t gdb_read_cksum;
 
 ICACHE_FLASH_ATTR
 void gdb_read_reset() {
     gdb_read_err = false;
     gdb_read_dollar = false;
+    gdb_read_hash = false;
     gdb_read_cksum = 0;
 }
 
@@ -90,10 +93,11 @@ char gdb_read_char() {
         ch = real_getc1();
     }
     if (ch == '#') {
-        gdb_read_err = true;
+        gdb_read_err = gdb_read_hash = true;
     } else {
         gdb_read_cksum += ch;
     }
+    os_printf("{%c}", ch);
     return ch;
 }
 
@@ -147,17 +151,38 @@ void gdb_install_io() {
 }
 
 ICACHE_FLASH_ATTR
+uint8_t gdb_read_nibble() {
+    char ch = gdb_read_char();
+    if (ch == ',' || ch == ':' || ch == ';') {
+        gdb_read_err = true;
+        return 0;
+    }
+    uint8_t a = ch & 0x4f;
+    return (a & 0xf) + 9 * (a >> 6);
+}
+
+ICACHE_FLASH_ATTR
+size_t gdb_read_impl(size_t maxlen) {
+    size_t x = 0, y = 0;
+    while (!gdb_read_err) {
+        x = (x << 4) | y;
+        if (!maxlen--) {
+            break;
+        }
+        y = gdb_read_nibble();
+    }
+    return x;
+}
+
+ICACHE_FLASH_ATTR
 uint8_t gdb_read_byte() {
-    uint8_t a = gdb_read_char() & 0x4f;
-    a = (a & 0xf) + 9 * (a >> 6);
-    uint8_t b = gdb_read_char() & 0x4f;
-    b = (b & 0xf) + 9 * (b >> 6);
-    return (a << 4) | b;
+    return gdb_read_impl(2);
 }
 
 ICACHE_FLASH_ATTR
 bool gdb_read_to_cksum() {
-    while (!gdb_read_err) {
+    while (!gdb_read_hash) {
+        gdb_read_err = false;
         gdb_read_char();
     }
     // Error, we hit '#'. Clear the error and read the cksum
@@ -183,11 +208,10 @@ void gdb_download(size_t addr, size_t len) {
 
 ICACHE_FLASH_ATTR
 size_t gdb_read_int() {
-    size_t ret = 0;
-    ret = (ret << 8) | gdb_read_byte();
-    ret = (ret << 8) | gdb_read_byte();
-    ret = (ret << 8) | gdb_read_byte();
-    ret = (ret << 8) | gdb_read_byte();
+    os_printf("<");
+    size_t ret = gdb_read_impl(SIZE_MAX);
+    os_printf(">");
+    gdb_read_err = gdb_read_hash;
     return ret;
 }
 
@@ -271,8 +295,9 @@ retrans:
                 case 'm':
                     addr = gdb_read_int();
                     len = gdb_read_int();
+                    user_dprintf("%08x %08x", addr, len);
                     GDB_READ();
-                    for (; len; ++addr, --len) {
+                    for (; len--; ++addr) {
                         gdb_write_byte(gdb_read_memory(addr));
                     }
                     break;
