@@ -48,7 +48,7 @@ static struct GdbFrame regs;
 #define GDB_UART 0
 
 ICACHE_FLASH_ATTR
-void real_putc1(char c) {
+static void real_putc1(char c) {
     for (;;) {
         size_t fifo_cnt = (((size_t)READ_PERI_REG(UART_STATUS(GDB_UART))) >> UART_TXFIFO_CNT_S) & UART_TXFIFO_CNT;
         if (fifo_cnt < 126) {
@@ -60,7 +60,7 @@ void real_putc1(char c) {
 }
 
 ICACHE_FLASH_ATTR
-char real_getc1() {
+static char real_getc1() {
     for (;;) {
         size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
         // if (status & UART_FRM_ERR_INT_ST) ...
@@ -81,7 +81,7 @@ static bool gdb_read_err, gdb_read_dollar, gdb_read_hash;
 static uint8_t gdb_read_cksum;
 
 ICACHE_FLASH_ATTR
-void gdb_read_reset() {
+static void gdb_read_reset() {
     gdb_read_err = false;
     gdb_read_dollar = false;
     gdb_read_hash = false;
@@ -89,7 +89,7 @@ void gdb_read_reset() {
 }
 
 ICACHE_FLASH_ATTR
-char gdb_read_char() {
+static char gdb_read_char() {
     if (gdb_read_err) {
         return 0;
     }
@@ -113,7 +113,7 @@ static uint8_t gdb_write_cksum;
 static bool wrote_dollar;
 
 ICACHE_FLASH_ATTR
-void gdb_write_string(char *buf) {
+static void gdb_write_string(char *buf) {
     if (!wrote_dollar) {
         wrote_dollar = true;
         real_putc1('$');
@@ -125,20 +125,20 @@ void gdb_write_string(char *buf) {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_write_reset() {
+static void gdb_write_reset() {
     gdb_write_cksum = 0;
     wrote_dollar = false;
 }
 
 ICACHE_FLASH_ATTR
-void gdb_write_byte(uint8_t b) {
+static void gdb_write_byte(uint8_t b) {
     char buf[3];
     os_sprintf(buf, "%02x", b);
     gdb_write_string(buf);
 }
 
 ICACHE_FLASH_ATTR
-void gdb_write_flush() {
+static void gdb_write_flush() {
     gdb_write_string("");
     real_putc1('#');
     gdb_write_byte(gdb_write_cksum);
@@ -147,19 +147,19 @@ void gdb_write_flush() {
 static char outbuf[256];
 static uint16_t outbuf_head, outbuf_tail;
 ICACHE_FLASH_ATTR
-void gdb_putc1(char c) {
+static void gdb_putc1(char c) {
     outbuf[outbuf_tail++] = c;
     outbuf_tail %= sizeof(outbuf);
 }
 
 ICACHE_FLASH_ATTR
-void gdb_install_io() {
+static void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
     os_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
-uint8_t gdb_read_nibble() {
+static uint8_t gdb_read_nibble() {
     char ch = gdb_read_char();
     if (ch == ',' || ch == ':' || ch == ';') {
         gdb_read_err = true;
@@ -170,7 +170,7 @@ uint8_t gdb_read_nibble() {
 }
 
 ICACHE_FLASH_ATTR
-size_t gdb_read_impl(size_t maxlen) {
+static size_t gdb_read_impl(size_t maxlen) {
     size_t x = 0, y = 0;
     while (!gdb_read_err) {
         x = (x << 4) | y;
@@ -183,12 +183,12 @@ size_t gdb_read_impl(size_t maxlen) {
 }
 
 ICACHE_FLASH_ATTR
-uint8_t gdb_read_byte() {
+static uint8_t gdb_read_byte() {
     return gdb_read_impl(2);
 }
 
 ICACHE_FLASH_ATTR
-bool gdb_read_to_cksum() {
+static bool gdb_read_to_cksum() {
     while (!gdb_read_hash) {
         gdb_read_err = false;
         gdb_read_char();
@@ -203,7 +203,7 @@ bool gdb_read_to_cksum() {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_download(size_t addr, size_t len) {
+static void gdb_download(size_t addr, size_t len) {
     uint8_t buf[len];
     size_t i;
     for (i = 0; i != len; ++i) {
@@ -215,14 +215,14 @@ void gdb_download(size_t addr, size_t len) {
 }
 
 ICACHE_FLASH_ATTR
-size_t gdb_read_int() {
+static size_t gdb_read_int() {
     size_t ret = gdb_read_impl(SIZE_MAX);
     gdb_read_err = gdb_read_hash;
     return ret;
 }
 
 ICACHE_FLASH_ATTR
-uint8_t gdb_read_memory(size_t addr) {
+static uint8_t gdb_read_memory(size_t addr) {
     if (!(0x20000000 <= addr && addr < 0x60001800)) {
         return 0;
     }
@@ -230,7 +230,7 @@ uint8_t gdb_read_memory(size_t addr) {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_send_stop_reply() {
+static void gdb_send_stop_reply() {
     if (outbuf_tail != outbuf_head) {
         gdb_write_string("O");
         while (outbuf_tail != outbuf_head) {
@@ -245,7 +245,7 @@ void gdb_send_stop_reply() {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_restore_state() {
+static void gdb_restore_state() {
     gdb_write_reset();
     user_dprintf("Resuming...");
     gdb_send_stop_reply();
@@ -264,21 +264,29 @@ void gdb_restore_state() {
 #undef XTREG_ty2
 #undef XTREG_ty8
 
+    register struct GdbFrame *frame = &regs;
+    // ty8 is always valid
 #define XTREG_ty2(...)
+    __asm__ __volatile__(
+        "mov.n a15, %0\n" // a15 is the last register restored
 #define XTREG_ty8(name, tnum, ...) \
-    if (regs.name.valid) { \
-        __asm__("mov.n " #name ", %0"::"r"(regs.name.value)); \
-    }
+        "l32i.n " #name ", a15, %[" #name "]\n"
 #include "lx106-overlay/xtensa-config-xtreg.h"
-#undef XTREG_ty2
 #undef XTREG_ty8
+        "rfe\n"
+    ::"r"(frame)
+#define XTREG_ty8(name, tnum, ...) \
+        , [name] "i"(((char *)&regs.name.value) - ((char *)&regs))
+#include "lx106-overlay/xtensa-config-xtreg.h"
+#undef XTREG_ty8
+    );
+#undef XTREG_ty2
 #pragma pop_macro("XTREG")
-    // XXX this doesn't fix all the variables
-    __asm__("rfe");
+    __asm__ __volatile__("rfe");
 }
 
 ICACHE_FLASH_ATTR
-void gdb_attach(int exccause, int debugcause) {
+static void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     bool has_breakpoint = false, has_watchpoint = false;

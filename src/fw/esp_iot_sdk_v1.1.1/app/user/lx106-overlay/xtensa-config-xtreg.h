@@ -1,4 +1,5 @@
-/* We're going to use the second-last argument to indicate unreadable registers  */
+/* We're going to use the second-last argument to indicate unreadable registers
+ * and the last argument to indicate unwritable registers */
 /*    idx ofs bi sz al targno  flags cp typ group name  */
 #ifdef XTREG
 XTREG(  0,  0,32, 4, 4,0x0000,0x0006 & ~1,-2, 8,0x0100,a0,          0,0,0,0,0,0)
