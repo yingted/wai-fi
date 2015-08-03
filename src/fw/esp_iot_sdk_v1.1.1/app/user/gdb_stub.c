@@ -282,7 +282,6 @@ static void gdb_restore_state() {
     );
 #undef XTREG_ty2
 #pragma pop_macro("XTREG")
-    __asm__ __volatile__("rfe");
 }
 
 ICACHE_FLASH_ATTR
