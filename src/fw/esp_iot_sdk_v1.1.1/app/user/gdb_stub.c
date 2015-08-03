@@ -284,10 +284,24 @@ retrans:
                     break;
                 // read all registers
                 case 'g':
-                    GDB_READ();
+                case 'p':
                     {
-                        struct GdbRegister *begin = (struct GdbRegister *)&regs;
-                        struct GdbRegister *end = (struct GdbRegister *)((char *)&regs + sizeof(regs));
+                        uint8_t reg_i;
+                        if (cmd == 'p') {
+                            reg_i = gdb_read_byte();
+                        }
+                        GDB_READ();
+                        int begin_i = 0, end_i = sizeof(regs) / sizeof(struct GdbRegister);
+                        if (cmd == 'p') {
+                            if (!(begin_i <= reg_i && reg_i < end_i)) {
+                                gdb_write_string("E04");
+                                break;
+                            }
+                            begin_i = reg_i;
+                            end_i = begin_i + 1;
+                        }
+                        struct GdbRegister *begin = (struct GdbRegister *)&regs + begin_i;
+                        struct GdbRegister *end = (struct GdbRegister *)&regs + end_i;
                         for (; end - begin; ++begin) {
                             os_strcpy(buf, "x*%");
                             if (begin->valid) {
@@ -404,9 +418,11 @@ cont:
  */
 ICACHE_FLASH_ATTR
 static void exception_handler(UserFrame *frame) {
-    size_t excvaddr, litbase;
+    size_t excvaddr, litbase, epc, excsave;
     __asm__("rsr.excvaddr %0":"=r"(excvaddr));
     __asm__("rsr.litbase %0":"=r"(litbase));
+    __asm__("rsr.epc1 %0":"=r"(epc));
+    __asm__("rsr.excsave1 %0":"=r"(excsave));
     os_memset(&regs, 0, sizeof(regs));
 #define REGISTER_ARG(x, arg) do { \
     regs.x.value = arg; \
@@ -433,6 +449,8 @@ static void exception_handler(UserFrame *frame) {
     REGISTER(a14);
     REGISTER(a15);
     REGISTER_ARG(litbase, litbase);
+    REGISTER_ARG(sr176, epc); // actually sr177
+    REGISTER_ARG(sr208, excsave); // actually sr209
 #undef REGISTER
 #undef REGISTER_ARG
 

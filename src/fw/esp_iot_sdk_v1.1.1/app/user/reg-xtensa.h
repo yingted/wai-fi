@@ -58,8 +58,8 @@ REG_XTENSA_reg32(sar, 1)
 REG_XTENSA_reg32(litbase, 1)
 REG_XTENSA_reg32(windowbase, XCHAL_HAVE_WINDOWED)
 REG_XTENSA_reg32(windowstart, XCHAL_HAVE_WINDOWED)
-REG_XTENSA_reg32(sr176, 0) // ???
-REG_XTENSA_reg32(sr208, 0) // ???
+REG_XTENSA_reg32(sr176, 1) // epc
+REG_XTENSA_reg32(sr208, 1) // excsave
 REG_XTENSA_reg32(ps, 1)
 REG_XTENSA_reg32(threadptr, XCHAL_HAVE_THREADPTR)
 REG_XTENSA_reg32(scompare1, 0) // multithread
