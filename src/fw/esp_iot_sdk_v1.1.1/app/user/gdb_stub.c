@@ -36,6 +36,7 @@ struct GdbFrame {
 
 #define XTREG_ty6(...) // mask
 
+static bool gdb_attached;
 static struct GdbFrame regs;
 #define REGISTER_ARG(x, arg) do { \
     regs.x.value = arg; \
@@ -76,7 +77,6 @@ char real_getc1() {
 
 ICACHE_FLASH_ATTR
 void gdb_restore_state() {
-    os_install_putc1(real_putc1);
     for (;;); // XXX too bad
 }
 
@@ -248,7 +248,9 @@ void gdb_send_stop_reply() {
 }
 
 ICACHE_FLASH_ATTR
-void gdb_attach() {
+void gdb_attach(int exccause, int debugcause) {
+    bool should_output_stopped = gdb_attached;
+    gdb_attached = true;
     bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;
     size_t saved_ps;
@@ -257,6 +259,12 @@ void gdb_attach() {
     char buf[18];
     __asm__("rsil %0, 15":"+r"(saved_ps));
     gdb_install_io();
+
+    if (should_output_stopped) {
+        gdb_write_reset();
+        gdb_write_string(debugcause ? "S15" : "S09");
+        gdb_write_flush();
+    }
 
     for (;;) {
 #define GDB_READ() \
@@ -276,9 +284,8 @@ retrans:
             switch (cmd) {
                 case '?':
                     GDB_READ();
-                    gdb_write_string("S09");
+                    gdb_write_string(debugcause ? "S15" : "S09");
                     break;
-                case 'D':
                 case 'c': {
                     size_t pc = gdb_read_int();
                     bool set_pc = !gdb_read_err;
@@ -296,7 +303,6 @@ retrans:
                 case 'm':
                     addr = gdb_read_int();
                     len = gdb_read_int();
-                    user_dprintf("%08x %08x", addr, len);
                     GDB_READ();
                     for (; len--; ++addr) {
                         gdb_write_byte(gdb_read_memory(addr));
@@ -421,14 +427,25 @@ retrans:
                 case 'k': // kill
                     GDB_READ();
                     gdb_send_stop_reply();
-                    gdb_write_string("X09");
-                    gdb_write_flush();
-                    system_restart();
-                    for (;;);
+                    if (!debugcause) {
+                        // Fatal error
+                        gdb_write_string("X09");
+                        gdb_write_flush();
+                        system_restart();
+                        for (;;);
+                    }
+                    if (cmd == 'S') {
+                        REGISTER_ARG(icountlevel, 1);
+                        REGISTER_ARG(icount, -2);
+                    }
+                    goto cont;
+                case 'D': // detach
+                    GDB_READ();
+                    os_install_putc1(real_putc1);
+                    gdb_attached = false;
+                    goto cont;
                 // qXfer:memory-map:read
                 case 'q':
-                // i [addr [instruction count]]
-                case 'i':
                 // unsupported
                 default:
                     GDB_READ();
@@ -442,8 +459,8 @@ next:
 cont:
     gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
-    __asm__("wsr.ps %0"::"r"(saved_ps));
     gdb_restore_state();
+    __asm__("wsr.ps %0"::"r"(saved_ps));
 }
 
 /**
@@ -491,7 +508,23 @@ static void exception_handler(UserFrame *frame) {
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
     if (intlevel == 15) { // max intlevel, vpri=-1, debug
-        user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
+        if (gdb_attached) {
+            user_dprintf("debugcause=%p epc1=%p", (void *)sr_debugcause, (void *)sr_epc1);
+            // We can only have 1 debug cause
+            switch (sr_debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
+                case XCHAL_DEBUGCAUSE_ICOUNT_MASK:
+                    __asm__("wsr.icountlevel %0"::"r"(0));
+                    break;
+                case XCHAL_DEBUGCAUSE_IBREAK_MASK:
+                case XCHAL_DEBUGCAUSE_DBREAK_MASK:
+                case XCHAL_DEBUGCAUSE_BREAK_MASK:
+                case XCHAL_DEBUGCAUSE_BREAKN_MASK:
+                case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
+                default:
+                    break;
+            }
+            gdb_attach(-1, sr_debugcause);
+        }
     } else {
         // Print once to terminal and once to gdb
         user_dprintf("exccause=%d excvaddr=%p pc=%p", frame->exccause, (void *)sr_excvaddr, (void *)frame->pc);
@@ -499,8 +532,8 @@ static void exception_handler(UserFrame *frame) {
         if (sr_excvaddr * sr_excvaddr == 3) { // impossible due to quadratic reciprocity
             gdb_stub_DebugExceptionVector(); // reference the symbol
         }
+        gdb_attach(sr_exccause, 0);
     }
-    gdb_attach();
 }
 
 ICACHE_FLASH_ATTR
