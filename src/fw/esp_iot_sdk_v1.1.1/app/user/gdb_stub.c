@@ -601,6 +601,29 @@ static void exception_handler(UserFrame *frame) {
     REGISTER(a14);
     REGISTER(a15);
 #undef REGISTER
+__asm__ __volatile__("\
+    mov.n a1, %0\n\
+    l32i.n a0, a1, 16\n\
+    l32i.n a2, a1, 20\n\
+    l32i.n a3, a1, 24\n\
+    l32i.n a4, a1, 28\n\
+    l32i.n a5, a1, 32\n\
+    l32i.n a6, a1, 36\n\
+    l32i.n a7, a1, 40\n\
+    l32i.n a8, a1, 44\n\
+    l32i.n a9, a1, 48\n\
+    l32i.n a10, a1, 52\n\
+    l32i.n a11, a1, 56\n\
+    l32i.n a12, a1, 60\n\
+    l32i.n a13, a1, 64\n\
+    l32i.n a14, a1, 68\n\
+    l32i.n a15, a1, 72\n\
+    xsr.epc2 a2\n\
+    addi.n a2, a2, 3\n\
+    xsr.epc2 a2\n\
+    addmi a1, a1, 0x100\n\
+    rfi 2\n\
+"::"r"(frame));
 
 #define XTREG_ty2(name, tnum, ...) \
     SET_REG(name, sr_ ## name);
@@ -656,29 +679,6 @@ void gdb_stub_DebugExceptionVector_1() {
     IF(have, __asm__("s32i.n " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
 #include "xtruntime-frames-uexc.h"
 #undef REG_XTENSA_reg32
-
-__asm__ __volatile__("\
-    mov.n a3, a0\n\
-    rsr.sar a2\n\
-    s32i.n a2, a1, 8\n\
-    rsr.epc" STR(XCHAL_DEBUGLEVEL) " a2\n\
-    s32i.n a2, a1, 0\n\
-    rsr.eps" STR(XCHAL_DEBUGLEVEL) " a2\n\
-    s32i.n a2, a1, 4\n\
-    extui a2, a2, 0, 4\n\
-    s32i.n a2, a1, 12\n\
-    mov.n a2, a1\n\
-");
-__asm__ __volatile__("\
-    l32i.n a0, a1, 16\n\
-    l32i.n a2, a1, 20\n\
-    l32i.n a3, a1, 24\n\
-    xsr.epc2 a2\n\
-    addi.n a2, a2, 3\n\
-    xsr.epc2 a2\n\
-    addmi a1, a1, 0x100\n\
-    rfi 2\n\
-");
 
     // populate the other UserFrame fields
     __asm__ __volatile__("\
