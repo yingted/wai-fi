@@ -1,2 +1,2 @@
 #!/bin/sh
-exec xtensa-lx106-elf-gdb -x gdb_init "$@"
+exec xtensa-lx106-elf-gdb -x gdb_init_attach "$@"

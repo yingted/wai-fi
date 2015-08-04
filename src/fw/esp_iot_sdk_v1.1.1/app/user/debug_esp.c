@@ -186,7 +186,7 @@ void *__wrap_esf_buf_alloc(long a, long b) {
     void *ret = __real_esf_buf_alloc(a, b);
     //USER_INTR_UNLOCK();
     if (!ret) {
-        user_dprintf("%ld %ld => %p", a, b, ret);
+        user_dprintf("%p %ld => %p", (void *)a, b, ret);
         assert_heap();
         assert(false);
     }

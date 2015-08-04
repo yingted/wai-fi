@@ -177,7 +177,7 @@ ICACHE_FLASH_ATTR
 static void gdb_putc1(char c) {
     outbuf[outbuf_tail++] = c;
     outbuf_tail %= sizeof(outbuf);
-    if (outbuf_unbuffered) {
+    if (outbuf_unbuffered && (c == '\n' || (outbuf_tail - outbuf_head + sizeof(outbuf)) % sizeof(outbuf) * 2 >= sizeof(outbuf))) {
         gdb_write_reset();
         gdb_send_stop_reply();
     }

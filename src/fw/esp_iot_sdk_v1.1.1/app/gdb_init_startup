@@ -1,0 +1,5 @@
+file .output/eagle/debug/image/eagle.app.v6.out
+set remote interrupt-sequence BREAK
+#set remotelogfile /dev/stdout
+target remote /dev/ttyUSB0
+c
