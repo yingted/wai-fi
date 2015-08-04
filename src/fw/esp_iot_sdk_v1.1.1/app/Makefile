@@ -14,7 +14,7 @@
 TARGET = eagle
 #FLAVOR = release
 FLAVOR = debug
-DEBUG_ESP = 0
+DEBUG_ESP = 1
 GDB_STUB = 0
 
 #EXTRA_CCFLAGS += -u

@@ -40,8 +40,6 @@ void print_stack() {
 
 #ifdef DEBUG_ESP
 
-size_t icmp_net_lwip_entry_count = 0;
-
 #define esf_buf_printf os_printf
 //#define esf_buf_printf(...)
 

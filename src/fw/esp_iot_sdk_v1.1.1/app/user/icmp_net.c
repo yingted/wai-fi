@@ -13,6 +13,17 @@
 // from user_interface.h:
 #define STATION_IF      0x00
 
+#ifdef DEBUG_ESP
+static int icmp_net_lwip_entry_count = 0;
+#define ICMP_NET_LWIP_ENTER() assert(icmp_net_lwip_entry_count++ == 0)
+#define ICMP_NET_LWIP_EXIT() assert(--icmp_net_lwip_entry_count == 0)
+#define ICMP_NET_LWIP_ASSERT() assert(icmp_net_lwip_entry_count == 1)
+#else
+#define ICMP_NET_LWIP_ENTER()
+#define ICMP_NET_LWIP_EXIT()
+#define ICMP_NET_LWIP_ASSERT()
+#endif
+
 #define L2_HLEN (PBUF_LINK_HLEN + IP_HLEN)
 #define L3_HLEN (L2_HLEN + sizeof(struct icmp_echo_hdr))
 
@@ -201,9 +212,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     extern ip_addr_t current_iphdr_src;
 
     if (ip_addr_cmp(&current_iphdr_src, &config->relay_ip)) {
-#ifdef DEBUG_ESP
-        assert(icmp_net_lwip_entry_count == 1);
-#endif
+        ICMP_NET_LWIP_ASSERT();
         user_dprintf("enqueuing %p len=%u", p, p->tot_len);
         pbuf_ref(p);
         int i;
@@ -219,9 +228,7 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
             user_dprintf("dropped ethernet frame");
         }
         drop_echo_reply(config);
-#ifdef DEBUG_ESP
-        assert(icmp_net_lwip_entry_count == 1);
-#endif
+        ICMP_NET_LWIP_ASSERT();
     }
 }
 
@@ -259,7 +266,7 @@ static void process_queued_pbufs() {
 }
 
 ICACHE_FLASH_ATTR
-err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
+static err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     assert_heap();
     assert(p->tot_len < 2000);
     err_t ret = etharp_output(netif, p, ipaddr);
@@ -319,19 +326,17 @@ err_t icmp_net_init(struct netif *netif) {
 }
 
 ICACHE_FLASH_ATTR
-err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
+static err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
 #ifdef DEBUG_ESP
     assert_heap();
     user_dprintf("%p %p", p, netif);
     assert(p->ref >= 1);
     assert(p->len < 2000);
     assert(p->tot_len < 2000);
-    assert(icmp_net_lwip_entry_count++ == 0);
 #endif
+    ICMP_NET_LWIP_ENTER();
     err_t ret = ethernet_input(p, netif);
-#ifdef DEBUG_ESP
-    assert(--icmp_net_lwip_entry_count == 0);
-#endif
+    ICMP_NET_LWIP_EXIT();
     process_queued_pbufs();
     return ret;
 }
@@ -362,21 +367,16 @@ void icmp_net_unenslave(struct icmp_net_config *config) {
 void __real_sys_check_timeouts(void);
 ICACHE_FLASH_ATTR
 void __wrap_sys_check_timeouts(void) {
-#ifdef DEBUG_ESP
-    //assert_heap();
-    assert(icmp_net_lwip_entry_count++ == 0);
-#endif
+    ICMP_NET_LWIP_ENTER();
     __real_sys_check_timeouts();
-#ifdef DEBUG_ESP
-    assert(--icmp_net_lwip_entry_count == 0);
-#endif
+    ICMP_NET_LWIP_EXIT();
     process_queued_pbufs();
 }
 
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
-    user_dprintf("%p %p", p, inp);
+    ICMP_NET_LWIP_ENTER();
     assert((((size_t)p->payload) & 0x1) == 0);
     assert(p->ref >= 1);
     assert(p->len < 2000);
@@ -478,6 +478,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 end:
         assert_heap();
         pbuf_free(p);
+        ICMP_NET_LWIP_EXIT();
         return;
     }
 
@@ -485,4 +486,5 @@ skip:
     assert_heap();
     __real_icmp_input(p, inp);
     assert_heap();
+    ICMP_NET_LWIP_EXIT();
 }

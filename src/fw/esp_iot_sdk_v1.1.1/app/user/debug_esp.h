@@ -13,7 +13,6 @@ void print_stack();
 #endif
 
 #ifdef DEBUG_ESP
-extern size_t icmp_net_lwip_entry_count;
 
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
