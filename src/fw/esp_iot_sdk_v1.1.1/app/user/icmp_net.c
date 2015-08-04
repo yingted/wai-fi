@@ -373,9 +373,11 @@ void __wrap_sys_check_timeouts(void) {
     process_queued_pbufs();
 }
 
+static size_t icmp_input_entry_count = 0;
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
+    assert(icmp_input_entry_count++ == 0);
     assert((((size_t)p->payload) & 0x1) == 0);
     assert(p->ref >= 1);
     assert(p->len < 2000);
@@ -477,6 +479,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 end:
         assert_heap();
         pbuf_free(p);
+        assert(--icmp_input_entry_count == 0);
         return;
     }
 
@@ -484,4 +487,5 @@ skip:
     assert_heap();
     __real_icmp_input(p, inp);
     assert_heap();
+    assert(--icmp_input_entry_count == 0);
 }
