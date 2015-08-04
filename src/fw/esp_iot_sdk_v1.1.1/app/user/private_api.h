@@ -2,7 +2,7 @@
 #define __PRIVATE_API_H__
 
 #include "user_config.h"
-#include "os_type.h"
+#include <os_type.h>
 
 void *aes_encrypt_init(const uint8 *key, size_t len);
  

@@ -1,6 +1,6 @@
-#include "xtensa/config/core-isa.h"
-#include "xtensa/corebits.h"
-#include "xtensa/xtruntime-frames.h"
+#include <xtensa/config/core-isa.h>
+#include <xtensa/corebits.h>
+#include <xtensa/xtruntime-frames.h>
 
 #if XCHAL_HAVE_WINDOWED
 #define REG_XTENSA_HAVE_CALL0 0

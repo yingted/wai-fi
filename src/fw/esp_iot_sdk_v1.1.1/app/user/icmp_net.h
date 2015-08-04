@@ -3,8 +3,8 @@
 
 #include "user_config.h"
 #include "ip_addr.h"
-#include "lwip/err.h"
-#include "lwip/netif.h"
+#include <lwip/err.h>
+#include <lwip/netif.h>
 
 // Must be a power of 2
 #define ICMP_NET_QSIZE 4U

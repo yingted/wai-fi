@@ -1,9 +1,9 @@
 #include "user_config.h"
-#include "user_interface.h"
-#include "debug_esp.h"
-#include "connmgr.h"
-#include "espconn.h"
-#include "gdb_stub.h"
+#include <user_interface.h>
+#include <debug_esp.h>
+#include <connmgr.h>
+#include <espconn.h>
+#include <gdb_stub.h>
 
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {

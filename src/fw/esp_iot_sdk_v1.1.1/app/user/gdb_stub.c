@@ -1,11 +1,11 @@
 #ifdef GDB_STUB
 #include "user_config.h"
-#include "xtensa/xtruntime-frames.h"
-#include "xtensa/corebits.h"
-#include "espressif/esp8266/uart_register.h"
-#include "gdb_stub.h"
-#include "eagle_soc.h"
-#include "ets_sys.h"
+#include <xtensa/xtruntime-frames.h>
+#include <xtensa/corebits.h>
+#include <espressif/esp8266/uart_register.h>
+#include <gdb_stub.h>
+#include <eagle_soc.h>
+#include <ets_sys.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -42,7 +42,7 @@ struct GdbFrame {
 #define XTREG_ty2(name, tnum, ...) \
     struct GdbRegister name;
 #define XTREG_ty8(...) XTREG_ty2(__VA_ARGS__)
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty2
 #undef XTREG_ty8
 };
@@ -294,7 +294,7 @@ static void gdb_restore_state() {
     if (regs.name.valid) { \
         __asm__ __volatile__("wsr %0, %1"::"r"(regs.name.value), "i"(tnum & 0xff)); \
     }
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty2
 #undef XTREG_ty8
 
@@ -304,7 +304,7 @@ static void gdb_restore_state() {
         "mov a15, %0\n" // a15 is the last register restored
 #define XTREG_ty8(name, tnum, ...) \
         "l32i " #name ", a15, %[" #name "]\n"
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty8
         "isync\n"
         "extw\n"
@@ -313,7 +313,7 @@ static void gdb_restore_state() {
 #define XTREG_ty8(name, tnum, ...) \
         , [name] "i"(offsetof(struct GdbFrame, name.value))
         //, [name] "i"(((char *)&regs.name.value) - ((char *)&regs))
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty8
     );
 #undef XTREG_ty2
@@ -444,7 +444,7 @@ retrans:
                         const static uint8_t regno[] = {
 #define XTREG_ty2(...) XTREG_ty8(__VA_ARGS__)
 #define XTREG_ty8(name, tnum, index, ...) index,
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty8
 #undef XTREG_ty2
                         };
@@ -614,7 +614,7 @@ void gdb_stub_exception_handler(UserFrame *frame, bool is_debug) {
 #define XTREG_ty2(name, tnum, ...) \
     size_t sr_ ## name; \
     __asm__("rsr %0, %1":"=r"(sr_ ## name):"i"(tnum & 0xff)); // special
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty2
 
     os_memset(&regs, 0, sizeof(regs));
@@ -641,7 +641,7 @@ void gdb_stub_exception_handler(UserFrame *frame, bool is_debug) {
     // Save special registers
 #define XTREG_ty2(name, tnum, ...) \
     SET_REG(name, sr_ ## name);
-#include "lx106-overlay/xtensa-config-xtreg.h"
+#include <lx106-overlay/xtensa-config-xtreg.h>
 #undef XTREG_ty2
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
@@ -707,7 +707,7 @@ void gdb_stub_DebugExceptionVector_1() {
 #define REG_XTENSA_special 0
 #define REG_XTENSA_reg32(x, have) \
     IF(have, __asm__("s32i " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
-#include "xtruntime-frames-uexc.h"
+#include <xtruntime-frames-uexc.h>
 #undef REG_XTENSA_reg32
 
     // populate the other UserFrame fields
