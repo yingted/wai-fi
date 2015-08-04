@@ -1,4 +1,3 @@
-#ifdef GDB_STUB
 #include <user_config.h>
 #include <xtensa/xtruntime-frames.h>
 #include <xtensa/corebits.h>
@@ -11,10 +10,6 @@
 
 #define SIZE_MAX ((size_t)~0)
 
-void gdb_stub_DebugExceptionVector();
-void gdb_stub_DebugExceptionVector_1();
-static void gdb_send_stop_reply();
-
 // Template function macros
 #define IF_0(then, else, ...) else
 #define IF_1(then, else, ...) then
@@ -23,6 +18,12 @@ static void gdb_send_stop_reply();
 #define STR(x) STR2(x)
 #define CONCAT2(a, b) a ## b
 #define CONCAT(a, b) CONCAT2(a, b)
+
+#ifdef GDB_STUB
+
+void gdb_stub_DebugExceptionVector();
+void gdb_stub_DebugExceptionVector_1();
+static void gdb_send_stop_reply();
 
 #define XTREG_y1(...)
 #define XTREG_y0(x, ...) XTREG_x ## x(__VA_ARGS__)

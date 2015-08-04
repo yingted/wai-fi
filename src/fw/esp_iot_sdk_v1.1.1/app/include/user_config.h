@@ -44,7 +44,7 @@ EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_
 
 #define USER_INTR_UNLOCK() do { \
     /*USER_MEM_BARRIER();*/ \
-    ets_intr_lock(); \
+    ets_intr_unlock(); \
 } while (0)
 
 #define USER_DATA32_ATTR /*__attribute__((aligned(4))) ICACHE_RODATA_ATTR*/
