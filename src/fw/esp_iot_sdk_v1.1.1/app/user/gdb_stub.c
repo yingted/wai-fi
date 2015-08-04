@@ -49,7 +49,7 @@ struct GdbFrame {
 
 #define XTREG_ty6(...) // mask
 
-static bool gdb_attached;
+static bool gdb_attached = false, gdb_stopped = false;
 static struct GdbFrame regs;
 #define SET_REG(x, arg) do { \
     regs.x.value = arg; \
@@ -92,12 +92,14 @@ static char real_getc1() {
 ICACHE_FLASH_ATTR
 static void gdb_uart_intr_handler(void *arg) {
     size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
-    user_dprintf("uart status %p", (void *)status);
     if (status & UART_BRK_DET_INT_ST) {
         WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST);
-        user_dprintf("got break @@@@@@@@@@@@@@@@@@@@");
-        // We got a break from GDB. Attach GDB.
-        gdb_stub_break();
+        // Only GDB would send a break.
+        gdb_attached = true;
+        if (!gdb_stopped) {
+            // We got a break from GDB. Attach GDB.
+            gdb_stub_break();
+        }
     }
 }
 
@@ -336,7 +338,7 @@ ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
-    gdb_attached = true;
+    gdb_attached = gdb_stopped = true;
     size_t debug_break_size = 0;
     outbuf_unbuffered = false;
 
@@ -597,6 +599,7 @@ cont:
         wsr.ps %0\n\
         esync\n\
     "::"r"(saved_ps));
+    gdb_stopped = false;
     gdb_restore_state();
 }
 
@@ -684,7 +687,8 @@ void gdb_stub_init() {
 
     // Enable Ctrl-C
     ETS_UART_INTR_ATTACH(gdb_uart_intr_handler, NULL);
-    SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ENA|UART_RXFIFO_TOUT_INT_ENA|UART_BRK_DET_INT_ENA);
+    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
+    ETS_UART_INTR_ENABLE();
 
     // Try to get GCC to reference the symbols
     __asm__ __volatile__("":"=r"(i));

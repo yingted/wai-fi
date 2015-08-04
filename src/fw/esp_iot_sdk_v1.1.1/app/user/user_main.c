@@ -8,18 +8,14 @@
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {
     debug_esp_install_exc_handler();
-    gdb_stub_init();
 }
 
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
+    gdb_stub_init();
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
-
-    gdb_stub_break();
-    user_dprintf("Continued");
-    gdb_stub_break();
 
     connmgr_init();
     connmgr_start();

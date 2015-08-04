@@ -3,6 +3,7 @@ set remote hardware-watchpoint-limit 1
 set remote hardware-breakpoint-limit 1
 set remote interrupt-sequence BREAK
 #set remotelogfile /dev/stdout
+shell TERM=linux screen -c gdb_screenrc /dev/ttyUSB0 115200 &>/dev/null <&1
 target remote /dev/ttyUSB0
 info all-registers
 bt
