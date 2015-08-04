@@ -280,9 +280,6 @@ static void gdb_restore_state() {
     gdb_write_reset();
     assert(regs.EPC_REG.valid);
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
-    user_dprintf("Resuming at pc=%p, ps=%p",
-        (void *)regs.EPC_REG.value,
-        (void *)regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
     gdb_send_stop_reply();
     outbuf_unbuffered = true;
 
@@ -328,7 +325,6 @@ ICACHE_FLASH_ATTR
 static void gdb_icount_in(size_t n) {
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
     int intlevel = (regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
-    user_dprintf("Stepping at intlevel=%d", intlevel);
     SET_REG(icountlevel, 1 + intlevel);
     SET_REG(icount, ~n);
 }
