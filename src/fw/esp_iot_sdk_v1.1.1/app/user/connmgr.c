@@ -39,7 +39,8 @@ static void schedule_reconnect() {
     connmgr_connected = false;
     connmgr_disconnect_cb();
 #ifdef DEBUG_ESP
-    ssl_connect();
+    // Delay a bit, so we get out of the NMI
+    sys_timeout(1, ssl_connect, NULL);
 #else
     sys_timeout(1000, ssl_connect, NULL);
 #endif
@@ -60,6 +61,8 @@ ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
 
+    // XXX Can be called from NMI, should queue until
+    // after unlock.
 #if 0
     switch (err) {
         case ESPCONN_CONN: // -11
