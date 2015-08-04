@@ -85,6 +85,10 @@ static void drop_echo_reply(struct icmp_net_config *config) {
 #endif
         process_pbuf(config, p);
         pbuf_free(p);
+        // We could have dropped packets in process_pbuf
+        if (ICMP_NET_CONFIG_QLEN(config) == 0) {
+            break;
+        }
     }
     assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
 }
