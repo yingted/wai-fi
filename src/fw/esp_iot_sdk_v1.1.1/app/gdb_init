@@ -2,8 +2,7 @@ file .output/eagle/debug/image/eagle.app.v6.out
 set remote hardware-watchpoint-limit 1
 set remote hardware-breakpoint-limit 1
 set remote interrupt-sequence BREAK
-set remotebreak
-set remotelogfile /dev/stdout
+#set remotelogfile /dev/stdout
 target remote /dev/ttyUSB0
 info all-registers
 bt

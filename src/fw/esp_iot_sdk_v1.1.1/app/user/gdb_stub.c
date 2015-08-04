@@ -92,8 +92,10 @@ static char real_getc1() {
 ICACHE_FLASH_ATTR
 static void gdb_uart_intr_handler(void *arg) {
     size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
+    user_dprintf("uart status %p", (void *)status);
     if (status & UART_BRK_DET_INT_ST) {
         WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST);
+        user_dprintf("got break @@@@@@@@@@@@@@@@@@@@");
         // We got a break from GDB. Attach GDB.
         gdb_stub_break();
     }
@@ -183,7 +185,6 @@ ICACHE_FLASH_ATTR
 static void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
     os_install_putc1(gdb_putc1);
-    SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ENA|UART_RXFIFO_TOUT_INT_ENA|UART_BRK_DET_INT_ENA);
 }
 
 ICACHE_FLASH_ATTR
@@ -681,7 +682,9 @@ void gdb_stub_init() {
         _xtos_set_exception_handler(exceptions[i], gdb_stub_exception_handler_exc);
     }
 
+    // Enable Ctrl-C
     ETS_UART_INTR_ATTACH(gdb_uart_intr_handler, NULL);
+    SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ENA|UART_RXFIFO_TOUT_INT_ENA|UART_BRK_DET_INT_ENA);
 
     // Try to get GCC to reference the symbols
     __asm__ __volatile__("":"=r"(i));
