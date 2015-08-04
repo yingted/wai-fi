@@ -1,8 +1,7 @@
 #ifndef __USER_CONFIG_H__
 #define __USER_CONFIG_H__
 
-#include "osapi.h"
-#include "user_overlay.h"
+#include <osapi.h>
 
 #ifdef NDEBUG
 #define user_dprintf(...)
@@ -27,11 +26,11 @@
 
 // I don't understand why this is necessary for ABI compatibility
 #define mtu mtu __attribute__((aligned(4)))
-#include "lwip/netif.h"
+#include <lwip/netif.h>
 #undef mtu
 
-#include "ssl/ssl_ssl.h"
-#include "ssl/ssl_tls1.h"
+#include <ssl/ssl_ssl.h>
+#include <ssl/ssl_tls1.h>
 struct tcp_pcb;
 EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb, const
                                                 uint8_t *session_id, uint8_t sess_id_size);
