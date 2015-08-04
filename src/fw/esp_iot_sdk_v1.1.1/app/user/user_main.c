@@ -15,7 +15,7 @@ void user_init(void) {
     system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     gdb_stub_init();
-    user_dprintf("set cpu freq to %d", system_get_cpu_freq());
+    user_dprintf("Starting up...");
 
     connmgr_init();
     connmgr_start();
