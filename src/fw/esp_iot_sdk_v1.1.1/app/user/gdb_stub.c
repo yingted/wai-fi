@@ -49,7 +49,7 @@ struct GdbFrame {
 
 #define XTREG_ty6(...) // mask
 
-static bool gdb_attached = false, gdb_stopped = false;
+static bool gdb_attached = false;
 static struct GdbFrame regs;
 #define SET_REG(x, arg) do { \
     regs.x.value = arg; \
@@ -94,12 +94,11 @@ static void gdb_uart_intr_handler(void *arg) {
     size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
     if (status & UART_BRK_DET_INT_ST) {
         WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST);
-        // Only GDB would send a break.
-        gdb_attached = true;
-        if (!gdb_stopped) {
-            // We got a break from GDB. Attach GDB.
-            gdb_stub_break();
-        }
+        // We got a break from GDB. Attach GDB.
+        gdb_stub_break();
+    } else {
+        // Discard these
+        WRITE_PERI_REG(UART_INT_CLR(GDB_UART), status);
     }
 }
 
@@ -338,7 +337,8 @@ ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
-    gdb_attached = gdb_stopped = true;
+    gdb_attached = true;
+    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
     size_t debug_break_size = 0;
     outbuf_unbuffered = false;
 
@@ -599,7 +599,7 @@ cont:
         wsr.ps %0\n\
         esync\n\
     "::"r"(saved_ps));
-    gdb_stopped = false;
+    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
     gdb_restore_state();
 }
 

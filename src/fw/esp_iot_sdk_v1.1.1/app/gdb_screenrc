@@ -1,0 +1,4 @@
+term linux
+screen /dev/ttyUSB0 115200
+break
+quit
