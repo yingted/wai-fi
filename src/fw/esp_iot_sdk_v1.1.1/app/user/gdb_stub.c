@@ -325,7 +325,7 @@ static void gdb_restore_state() {
 ICACHE_FLASH_ATTR
 static void gdb_icount_in(size_t n) {
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
-    int intlevel = (regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
+    int intlevel = PS_INTLEVEL(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
     SET_REG(icountlevel, 1 + intlevel);
     SET_REG(icount, ~n);
 }

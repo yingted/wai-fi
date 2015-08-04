@@ -2,6 +2,7 @@
 #define __USER_CONFIG_H__
 
 #include <osapi.h>
+#include <xtensa/corebits.h>
 
 #ifdef NDEBUG
 #define user_dprintf(...)
@@ -52,15 +53,15 @@ EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_
  */
 #define USER_INTR_LOCK() do { \
     ets_intr_lock(); \
-    size_t intlevel; \
-    __asm__ __volatile__("rsr %0, ps.intlevel":"=r"(intlevel)); \
-    assert(intr_lock_count[intlevel]++ == intr_lock_count_sum++); \
+    size_t ps; \
+    __asm__ __volatile__("rsr %0, ps":"=r"(ps)); \
+    assert(intr_lock_count[PS_INTLEVEL(ps)]++ == intr_lock_count_sum++); \
 } while (0)
 
 #define USER_INTR_UNLOCK() do { \
-    size_t intlevel; \
-    __asm__ __volatile__("rsr %0, ps.intlevel":"=r"(intlevel)); \
-    assert(--intr_lock_count[intlevel] == --intr_lock_count_sum); \
+    size_t ps; \
+    __asm__ __volatile__("rsr %0, ps":"=r"(ps)); \
+    assert(--intr_lock_count[PS_INTLEVEL(ps)] == --intr_lock_count_sum); \
     ets_intr_unlock(); \
 } while (0)
 

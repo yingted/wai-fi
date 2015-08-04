@@ -39,7 +39,7 @@ ifeq ($(FLAVOR),release)
     GDB_STUB = 0
 endif
 ifeq ($(GDB_STUB),1)
-    DEBUG_ESP = 0
+    #DEBUG_ESP = 0
 endif
 
 # Now, we need to use MY_LD_FILE instead of LD_FILE
