@@ -17,37 +17,6 @@ void user_init(void) {
     uart_div_modify(0, UART_CLK_FREQ / 115200);
     user_dprintf("set cpu freq to %d", system_get_cpu_freq());
 
-#if 0
-    __asm__ __volatile__("\
-        wsr.icountlevel %0\n\
-        esync\n\
-        wsr.icount %2\n\
-        wsr.icountlevel %1\n\
-        esync\n\
-    "::"r"(0), "r"(1), "r"(-10));
-    int i;
-    for (i = 0; i < 10; ++i);
-#endif
-
-#if 0
-    __asm__ __volatile__("\
-        mov.n a10, a0\n\
-        mov.n a11, a1\n\
-        movi.n a2, 0x22\n\
-        movi.n a3, 0x33\n\
-        movi.n a4, 0x44\n\
-        movi.n a5, 0x55\n\
-        movi.n a6, 0x66\n\
-        movi.n a7, 0x77\n\
-        movi.n a8, 0x88\n\
-        movi.n a9, 0x99\n\
-        movi.n a12, 0x12\n\
-        movi.n a13, 0x13\n\
-        movi.n a14, 0x14\n\
-        movi.n a15, 0x15\n\
-        "/*s32i.n a2, a2, 0*/"\n\
-    ");
-#endif
     gdb_stub_break();
     user_dprintf("Continued");
     gdb_stub_break();

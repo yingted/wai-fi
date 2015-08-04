@@ -12,6 +12,7 @@
 
 void gdb_stub_DebugExceptionVector();
 void gdb_stub_DebugExceptionVector_1();
+static void gdb_send_stop_reply();
 
 // Template function macros
 #define IF_0(then, else, ...) else
@@ -153,18 +154,23 @@ static void gdb_write_flush() {
     gdb_write_byte(gdb_write_cksum);
 }
 
+static bool outbuf_unbuffered = false;
 static char outbuf[256];
 static uint16_t outbuf_head, outbuf_tail;
 ICACHE_FLASH_ATTR
 static void gdb_putc1(char c) {
     outbuf[outbuf_tail++] = c;
     outbuf_tail %= sizeof(outbuf);
+    if (outbuf_unbuffered) {
+        gdb_write_reset();
+        gdb_send_stop_reply();
+    }
 }
 
 ICACHE_FLASH_ATTR
 static void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
-    //os_install_putc1(gdb_putc1);
+    os_install_putc1(gdb_putc1);
 }
 
 ICACHE_FLASH_ATTR
@@ -263,6 +269,7 @@ static void gdb_restore_state() {
         (void *)regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value,
         (void *)regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
     gdb_send_stop_reply();
+    outbuf_unbuffered = true;
 
     // Restore special registers
 #pragma push_macro("XTREG")
@@ -308,6 +315,7 @@ static void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     size_t debug_break_size = 0;
+    outbuf_unbuffered = false;
 
     // We can only have 1 debug cause
     switch (debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
@@ -346,7 +354,7 @@ static void gdb_attach(int exccause, int debugcause) {
 
     if (should_output_stopped) {
         gdb_write_reset();
-        gdb_write_string(debugcause ? "S15" : "S09");
+        gdb_write_string(debugcause ? "S02" : "S09");
         gdb_write_flush();
     }
 
@@ -368,7 +376,7 @@ retrans:
             switch (cmd) {
                 case '?':
                     GDB_READ();
-                    gdb_write_string(debugcause ? "S15" : "S09");
+                    gdb_write_string(debugcause ? "S02" : "S09");
                     break;
                 case 'c': {
                     size_t pc = gdb_read_int();
