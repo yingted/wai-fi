@@ -5,6 +5,7 @@
 #include "espressif/esp8266/uart_register.h"
 #include "gdb_stub.h"
 #include "eagle_soc.h"
+#include "ets_sys.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -56,6 +57,7 @@ static struct GdbFrame regs;
 } while (0)
 
 #define GDB_UART 0
+#define EPC_REG CONCAT(epc, XCHAL_DEBUGLEVEL)
 
 ICACHE_FLASH_ATTR
 static void real_putc1(char c) {
@@ -84,6 +86,16 @@ static char real_getc1() {
         }
         // if (status & UART_TXFIFO_EMPTY_INT_ST) ...
         // if (status & UART_RXFIFO_OVF_INT_ST) ...
+    }
+}
+
+ICACHE_FLASH_ATTR
+static void gdb_uart_intr_handler(void *arg) {
+    size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
+    if (status & UART_BRK_DET_INT_ST) {
+        WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST);
+        // We got a break from GDB. Attach GDB.
+        gdb_stub_break();
     }
 }
 
@@ -171,6 +183,7 @@ ICACHE_FLASH_ATTR
 static void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
     os_install_putc1(gdb_putc1);
+    SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ENA|UART_RXFIFO_TOUT_INT_ENA|UART_BRK_DET_INT_ENA);
 }
 
 ICACHE_FLASH_ATTR
@@ -263,10 +276,10 @@ ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_restore_state() {
     gdb_write_reset();
-    assert(regs.CONCAT(epc, XCHAL_DEBUGLEVEL).valid);
+    assert(regs.EPC_REG.valid);
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
     user_dprintf("Resuming at pc=%p, ps=%p",
-        (void *)regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value,
+        (void *)regs.EPC_REG.value,
         (void *)regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
     gdb_send_stop_reply();
     outbuf_unbuffered = true;
@@ -307,6 +320,15 @@ static void gdb_restore_state() {
 #undef XTREG_ty2
 #pragma pop_macro("XTREG")
     for (;;); // unreachable
+}
+
+ICACHE_FLASH_ATTR
+static void gdb_icount_in(size_t n) {
+    assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
+    int intlevel = (regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
+    user_dprintf("Stepping at intlevel=%d", intlevel);
+    SET_REG(icountlevel, 1 + intlevel);
+    SET_REG(icount, ~n);
 }
 
 ICACHE_FLASH_ATTR
@@ -378,15 +400,20 @@ retrans:
                     GDB_READ();
                     gdb_write_string(debugcause ? "S02" : "S09");
                     break;
+                case 's':
                 case 'c': {
                     size_t pc = gdb_read_int();
                     bool set_pc = !gdb_read_err;
                     GDB_READ();
                     if (set_pc) {
-                        SET_REG(pc, pc);
+                        SET_REG(EPC_REG, pc);
+                        debug_break_size = 0;
                     } else if (!regs.pc.valid) {
                         gdb_write_string("E01");
                         goto next;
+                    }
+                    if (cmd == 's') {
+                        gdb_icount_in(1);
                     }
                     gdb_write_string("O");
                     goto cont;
@@ -533,11 +560,7 @@ retrans:
                         for (;;);
                     }
                     if (cmd == 'S') {
-                        assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
-                        int intlevel = (regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value & XCHAL_PS_INTLEVEL_MASK) >> XCHAL_PS_INTLEVEL_SHIFT;
-                        user_dprintf("Stepping at intlevel=%d", intlevel);
-                        SET_REG(icountlevel, 1 + intlevel);
-                        SET_REG(icount, -2);
+                        gdb_icount_in(1);
                     }
                     // Send an empty O packet to keep gdb listening
                     gdb_write_string("O");
@@ -566,8 +589,8 @@ cont:
     ets_wdt_restore(saved_wdt_mode);
     assert(regs.pc.valid);
     regs.pc.value += debug_break_size;
-    assert(regs.CONCAT(epc, XCHAL_DEBUGLEVEL).valid);
-    regs.CONCAT(epc, XCHAL_DEBUGLEVEL).value += debug_break_size;
+    assert(regs.EPC_REG.valid);
+    regs.EPC_REG.value += debug_break_size;
     __asm__ __volatile__("\
         esync\n\
         wsr.ps %0\n\
@@ -657,6 +680,8 @@ void gdb_stub_init() {
     for (i = 0; i != sizeof(exceptions); ++i) {
         _xtos_set_exception_handler(exceptions[i], gdb_stub_exception_handler_exc);
     }
+
+    ETS_UART_INTR_ATTACH(gdb_uart_intr_handler, NULL);
 
     // Try to get GCC to reference the symbols
     __asm__ __volatile__("":"=r"(i));
