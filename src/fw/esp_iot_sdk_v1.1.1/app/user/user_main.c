@@ -118,7 +118,6 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
                 num_bufs = pbuf_clen(logbuf_head);
             }
             if (num_bufs >= MAX_LOGBUF) {
-                user_dprintf("hit alloc limit");
                 goto out;
             }
         }

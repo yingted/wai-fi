@@ -12,7 +12,6 @@ void gdb_stub_init();
 /**
  * Break and enter the debugger.
  * Calling this allow the debugger to attach.
- * TODO make this work
  */
 #define gdb_stub_break() __asm__ __volatile__("break 1, 1")
 #else
