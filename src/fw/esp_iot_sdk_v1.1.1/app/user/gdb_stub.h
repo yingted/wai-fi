@@ -1,7 +1,7 @@
 #ifndef __GDB_STUB_H__
 #define __GDB_STUB_H__
 
-#include "user_config.h"
+#include <user_config.h>
 
 #ifdef GDB_STUB
 /**

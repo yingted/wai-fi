@@ -1,7 +1,7 @@
 #ifndef __CONNMGR_H__
 #define __CONNMGR_H__
 
-#include "user_config.h"
+#include <user_config.h>
 
 void connmgr_init();
 void connmgr_start();

@@ -1,8 +1,8 @@
 #ifndef __ICMP_NET_H__
 #define __ICMP_NET_H__
 
-#include "user_config.h"
-#include "ip_addr.h"
+#include <user_config.h>
+#include <ip_addr.h>
 #include <lwip/err.h>
 #include <lwip/netif.h>
 

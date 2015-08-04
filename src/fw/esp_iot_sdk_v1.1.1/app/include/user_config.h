@@ -21,7 +21,7 @@
 #endif
 
 // fix header conflict
-#include "ip_addr.h"
+#include <ip_addr.h>
 #define LWIP_OPEN_SRC
 
 // I don't understand why this is necessary for ABI compatibility

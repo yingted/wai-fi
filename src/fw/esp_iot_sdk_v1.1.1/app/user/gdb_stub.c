@@ -1,5 +1,5 @@
 #ifdef GDB_STUB
-#include "user_config.h"
+#include <user_config.h>
 #include <xtensa/xtruntime-frames.h>
 #include <xtensa/corebits.h>
 #include <espressif/esp8266/uart_register.h>
