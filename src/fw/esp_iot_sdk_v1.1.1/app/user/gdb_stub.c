@@ -683,6 +683,7 @@ void gdb_stub_init() {
     }
 
     // Enable Ctrl-C
+    ETS_UART_INTR_DISABLE();
     ETS_UART_INTR_ATTACH(gdb_uart_intr_handler, NULL);
     WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
     ETS_UART_INTR_ENABLE();

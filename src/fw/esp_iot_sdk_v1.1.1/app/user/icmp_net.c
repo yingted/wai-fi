@@ -75,6 +75,7 @@ static void drop_echo_reply(struct icmp_net_config *config) {
         process_pbuf(config, p);
         pbuf_free(p);
     }
+    assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
 }
 
 ICACHE_FLASH_ATTR
@@ -138,6 +139,7 @@ send:
             user_dprintf("drop packet #%u", config->recv_i);
             drop_echo_reply(config);
         }
+        assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
         assert(ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_QSIZE);
         config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
         short seqno = config->send_i++;
@@ -435,6 +437,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         for (config = root; config; config = config->next) {
             assert_heap();
             ICMP_NET_CONFIG_LOCK(config);
+            assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
             if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
                 user_dprintf("receive window [%u, %u)", config->recv_i, config->send_i);
                 assert(p->ref >= 1);
