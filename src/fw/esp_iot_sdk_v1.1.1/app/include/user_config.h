@@ -13,16 +13,11 @@
     os_printf("\n"); \
 } while (0)
 
-#ifdef GDB_STUB
-#define FATAL_ERROR() gdb_stub_break()
-#else
-#define FATAL_ERROR() print_stack()
-#endif
-
 #define assert(arg) do { \
     if (!(arg)) { \
         user_dprintf("assertion failed: %s", #arg); \
-        FATAL_ERROR(); \
+        print_stack(); \
+        gdb_stub_break(); \
         system_restart(); \
     } \
 } while (0)
