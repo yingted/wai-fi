@@ -18,7 +18,7 @@
     if (!(arg)) { \
         user_dprintf("assertion failed: %s", #arg); \
         print_stack(); \
-        gdb_stub_break(); \
+        gdb_stub_break_force(); \
         system_restart(); \
     } \
 } while (0)
