@@ -1,6 +1,8 @@
 #ifndef __DEBUG_ESP_H__
 #define __DEBUG_ESP_H__
 
+#include <xtensa/config/core-isa.h>
+
 #ifndef NDEBUG
 void print_stack();
 #define print_stack_once() do { \
@@ -27,6 +29,8 @@ void debug_esp_install_exc_handler();
 #define inet_chksum_pbuf __real_inet_chksum_pbuf
 #define mem_malloc __real_mem_malloc
 #define mem_realloc __real_mem_realloc
+
+extern size_t intr_lock_count[XCHAL_NMILEVEL], intr_lock_count_sum;
 
 #else
 

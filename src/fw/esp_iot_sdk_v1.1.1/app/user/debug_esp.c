@@ -8,6 +8,7 @@
 #include <lwip/netif.h>
 #include <lwip/netif/etharp.h>
 #include <stddef.h>
+#include <xtensa/config/core-isa.h>
 
 __attribute__((always_inline))
 static inline void print_stack_() {
@@ -340,6 +341,8 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
     assert_heap();
     assert(--count == 0);
 }
+
+size_t intr_lock_count[XCHAL_NMILEVEL] = {0}, intr_lock_count_sum = 0;
 
 #else
 

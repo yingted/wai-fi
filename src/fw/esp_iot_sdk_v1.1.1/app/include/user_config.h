@@ -41,17 +41,30 @@ struct tcp_pcb;
 EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb, const
                                                 uint8_t *session_id, uint8_t sess_id_size);
 
-#define USER_MEM_BARRIER() __sync_synchronize()
+#ifndef DEBUG_ESP
+#define USER_INTR_LOCK() ets_intr_lock()
+#define USER_INTR_UNLOCK() ets_intr_unlock()
+#else
 
+/**
+ * The invariant of a reentrant interrupt lock is that only one intlevel can
+ * hold the lock at a time.
+ */
 #define USER_INTR_LOCK() do { \
     ets_intr_lock(); \
-    /*USER_MEM_BARRIER();*/ \
+    size_t intlevel; \
+    __asm__ __volatile__("rsr %0, ps.intlevel":"=r"(intlevel)); \
+    assert(intr_lock_count[intlevel]++ == intr_lock_count_sum++); \
 } while (0)
 
 #define USER_INTR_UNLOCK() do { \
-    /*USER_MEM_BARRIER();*/ \
+    size_t intlevel; \
+    __asm__ __volatile__("rsr %0, ps.intlevel":"=r"(intlevel)); \
+    assert(--intr_lock_count[intlevel] == --intr_lock_count_sum); \
     ets_intr_unlock(); \
 } while (0)
+
+#endif
 
 #define USER_DATA32_ATTR /*__attribute__((aligned(4))) ICACHE_RODATA_ATTR*/
 
