@@ -376,7 +376,6 @@ void __wrap_sys_check_timeouts(void) {
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
-    ICMP_NET_LWIP_ENTER();
     assert((((size_t)p->payload) & 0x1) == 0);
     assert(p->ref >= 1);
     assert(p->len < 2000);
@@ -478,7 +477,6 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
 end:
         assert_heap();
         pbuf_free(p);
-        ICMP_NET_LWIP_EXIT();
         return;
     }
 
@@ -486,5 +484,4 @@ skip:
     assert_heap();
     __real_icmp_input(p, inp);
     assert_heap();
-    ICMP_NET_LWIP_EXIT();
 }
