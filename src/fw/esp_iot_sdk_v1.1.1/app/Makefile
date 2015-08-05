@@ -16,6 +16,10 @@ TARGET = eagle
 FLAVOR = debug
 DEBUG_ESP = 1
 GDB_STUB = 1
+GDB_STUB_STARTUP = 0
+ifneq ($(GDB_STUB),1)
+    GDB_STUB_STARTUP = 0
+endif
 
 #EXTRA_CCFLAGS += -u
 
