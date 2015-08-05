@@ -52,6 +52,9 @@ EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_
 
 #endif
 
+// The latest SDK screws this up
+#undef ICACHE_FLASH_ATTR
+#define ICACHE_FLASH_ATTR __attribute__((section(".irom0.text")))
 #define USER_DATA32_ATTR /*__attribute__((aligned(4))) ICACHE_RODATA_ATTR*/
 
 #endif

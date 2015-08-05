@@ -360,13 +360,6 @@ void debug_esp_user_intr_unlock() {
     assert(--intr_lock_count[PS_INTLEVEL(ps)] == --intr_lock_count_sum);
 }
 
-ICACHE_FLASH_ATTR
-void debug_esp_fatal() {
-    print_stack();
-    gdb_stub_break_force();
-    system_restart();
-}
-
 #else
 
 void *__real_pvPortMalloc(size_t size);
@@ -381,3 +374,10 @@ void *__wrap_pvPortMalloc(size_t size) {
 }
 
 #endif
+
+ICACHE_FLASH_ATTR
+void debug_esp_fatal() {
+    print_stack();
+    gdb_stub_break_force();
+    system_restart();
+}

@@ -33,7 +33,6 @@ void debug_esp_install_exc_handler();
 extern size_t intr_lock_count[XCHAL_NMILEVEL], intr_lock_count_sum;
 void debug_esp_user_intr_lock();
 void debug_esp_user_intr_unlock();
-void debug_esp_fatal();
 
 #else
 
@@ -43,5 +42,7 @@ void debug_esp_fatal();
 #define debug_esp_install_exc_handler()
 
 #endif
+
+void debug_esp_fatal();
 
 #endif
