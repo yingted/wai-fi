@@ -47,7 +47,7 @@ ifeq ($(GDB_STUB),1)
 endif
 
 # Now, we need to use MY_LD_FILE instead of LD_FILE
-include $(PWD)/gdb_stub.mk
+include $(or $(PDIR),$(PWD))/gdb_stub.mk
 
 TARGET_LDFLAGS =		\
 	-nostdlib		\
