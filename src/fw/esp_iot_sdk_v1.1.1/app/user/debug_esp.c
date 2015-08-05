@@ -344,6 +344,29 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
 
 size_t intr_lock_count[XCHAL_NMILEVEL] = {0}, intr_lock_count_sum = 0;
 
+ICACHE_FLASH_ATTR
+void debug_esp_user_intr_lock() {
+    size_t ps;
+    __asm__ __volatile__("rsr %0, ps":"=r"(ps));
+    assert(intr_lock_count[PS_INTLEVEL(ps)]++ == intr_lock_count_sum++);
+    ets_intr_lock();
+}
+
+ICACHE_FLASH_ATTR
+void debug_esp_user_intr_unlock() {
+    ets_intr_unlock();
+    size_t ps;
+    __asm__ __volatile__("rsr %0, ps":"=r"(ps));
+    assert(--intr_lock_count[PS_INTLEVEL(ps)] == --intr_lock_count_sum);
+}
+
+ICACHE_FLASH_ATTR
+void debug_esp_fatal() {
+    print_stack();
+    gdb_stub_break_force();
+    system_restart();
+}
+
 #else
 
 void *__real_pvPortMalloc(size_t size);

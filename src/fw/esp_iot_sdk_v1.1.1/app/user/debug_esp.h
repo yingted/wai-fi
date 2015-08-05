@@ -31,6 +31,9 @@ void debug_esp_install_exc_handler();
 #define mem_realloc __real_mem_realloc
 
 extern size_t intr_lock_count[XCHAL_NMILEVEL], intr_lock_count_sum;
+void debug_esp_user_intr_lock();
+void debug_esp_user_intr_unlock();
+void debug_esp_fatal();
 
 #else
 

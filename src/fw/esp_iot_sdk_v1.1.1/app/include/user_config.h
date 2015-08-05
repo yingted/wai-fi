@@ -9,18 +9,12 @@
 #define user_dprintf(...)
 #define assert(...)
 #else
-#define user_dprintf(...) do { \
-    os_printf("%s:%d %s: ", __FILE__, __LINE__, __func__); \
-    os_printf(__VA_ARGS__); \
-    os_printf("\n"); \
-} while (0)
+#define user_dprintf(fmt, ...) os_printf("%s:%d %s: " fmt "\n", __FILE__, __LINE__, __func__, ## __VA_ARGS__)
 
 #define assert(arg) do { \
     if (!(arg)) { \
         user_dprintf("assertion failed: %s", #arg); \
-        print_stack(); \
-        gdb_stub_break_force(); \
-        system_restart(); \
+        debug_esp_fatal(); \
     } \
 } while (0)
 #endif
@@ -53,19 +47,8 @@ EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_
  * The invariant of a reentrant interrupt lock is that only one intlevel can
  * hold the lock at a time.
  */
-#define USER_INTR_LOCK() do { \
-    size_t ps; \
-    __asm__ __volatile__("rsr %0, ps":"=r"(ps)); \
-    assert(intr_lock_count[PS_INTLEVEL(ps)]++ == intr_lock_count_sum++); \
-    ets_intr_lock(); \
-} while (0)
-
-#define USER_INTR_UNLOCK() do { \
-    ets_intr_unlock(); \
-    size_t ps; \
-    __asm__ __volatile__("rsr %0, ps":"=r"(ps)); \
-    assert(--intr_lock_count[PS_INTLEVEL(ps)] == --intr_lock_count_sum); \
-} while (0)
+#define USER_INTR_LOCK() debug_esp_user_intr_lock()
+#define USER_INTR_UNLOCK() debug_esp_user_intr_unlock()
 
 #endif
 
