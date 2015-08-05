@@ -12,10 +12,14 @@
 #     a generated lib/image xxx.a ()
 #
 TARGET = eagle
+# Additional logging is disabled in release mode.
 #FLAVOR = release
 FLAVOR = debug
+# Assertions and stuff. Big performance penalty.
 DEBUG_ESP = 1
+# Allow debugging using gdb.sh and friends.
 GDB_STUB = 1
+# Code in a breakpoint at the start of user_init.
 GDB_STUB_STARTUP = 0
 ifneq ($(GDB_STUB),1)
     GDB_STUB_STARTUP = 0
