@@ -480,7 +480,7 @@ retrans:
                     break;
                 case 'z':
                 case 'Z': {
-                    uint8_t type = gdb_read_char() - '0';
+                    uint8_t type = gdb_read_int();
                     size_t kind; // not used
                     if (1 <= type && type <= 4) {
                         addr = gdb_read_int();
