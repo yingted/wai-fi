@@ -3,6 +3,7 @@
 
 #include <osapi.h>
 #include <xtensa/corebits.h>
+#include <espressif/c_types.h>
 
 #ifdef NDEBUG
 #define user_dprintf(...)
@@ -32,6 +33,7 @@
 #define LWIP_OPEN_SRC
 
 // I don't understand why this is necessary for ABI compatibility
+// Anyways, we're still not ABI-compatible with the latest SDK.
 #define mtu mtu __attribute__((aligned(4)))
 #include <lwip/netif.h>
 #undef mtu

@@ -168,9 +168,11 @@ LINKFLAGS_eagle.app.v6 += \
 	$(WRAP) \
 	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
-INCLUDES += -I $(PDIR)../include/lwip
-INCLUDES += -I $(PDIR)../include/lwip/ipv4
-INCLUDES += -I $(PDIR)../include/lwip/ipv6
+INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include
+INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip
+INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip/ipv4
+INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip/ipv6
+INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/extra_include
 
 
 PDIR := ../$(PDIR)

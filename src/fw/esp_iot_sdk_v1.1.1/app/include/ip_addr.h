@@ -9,6 +9,12 @@ struct ip_info {
     struct ip_addr gw;
 };
 
-#include <espressif/esp_misc.h>
+// We're missing a bunch of definitions
+#define IP2STR(ipaddr) ip4_addr1_16(ipaddr), \
+    ip4_addr2_16(ipaddr), \
+    ip4_addr3_16(ipaddr), \
+    ip4_addr4_16(ipaddr)
+
+#define IPSTR "%d.%d.%d.%d"
 
 #endif
