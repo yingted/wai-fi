@@ -107,7 +107,10 @@ def get_overlay_dir(mac, port):
 			yield device.overlay_dir
 	except Exception as e:
 		if overlay_dir is not None:
-			shutil.rmtree(overlay_dir)
+			try:
+				shutil.rmtree(overlay_dir)
+			except OSError:
+				pass # already gone
 		raise e
 	finally:
 		session.close()
