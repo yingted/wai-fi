@@ -4,6 +4,7 @@
 #include <connmgr.h>
 #include <espconn.h>
 #include <gdb_stub.h>
+#include <lwip/netif.h>
 
 __attribute__((weak))
 ICACHE_FLASH_ATTR

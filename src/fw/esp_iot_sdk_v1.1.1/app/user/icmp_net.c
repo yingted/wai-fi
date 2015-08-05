@@ -317,6 +317,10 @@ err_t icmp_net_init(struct netif *netif) {
     static u8_t if_num = 0;
     netif->num = if_num++;
     netif->mtu = 1400; // TODO discover
+    _Static_assert(offsetof(struct netif, mtu) == 44, "Not ABI v1.2.0 compatible");
+    _Static_assert(offsetof(struct netif, hwaddr_len) == 46, "Not ABI v1.2.0 compatible");
+    _Static_assert(offsetof(struct netif, hwaddr) == 47, "Not ABI v1.2.0 compatible");
+    _Static_assert(offsetof(struct netif, flags) == 53, "Not ABI v1.2.0 compatible");
 
     USER_INTR_LOCK();
     config->next = root;
