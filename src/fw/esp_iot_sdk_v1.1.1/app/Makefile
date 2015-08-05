@@ -16,11 +16,11 @@ TARGET = eagle
 #FLAVOR = release
 FLAVOR = debug
 # Assertions and stuff. Big performance penalty.
-DEBUG_ESP = 1
+DEBUG_ESP ?= 1
 # Allow debugging using gdb.sh and friends.
-GDB_STUB = 1
+GDB_STUB ?= 1
 # Code in a breakpoint at the start of user_init.
-GDB_STUB_STARTUP = 0
+GDB_STUB_STARTUP ?= 0
 ifneq ($(GDB_STUB),1)
     GDB_STUB_STARTUP = 0
 endif
@@ -72,7 +72,6 @@ COMPONENTS_eagle.app.v6 = \
 	user/libuser.a
 
 LINKFLAGS_eagle.app.v6 = \
-	-L../lib        \
 	-nostdlib	\
 	-T$(MY_LD_FILE)   \
 	-Wl,--no-check-sections	\

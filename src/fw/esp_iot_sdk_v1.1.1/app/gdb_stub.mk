@@ -7,6 +7,7 @@ ifeq ($(GDB_STUB),1)
 
 %.ld.ld-patched: %.ld
 	printf 'INCLUDE "%q"\n_DebugExceptionVector = 0;\n' $(notdir $<) >> $@
+
 else
 	MY_LD_FILE = $(LD_FILE)
 endif
