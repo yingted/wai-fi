@@ -1,2 +1,4 @@
 - use correct ssid
 - move certs to TarFile, to postgresql
+- fix bad certificate
+- wrap pvPort{C,Z,Re}alloc

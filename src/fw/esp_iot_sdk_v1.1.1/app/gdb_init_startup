@@ -2,9 +2,8 @@ file .output/eagle/debug/image/eagle.app.v6.out
 set remote interrupt-sequence BREAK
 set remotelogfile gdb.log
 target remote /dev/ttyUSB0
-#hbreak dhcp_start
-#hbreak *0x4025cd2e
 c
 
 bt
 x/5i $pc
+p *(size_t **)$a1@((0x40000000-$a1)/4)
