@@ -17,7 +17,13 @@ data_dir = config.data_dir
 def make_data_dir():
 	try:
 		os.makedirs(data_dir)
-	except:
+	except OSError:
+		pass
+
+def force_remove(path):
+	try:
+		os.remove(path)
+	except OSError:
 		pass
 
 cert_req_name = 'cert_req.txt'
@@ -25,38 +31,38 @@ device_id_name = 'icmp_net_device_id.txt'
 overlay_file_names = 'default_private_key', 'default_certificate', 'default_private_key.c', 'default_certificate.c', cert_req_name, device_id_name
 
 @contextlib.contextmanager
-def overlay_applied(overlay_dir, user_dir):
+def overlay_applied(overlay_dir, build_dir):
 	backups = {}
-	backup_dir = tempfile.mkdtemp(dir=user_dir)
+	backup_dir = tempfile.mkdtemp(dir=build_dir)
 	try:
 		for name in overlay_file_names:
-			displaced_path = os.path.join(user_dir, name)
+			displaced_path = os.path.join(build_dir, name)
+			backup_path = None
 			if os.path.exists(displaced_path):
 				backup_path = os.path.join(backup_dir, name)
-				shutil.copyfile(displaced_path, backup_path)
-				backups[displaced_path] = backup_path
+				os.rename(displaced_path, backup_path)
+			backups[displaced_path] = backup_path
 
 		for name in overlay_file_names:
-			displaced_path = os.path.join(user_dir, name)
+			displaced_path = os.path.join(build_dir, name)
 			overlay_path = os.path.join(overlay_dir, name)
+			assert not os.path.exists(displaced_path)
 			if os.path.exists(overlay_path):
 				shutil.copyfile(overlay_path, displaced_path)
-			else:
-				try:
-					os.remove(displaced_path)
-				except OSError:
-					pass # already removed
 
-		subprocess.check_call(('make', '-C', user_dir, 'CC=true') + overlay_file_names)
+		subprocess.check_call(('make', '-C', build_dir, 'CC=true') + overlay_file_names)
 		yield
+		for name in overlay_file_names:
+			displaced_path = os.path.join(build_dir, name)
+			overlay_path = os.path.join(overlay_dir, name)
+			shutil.copyfile(displaced_path, overlay_path)
 	finally:
 		for displaced_path, backup_path in backups.iteritems():
-			os.rename(backup_path, displaced_path)
+			if backup_path is None:
+				force_remove(displaced_path)
+			else:
+				os.rename(backup_path, displaced_path)
 		shutil.rmtree(backup_dir)
-	for name in overlay_file_names:
-		displaced_path = os.path.join(user_dir, name)
-		overlay_path = os.path.join(overlay_dir, name)
-		shutil.copyfile(displaced_path, overlay_path)
 
 def seed_overlay(overlay_dir, mac, device_id):
 	with open(os.path.join(overlay_dir, cert_req_name), 'w') as f:
