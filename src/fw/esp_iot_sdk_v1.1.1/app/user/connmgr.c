@@ -59,6 +59,9 @@ static void ssl_disconnect() {
 
 ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
+    if (err == -28) {
+        gdb_stub_break();
+    }
     user_dprintf("reconnect due to %d\x1b[35m", err);
 
     // XXX Can be called from NMI, should queue until

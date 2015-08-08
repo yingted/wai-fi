@@ -183,10 +183,12 @@ static void gdb_putc1(char c) {
     }
 }
 
+static bool io_installed = false;
 ICACHE_FLASH_ATTR
 static void gdb_install_io() {
     outbuf_head = outbuf_tail = 0;
     os_install_putc1(gdb_putc1);
+    io_installed = true;
 }
 
 ICACHE_FLASH_ATTR
@@ -431,6 +433,7 @@ retrans:
                 case 'M':
                     addr = gdb_read_int();
                     len = gdb_read_int();
+                    GDB_READ();
                     gdb_download(addr, len);
                     break;
                 // read all registers
@@ -569,6 +572,7 @@ retrans:
                     GDB_READ();
                     gdb_write_string("OK");
                     gdb_write_flush();
+                    io_installed = false;
                     os_install_putc1(real_putc1);
                     gdb_attached = false;
                     goto cont;

@@ -39,7 +39,7 @@ endif # } PDIR
 APPDIR = .
 LDDIR = ../ld
 
-CCFLAGS += -Os -MMD -flto -include ../include/user_config.h
+CCFLAGS += -MMD -flto -include ../include/user_config.h
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
@@ -61,11 +61,13 @@ TARGET_LDFLAGS =		\
 	--text-section-literals
 
 ifeq ($(FLAVOR),debug)
-    TARGET_LDFLAGS += -g -O2
+    TARGET_LDFLAGS += -ggdb3 -O0
+    CCFLAGS += -O0 -ggdb3
 endif
 
 ifeq ($(FLAVOR),release)
-    TARGET_LDFLAGS += -g -O0
+    TARGET_LDFLAGS += -O2
+    CCFLAGS += -Os
 endif
 
 COMPONENTS_eagle.app.v6 = \
