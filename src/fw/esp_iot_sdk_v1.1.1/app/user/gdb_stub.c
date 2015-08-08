@@ -237,6 +237,10 @@ static bool gdb_read_to_cksum() {
 
 ICACHE_FLASH_ATTR
 static void gdb_download(size_t addr, size_t len) {
+    if (!(0x3ffe8000 <= addr && addr + len <= 0x40000000)) {
+        gdb_write_string("E04");
+        return;
+    }
     uint8_t buf[len];
     size_t i;
     for (i = 0; i != len; ++i) {
