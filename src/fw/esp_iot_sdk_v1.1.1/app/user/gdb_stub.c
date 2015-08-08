@@ -354,8 +354,10 @@ static void gdb_attach(int exccause, int debugcause) {
             break;
         case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
             assert(regs.interrupt.valid);
+            // Let's try to skip some interrupts
             if (get_target_intlevel() != icount_intlevel || regs.interrupt.value != icount_interrupt) {
-                gdb_icount_in(1);
+                assert(regs.icount.valid);
+                --regs.icount.value;
                 gdb_restore_state();
             }
             SET_REG(icountlevel, 0);
@@ -672,11 +674,11 @@ void gdb_stub_exception_handler(UserFrame *frame, bool is_debug) {
         assert(regs.pc.valid);
         assert(regs.epc2.valid);
         assert(regs.epc2.value == regs.pc.value);
-        user_dprintf("intlevel=%d debugcause=%p pc=%p", intlevel, (void *)sr_debugcause, (void *)regs.pc.value);
+        user_dprintf("intlevel=%d interrupt=%d debugcause=%p pc=%p", intlevel, sr_interrupt, (void *)sr_debugcause, (void *)regs.pc.value);
         gdb_attach(-1, sr_debugcause);
     } else {
         // Print once to terminal and once to gdb
-        user_dprintf("intlevel=%d exccause=%d excvaddr=%p pc=%p", intlevel, sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
+        user_dprintf("intlevel=%d interrupt=%d exccause=%d excvaddr=%p pc=%p", intlevel, sr_interrupt, sr_exccause, (void *)sr_excvaddr, (void *)frame->pc);
         gdb_attach(sr_exccause, 0);
     }
 }

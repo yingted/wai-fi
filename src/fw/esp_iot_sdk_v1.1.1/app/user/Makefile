@@ -50,10 +50,10 @@ cert_req.csr: default_private_key cert_req.txt
 	openssl req -new -key $< -keyform DER -out $@ < cert_req.txt
 
 default_ca_certificate: default_ca_private_key
-	openssl req -x509 -new -nodes -key $< -keyform DER -days 12000 -out $@ -outform DER < ca_req.txt
+	openssl req -x509 -new -nodes -key $< -keyform DER -days 1000 -out $@ -outform DER < ca_req.txt
 
 default_certificate: cert_req.csr default_ca_certificate default_ca_private_key
-	openssl x509 -req -days 12000 -in $< -CA default_ca_certificate -CAform DER -CAkey default_ca_private_key -CAkeyform DER -CAcreateserial -out $@ -outform DER
+	openssl x509 -req -days 1000 -in $< -CA default_ca_certificate -CAform DER -CAkey default_ca_private_key -CAkeyform DER -CAcreateserial -out $@ -outform DER
 
 default_ca_certificate.pem: default_ca_certificate
 	openssl x509 -in $< -inform DER -out $@

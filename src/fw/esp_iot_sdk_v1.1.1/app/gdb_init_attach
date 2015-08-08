@@ -1,6 +1,4 @@
-file .output/eagle/debug/image/eagle.app.v6.out
-set remote interrupt-sequence BREAK
-#set remotelogfile /dev/stdout
+source gdb_init
 shell screen -c gdb_screenrc
 target remote /dev/ttyUSB0
 info all-registers
