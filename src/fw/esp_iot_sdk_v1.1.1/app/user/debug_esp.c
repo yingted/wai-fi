@@ -360,20 +360,26 @@ void debug_esp_user_intr_unlock() {
     assert(--intr_lock_count[PS_INTLEVEL(ps)] == --intr_lock_count_sum);
 }
 
-#else
-
-void *__real_pvPortMalloc(size_t size);
-// ICACHE_FLASH_ATTR
-void *__wrap_pvPortMalloc(size_t size) {
-    void *ret = __real_pvPortMalloc(size);
-    if (!ret) {
-        user_dprintf("malloc(%d) failed", size);
-        system_restart();
-    }
-    return ret;
-}
-
 #endif
+
+#define WRAP_ALLOC(func, call, ...) \
+void *__real_pvPort ## func; \
+/* ICACHE_FLASH_ATTR (not used for original) */ \
+void *__wrap_pvPort ## func { \
+    void *ret = __real_pvPort ## call; \
+    if (!ret) { \
+        user_dprintf(__VA_ARGS__); \
+        system_restart(); \
+    } \
+    return ret; \
+}
+#ifndef DEBUG_ESP
+WRAP_ALLOC(Malloc(size_t size), Malloc(size), "malloc(%d) failed", size)
+#endif
+WRAP_ALLOC(Calloc(size_t n, size_t size), Calloc(n, size), "calloc(%d, %d) failed", n, size)
+WRAP_ALLOC(Zalloc(size_t size), Zalloc(size), "zalloc(%d) failed", size)
+WRAP_ALLOC(Realloc(void *ptr, size_t size), Realloc(ptr, size), "realloc(%p, %d) failed", ptr, size)
+#undef WRAP_ALLOC
 
 ICACHE_FLASH_ATTR
 void debug_esp_fatal() {
