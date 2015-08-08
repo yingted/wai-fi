@@ -1,4 +1,4 @@
 term linux
-screen /dev/ttyUSB0 115200
+screen /dev/ttyUSB0 230400
 break
 quit

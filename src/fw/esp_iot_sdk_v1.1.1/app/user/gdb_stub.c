@@ -594,6 +594,7 @@ retrans:
                     gdb_attached = false;
                     goto cont;
                 // qXfer:memory-map:read
+                // qSupported
                 case 'q':
                 // unsupported
                 default:

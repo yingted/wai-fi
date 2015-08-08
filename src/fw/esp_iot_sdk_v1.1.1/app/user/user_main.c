@@ -13,7 +13,7 @@ void user_rf_pre_init(void) {}
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
-    uart_div_modify(0, UART_CLK_FREQ / 115200);
+    uart_div_modify(0, UART_CLK_FREQ / 230400);
     debug_esp_install_exc_handler();
     gdb_stub_init();
 #ifdef GDB_STUB_STARTUP
