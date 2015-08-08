@@ -329,27 +329,35 @@ static void gdb_restore_state() {
 }
 
 ICACHE_FLASH_ATTR
+static int get_target_intlevel() {
+    return PS_INTLEVEL(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
+}
+
+static int icount_intlevel = -1, icount_interrupt = -1;
+ICACHE_FLASH_ATTR
 static void gdb_icount_in(size_t n) {
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
-    int intlevel = PS_INTLEVEL(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).value);
-    SET_REG(icountlevel, 1 + intlevel);
+    icount_intlevel = get_target_intlevel();
+    assert(regs.interrupt.valid);
+    icount_interrupt = regs.interrupt.value;
+    SET_REG(icountlevel, 1 + icount_intlevel);
     SET_REG(icount, ~n);
 }
 
 ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_attach(int exccause, int debugcause) {
-    bool should_output_stopped = gdb_attached;
-    gdb_attached = true;
-    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
     size_t debug_break_size = 0;
-    outbuf_unbuffered = false;
-
     // We can only have 1 debug cause
     switch (debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
         case 0: // exception
             break;
         case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
+            assert(regs.interrupt.valid);
+            if (get_target_intlevel() != icount_intlevel || regs.interrupt.value != icount_interrupt) {
+                gdb_icount_in(1);
+                gdb_restore_state();
+            }
             SET_REG(icountlevel, 0);
             break;
         case XCHAL_DEBUGCAUSE_IBREAK_MASK:
@@ -365,6 +373,11 @@ static void gdb_attach(int exccause, int debugcause) {
         default:
             break;
     }
+
+    bool should_output_stopped = gdb_attached;
+    gdb_attached = true;
+    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
+    outbuf_unbuffered = false;
 
     bool has_breakpoint = false, has_watchpoint = false;
     size_t breakpoint_addr;

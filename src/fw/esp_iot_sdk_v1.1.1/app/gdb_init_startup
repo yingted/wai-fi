@@ -2,7 +2,10 @@ file .output/eagle/debug/image/eagle.app.v6.out
 set remote interrupt-sequence BREAK
 set remotelogfile gdb.log
 target remote /dev/ttyUSB0
-#hbreak process_certificate
+#thb process_certificate
+#thb ssl_verify_cert
+#thb x509_verify
+thb *0x4026fff2
 c
 
 echo \033\133\060\155
