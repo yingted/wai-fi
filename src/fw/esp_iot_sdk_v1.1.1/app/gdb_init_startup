@@ -1,11 +1,5 @@
 source gdb_init
 target remote /dev/ttyUSB0
-#thb process_certificate
-#thb ssl_verify_cert
-#thb x509_verify
-#thb *0x4026fff2
-#thb asn1_validity
-thb *0x40273f14
 c
 
 echo \033\133\060\155
