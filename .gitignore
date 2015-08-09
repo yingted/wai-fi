@@ -1,0 +1,10 @@
+*.pyc
+*.o
+*.d
+.gdb_history
+*~
+.*.swp
+.swp
+.output
+*.pem
+*.srl
