@@ -16,7 +16,7 @@ channel="$(iwlist wlp3s0 channel | sed -n 's/.*Current.*Channel \([0-9]\+\).*/\1
 cat > hostapd.conf << EOF
 interface=wlp3s0v1
 driver=nl80211
-ssid=icmp-test
+ssid=uw-wifi-setup-no-encryption
 channel=${channel:-6}
 EOF
 set -e

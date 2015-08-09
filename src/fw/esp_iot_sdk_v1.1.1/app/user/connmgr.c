@@ -261,7 +261,7 @@ void connmgr_init() {
 
     wifi_station_set_auto_connect(0);
 
-    icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
+    icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
 
     // Create the ICMP tap device and never delete it.
     if (!netif_add(
@@ -286,7 +286,7 @@ void connmgr_start() {
     wifi_set_opmode_current(STATION_MODE);
     {
         struct station_config *config = (struct station_config *)os_zalloc(sizeof(struct station_config));
-        const static char *ssid = "icmp-test";
+        const static char *ssid = "uw-wifi-setup-no-encryption";
         os_memcpy(config->ssid, ssid, os_strlen(ssid));
         wifi_station_set_config_current(config);
     }
