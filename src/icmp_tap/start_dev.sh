@@ -1,6 +1,5 @@
 #!/bin/bash
-#sudo service wpa_supplicant stop
-sudo killall dnsmasq icmp_tap hostapd
+set -e
 cleanup() {
 	echo exiting
 	# XXX should probably check this is right
@@ -15,8 +14,12 @@ cleanup() {
 	sleep .1
 	sudo kill -9 $hostapd $dnsmasq $icmp_tap || :
 }
+net_iface="$(ip r g 54.191.1.223 | sed -n 's/.*\<dev \([^ ]*\).*/\1/p')"
+[ -n "$net_iface" ]
+#sudo service wpa_supplicant stop
+sudo killall dnsmasq icmp_tap hostapd || :
 trap 'cleanup' EXIT INT QUIT TERM
-sudo iw phy phy0 interface add wlp3s0v1 type station
+sudo iw phy phy0 interface add wlp3s0v1 type station || :
 channel="$(iwlist wlp3s0 channel | sed -n 's/.*Current.*Channel \([0-9]\+\).*/\1/p')"
 cat > hostapd.conf << EOF
 interface=wlp3s0v1
@@ -24,9 +27,8 @@ driver=nl80211
 ssid=uw-wifi-setup-no-encryption
 channel=${channel:-6}
 EOF
-set -e
 sudo sysctl net.ipv4.ip_forward=1
-sudo iptables -t nat -A POSTROUTING -o "$(ip r g 54.191.1.223 | sed -n 's/.*\<dev \([^ ]*\).*/\1/p')" -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o "$net_iface" -j MASQUERADE
 # sudo iptables -A FORWARD -i wlp3s0v1 -j ACCEPT
 sudo hostapd hostapd.conf & hostapd=$!
 sudo ifconfig wlp3s0v1 192.168.9.1
