@@ -1,2 +1,4 @@
-- move certs to TarFile, to postgresql, add built binary
+- server-side analysis, ui
+- switch to SCons
+- move certs to TarFile, to postgresql, add built elf (to a BINARY column)
 - FOTA, remote shell
