@@ -24,11 +24,6 @@ GDB_STUB_STARTUP ?= 0
 # Log to uart at all?
 UART_LOGGING ?= 1
 
-# Fix conflicting flags
-ifneq ($(GDB_STUB),1)
-    GDB_STUB_STARTUP = 0
-endif
-
 #EXTRA_CCFLAGS += -u
 
 ifndef PDIR # {
@@ -49,8 +44,10 @@ ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
 	DEBUG_ESP = 0
     GDB_STUB = 0
+    UART_LOGGING = 0
 endif
-ifeq ($(GDB_STUB),1)
+ifneq ($(GDB_STUB),1)
+    GDB_STUB_STARTUP = 0
     #DEBUG_ESP = 0
 endif
 ifeq ($(UART_LOGGING),1)

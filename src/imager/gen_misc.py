@@ -20,10 +20,6 @@ def call(overlay_dir, release=False):
 		if release:
 			env.update({
 				'FLAVOR': 'release',
-				'GDB_STUB_STARTUP': '0',
-				'DEBUG_ESP': '0',
-				'GDB_STUB': '0',
-				'UART_LOGGING': '0',
 			})
 			subprocess.check_call(('make', 'clean'), cwd=app_dir, env=env)
 		p = subprocess.Popen(('bash', 'gen_misc.sh'), cwd=app_dir, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
