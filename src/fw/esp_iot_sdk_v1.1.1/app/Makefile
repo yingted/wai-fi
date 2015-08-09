@@ -28,9 +28,6 @@ UART_LOGGING ?= 1
 ifneq ($(GDB_STUB),1)
     GDB_STUB_STARTUP = 0
 endif
-ifeq ($(GDB_STUB),1)
-    UART_LOGGING = 1
-endif
 
 #EXTRA_CCFLAGS += -u
 
