@@ -11,8 +11,8 @@ cleanup() {
 }
 trap 'cleanup' EXIT INT QUIT TERM
 set -e
-sudo sysctl net.ipv4.ip_forward=1
 sudo ./icmp_tap & icmp_tap=$!
+sleep 1
 sudo dnsmasq -d -i icmp0 -I lo -F 192.168.10.20,192.168.10.254,255.255.255.0,12h & dnsmasq=$!
 wait $icmp_tap
 cleanup
