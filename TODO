@@ -1,1 +1,2 @@
-- move certs to TarFile, to postgresql
+- move certs to TarFile, to postgresql, add built binary
+- FOTA, remote shell

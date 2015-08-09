@@ -6,6 +6,9 @@
 #include <gdb_stub.h>
 #include <lwip/netif.h>
 
+#define LOGBUF_SIZE 1024
+#define MAX_LOGBUF 3
+
 __attribute__((weak))
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {}
@@ -29,6 +32,7 @@ void user_init(void) {
 #endif
     user_dprintf("Starting up...");
 
+    espconn_secure_set_size(ESPCONN_CLIENT, LOGBUF_SIZE);
     connmgr_init();
     connmgr_start();
 }
@@ -44,8 +48,6 @@ struct msg_header {
         } log;
     };
 };
-#define LOGBUF_SIZE 2048
-#define MAX_LOGBUF 3
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
 static bool can_send = false;
 
