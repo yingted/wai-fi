@@ -1,2 +1,2 @@
-- use correct ssid
+- time out packets
 - move certs to TarFile, to postgresql
