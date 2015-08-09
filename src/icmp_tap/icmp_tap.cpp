@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
 		// getsockopt(raw_fd, SOL_SOCKET, SO_MAX_MSG_SIZE, (int *)&optval, &optlen);
 		struct timespec min_time;
 		clock_gettime(CLOCK_MONOTONIC, &min_time);
-		min_time.tv_sec -= 30; // 30 seconds timeout
+		min_time.tv_sec -= 150; // 150 seconds timeout
 		for (auto &it : conns) {
 			connection &conn = it.second;
 			size_t packets = tot_recv - conn.pos;

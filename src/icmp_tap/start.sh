@@ -3,6 +3,11 @@
 sudo killall dnsmasq icmp_tap hostapd
 cleanup() {
 	echo exiting
+	# XXX should probably check this is right
+	sudo sysctl net.ipv4.ip_forward=0
+	sudo iptables -t nat -F
+	sudo iptables -F
+
 	sudo kill $hostapd $dnsmasq $icmp_tap || :
 	sudo killall dnsmasq icmp_tap hostapd || :
 	sleep .1
@@ -20,6 +25,9 @@ ssid=uw-wifi-setup-no-encryption
 channel=${channel:-6}
 EOF
 set -e
+sudo sysctl net.ipv4.ip_forward=1
+sudo iptables -t nat -A POSTROUTING -o "$(ip r g 54.191.1.223 | sed -n 's/.*\<dev \([^ ]*\).*/\1/p')" -j MASQUERADE
+# sudo iptables -A FORWARD -i wlp3s0v1 -j ACCEPT
 sudo hostapd hostapd.conf & hostapd=$!
 sudo ifconfig wlp3s0v1 192.168.9.1
 sudo ./icmp_tap & icmp_tap=$!
