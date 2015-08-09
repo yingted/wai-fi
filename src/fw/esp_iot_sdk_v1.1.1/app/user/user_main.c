@@ -18,7 +18,7 @@ static void noop_put1c() {}
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
-    uart_div_modify(0, UART_CLK_FREQ / 230400);
+    uart_div_modify(0, UART_CLK_FREQ / 115200);
 #ifndef UART_LOGGING
     os_install_putc1(noop_put1c);
 #endif
