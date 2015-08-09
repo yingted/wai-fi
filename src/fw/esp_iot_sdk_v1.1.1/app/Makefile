@@ -145,6 +145,9 @@ WRAP := \
 	-Wl,-wrap,icmp_input \
 	-Wl,-wrap,sys_check_timeouts \
 	-Wl,-wrap,pvPortMalloc \
+	-Wl,-wrap,pvPortCalloc \
+	-Wl,-wrap,pvPortZalloc \
+	-Wl,-wrap,pvPortRealloc \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
