@@ -49,6 +49,7 @@ class IcmpNet(Protocol):
 		log.msg('icmp_net://%s' % self._device_name, *args, **kwargs)
 
 	def connectionMade(self):
+		print 'Starting handshake with', self.transport.getPeer()
 		verify.register_handshake_callback(self.transport, self.handshakeDone)
 
 	def handshakeDone(self):
