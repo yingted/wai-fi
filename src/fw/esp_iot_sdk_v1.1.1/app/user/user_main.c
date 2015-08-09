@@ -10,10 +10,18 @@ __attribute__((weak))
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {}
 
+#ifndef UART_LOGGING
+ICACHE_FLASH_ATTR
+static void noop_put1c() {}
+#endif
+
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
     uart_div_modify(0, UART_CLK_FREQ / 230400);
+#ifndef UART_LOGGING
+    os_install_putc1(noop_put1c);
+#endif
     debug_esp_install_exc_handler();
     gdb_stub_init();
 #ifdef GDB_STUB_STARTUP

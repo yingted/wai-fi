@@ -13,9 +13,20 @@ bin_dir = os.path.join(sdk_dir, 'bin')
 app_dir = os.path.join(sdk_dir, 'app')
 build_dir = os.path.join(app_dir, 'user')
 
-def call(overlay_dir):
+def call(overlay_dir, release=False):
 	with fslock.FsLock(app_dir), overlay.overlay_applied(overlay_dir=overlay_dir, build_dir=build_dir):
-		p = subprocess.Popen(('bash', 'gen_misc.sh'), cwd=app_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+		env = None
+		if release:
+			env = dict(os.environ)
+			env.update({
+				'FLAVOR': 'release',
+				'GDB_STUB_STARTUP': '0',
+				'DEBUG_ESP': '0',
+				'GDB_STUB': '0',
+				'UART_LOGGING': '0',
+			})
+			subprocess.check_call('make clean', cwd=app_dir)
+		p = subprocess.Popen(('bash', 'gen_misc.sh'), cwd=app_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env)
 		stdout, stderr = p.communicate()
 		p.wait()
 

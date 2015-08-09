@@ -11,7 +11,7 @@ def import_esptool():
 	esptool_path = distutils.spawn.find_executable('esptool.py')
 	esptool = imp.load_source('esptool', esptool_path)
 
-def flash_port(port, baud=115200):
+def flash_port(port, baud=115200, release=False):
 	import_esptool()
 
 	print >> sys.stderr, 'Probing', port
@@ -23,7 +23,7 @@ def flash_port(port, baud=115200):
 		mac_text = ':'.join(mac)
 		mac = ''.join(mac)
 		with overlay.get_overlay_dir(mac=mac, port=port) as overlay_dir:
-			images = gen_misc.call(overlay_dir=overlay_dir)
+			images = gen_misc.call(overlay_dir=overlay_dir, release=release)
 			cmd = [esptool_path, '-p', port, '-b', str(baud), 'write_flash']
 			for addr, image in images.iteritems():
 				cmd.extend((addr, image))

@@ -13,16 +13,23 @@
 #
 TARGET = eagle
 # Additional logging is disabled in release mode.
-#FLAVOR = release
-FLAVOR = debug
+#FLAVOR ?= release
+FLAVOR ?= debug
 # Assertions and stuff. Big performance penalty.
 DEBUG_ESP ?= 1
 # Allow debugging using gdb.sh and friends.
 GDB_STUB ?= 1
 # Code in a breakpoint at the start of user_init.
 GDB_STUB_STARTUP ?= 0
+# Log to uart at all?
+UART_LOGGING ?= 1
+
+# Fix conflicting flags
 ifneq ($(GDB_STUB),1)
     GDB_STUB_STARTUP = 0
+endif
+ifeq ($(GDB_STUB),1)
+    UART_LOGGING = 1
 endif
 
 #EXTRA_CCFLAGS += -u
@@ -48,6 +55,9 @@ ifeq ($(FLAVOR),release)
 endif
 ifeq ($(GDB_STUB),1)
     #DEBUG_ESP = 0
+endif
+ifeq ($(UART_LOGGING),1)
+    DEFINES += -DUART_LOGGING
 endif
 
 # Now, we need to use MY_LD_FILE instead of LD_FILE
