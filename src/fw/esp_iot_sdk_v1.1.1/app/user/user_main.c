@@ -32,7 +32,6 @@ void user_init(void) {
 #endif
     user_dprintf("Starting up...");
 
-    espconn_secure_set_size(ESPCONN_CLIENT, LOGBUF_SIZE);
     connmgr_init();
     connmgr_start();
 }
