@@ -14,7 +14,8 @@ cleanup() {
 	sleep .1
 	sudo kill -9 $hostapd $dnsmasq $icmp_tap || :
 }
-net_iface="$(ip r g 54.191.1.223 | sed -n 's/.*\<dev \([^ ]*\).*/\1/p')"
+#net_iface="$(ip r g 54.191.1.223 | sed -n 's/.*\<dev \([^ ]*\).*/\1/p')"
+net_iface='wlp3s0'
 [ -n "$net_iface" ]
 #sudo service wpa_supplicant stop
 sudo killall dnsmasq icmp_tap hostapd || :
