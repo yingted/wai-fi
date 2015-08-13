@@ -21,6 +21,7 @@ def flash_port(port, baud=115200, release=False):
 		mac = esptool.esp.read_mac()
 		mac = map('%02x'.__mod__, mac)
 		mac_text = ':'.join(mac)
+		print >> sys.stderr, 'Found device', mac_text, 'at', port
 		mac = ''.join(mac)
 		with overlay.get_overlay_dir(mac=mac, port=port) as overlay_dir:
 			images = gen_misc.call(overlay_dir=overlay_dir, release=release)
