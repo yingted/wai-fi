@@ -155,6 +155,7 @@ WRAP := \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
+	-Wl,-wrap,etharp_tmr \
 
 ifeq ($(DEBUG_ESP),1)
 	DEFINES += -DDEBUG_ESP
@@ -168,7 +169,6 @@ ifeq ($(DEBUG_ESP),1)
 		-Wl,-wrap,inet_chksum \
 		-Wl,-wrap,inet_chksum_pbuf \
 		-Wl,-wrap,ip_input \
-		-Wl,-wrap,etharp_tmr \
 
 endif
 

@@ -317,14 +317,6 @@ found:;
 }
 }
 
-void __real_etharp_tmr();
-ICACHE_FLASH_ATTR
-void __wrap_etharp_tmr() {
-    assert_heap();
-    __real_etharp_tmr();
-    assert_heap();
-}
-
 err_t __real_ip_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {

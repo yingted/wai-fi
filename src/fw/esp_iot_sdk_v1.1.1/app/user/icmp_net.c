@@ -28,7 +28,9 @@ static int icmp_net_lwip_entry_count = 0;
 #define L3_HLEN (L2_HLEN + sizeof(struct icmp_echo_hdr))
 
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
+static void process_queued_pbufs();
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
+static void packet_reply_timeout();
 
 struct icmp_net_hdr {
     unsigned char queued, pad_[1];
@@ -50,7 +52,7 @@ static inline unsigned short timestamp() {
 ICACHE_FLASH_ATTR
 static err_t send_keepalive(struct netif *netif) {
     ICMP_NET_CONFIG_UNLOCK(config);
-    user_dprintf("sending keepalive"); // TODO timeout
+    user_dprintf("sending keepalive");
     struct pbuf *p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
     if (p == NULL) {
         mem_error();
@@ -59,6 +61,15 @@ static err_t send_keepalive(struct netif *netif) {
     err_t ret = icmp_net_linkoutput(netif, p);
     ICMP_NET_CONFIG_LOCK(config);
     return ret;
+}
+
+void __real_etharp_tmr();
+ICACHE_FLASH_ATTR
+void __wrap_etharp_tmr() {
+    assert_heap();
+    __real_etharp_tmr();
+    packet_reply_timeout();
+    assert_heap();
 }
 
 /**
@@ -114,9 +125,6 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
             mem_error();
             return ERR_MEM;
         }
-        int i;
-        for (i = 0; i < r->len; ++i)
-            ((u8_t *)r->payload)[i] = '\x8f';
         if (pbuf_header(r, (s16_t)-L3_HLEN)) {
             user_dprintf("reserve header failed");
 err_buf:
@@ -156,7 +164,9 @@ send:
         }
         assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
         assert(ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_QSIZE);
-        config->queue[config->send_i % ICMP_NET_QSIZE] = NULL;
+        int index = config->send_i % ICMP_NET_QSIZE;
+        config->queue[index] = NULL;
+        config->ttl[index] = ICMP_NET_TTL;
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
         iecho->seqno = htons(seqno);
@@ -267,6 +277,31 @@ static void process_queued_pbufs() {
     }
     USER_INTR_UNLOCK();
     //assert_heap();
+}
+
+ICACHE_FLASH_ATTR
+static void packet_reply_timeout() {
+    struct icmp_net_config *config;
+    for (config = root; config; config = config->next) {
+        ICMP_NET_CONFIG_LOCK(config);
+        uint16_t i;
+#ifndef NDEBUG
+        bool retained_any = false;
+#endif
+        for (i = config->recv_i; i != config->send_i; ++i) {
+            if (!config->ttl[i % ICMP_NET_QSIZE]--) {
+                user_dprintf("timing out packet %u", i);
+                assert(!retained_any);
+                drop_echo_reply(config);
+            }
+#ifndef NDEBUG
+            else {
+                retained_any = true;
+            }
+#endif
+        }
+        ICMP_NET_CONFIG_UNLOCK(config);
+    }
 }
 
 ICACHE_FLASH_ATTR
@@ -456,7 +491,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
                 if (config->recv_i == seqno) {
                     process_pbuf(config, p);
                 } else {
-                    struct pbuf **dst = &config->queue[seqno % ICMP_NET_QSIZE];
+                    int index = seqno % ICMP_NET_QSIZE;
+                    struct pbuf **dst = &config->queue[index];
                     if (*dst) {
                         user_dprintf("duplicate packet %u", seqno);
                     } else {

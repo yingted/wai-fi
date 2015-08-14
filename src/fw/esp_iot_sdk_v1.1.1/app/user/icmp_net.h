@@ -10,6 +10,8 @@
 #define ICMP_NET_QSIZE 4U
 #define ICMP_NET_MAX_KEEPALIVE 1U
 #define ICMP_NET_MIN_KEEPALIVE 1U
+// TTL (3 means it survives 3 timeouts and dies on the 4th), in 5 s units
+#define ICMP_NET_TTL (155 / 5)
 
 struct icmp_net_config {
     struct ip_addr relay_ip;
@@ -20,16 +22,17 @@ struct icmp_net_config {
     uint16_t recv_i, send_i;
     /**
      * The packet queue is stored in:
-     * queue[i % ICMP_NET_QSIZE] for i = (next_recv_seqno + 1) ... (next_send_seqno - 1)
-     * The invariant is: next_send_seqno - next_recv_seqno
+     * queue[i % ICMP_NET_QSIZE] for i = (recv_i + 1) ... (send_i - 1)
+     * The invariant is: send_i - recv_i
      * Other values are undefined.
      * The pipe is given by:
-     * next_send_seqno - next_recv_seqno
+     * send_i - recv_i
      * The queue size is given by:
-     * next_send_seqno - (next_recv_seqno + 1)
-     * Where the next_recv_seqno is the lowest-index packet still not received.
+     * send_i - (recv_i + 1)
+     * Where the recv_i is the lowest-index packet still not received.
      */
     struct pbuf *queue[ICMP_NET_QSIZE];
+    uint8_t ttl[ICMP_NET_QSIZE];
 };
 
 #define ICMP_NET_CONFIG_QLEN(config) ((config)->send_i - (config)->recv_i)
