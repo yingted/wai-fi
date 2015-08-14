@@ -13,8 +13,8 @@ using namespace std::placeholders;
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <linux/icmp.h>
 #include <linux/ip.h>
@@ -35,40 +35,7 @@ using asio::io_service;
 #include "tap.h"
 #include "inet_checksum.h"
 #include "icmp_net.h"
-
-struct icmp_reply {
-	__be32 addr;
-	unsigned short id, seq;
-	struct timespec time;
-};
-
-typedef unsigned short connection_id;
-typedef string frame_t;
-
-struct connection {
-	size_t pos;
-	set<icmp_reply> replies;
-	struct timespec time;
-};
-
-static bool lt_seq(const icmp_reply &a, const icmp_reply &b) {
-	return a.seq < b.seq;
-}
-
-static bool operator<(const struct timespec &a, const struct timespec &b) {
-	if (a.tv_sec != b.tv_sec) {
-		return a.tv_sec < b.tv_sec;
-	}
-	return a.tv_nsec < b.tv_nsec;
-}
-
-static bool lt_time(const icmp_reply &a, const icmp_reply &b) {
-	return a.time < b.time;
-}
-
-bool operator<(const icmp_reply &a, const icmp_reply &b) {
-	return lt_seq(a, b);
-}
+#include "icmp_reply.h"
 
 icmp_net::icmp_net(const char *dev, int mtu) :
 	io_(),
@@ -116,16 +83,6 @@ void icmp_net::raw_reader(yield_context yield) {
 	char buf[64 * 1024]; // max IPv4 packet size
 
 	for (;;) {
-		FD_ZERO(&fds);
-		FD_SET(tap_fd, &fds);
-		FD_SET(raw_fd, &fds);
-
-		struct timeval timeout = {
-			.tv_sec = 1,
-			.tv_usec = 0,
-		};
-
-		select(fd_max, &fds, NULL, NULL, &timeout);
 
 		// Step 1: Collect echo requests and write out data to the tap fd.
 		// Subscribe any active connections to the stream.

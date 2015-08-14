@@ -5,7 +5,14 @@ ifeq ($(DEBUG),1)
 	CXXFLAGS += -g3 -Wall -fsanitize=address
 	LDFLAGS += -g3 -Wall -fsanitize=address
 endif
-OBJECTS := icmp_tap.o tuntap.o inet_checksum.o tap.o icmp_net.o
+OBJECTS := \
+	icmp_tap.o \
+	tuntap.o \
+	inet_checksum.o \
+	tap.o \
+	icmp_net.o \
+	icmp_reply.o \
+
 DEPEND := $(OBJECTS:.o=.d)
 sinclude $(DEPEND)
 EXEC := icmp_tap
