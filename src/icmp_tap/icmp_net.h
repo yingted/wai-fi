@@ -8,15 +8,31 @@
 #include <boost/signals2/connection.hpp>
 #include <map>
 #include "icmp_reply.h"
+#include <linux/icmp.h>
+#include <linux/ip.h>
+#include "icmp_reply.h"
+#include <memory>
+#include <stdexcept>
 
 class icmp_net_conn;
 
 typedef unsigned short connection_id;
 
+struct icmp_net_frame {
+	const std::string buf;
+	struct iphdr *ip;
+	struct icmphdr *icmp;
+	std::unique_ptr<icmp_reply> reply;
+	icmp_net_frame(const char *buf, int len);
+private:
+	template<typename T>
+	std::string::const_iterator read(std::string::const_iterator begin, T *&ptr);
+};
+
 class icmp_net {
 public:
 	typedef std::string tap_frame_t;
-	typedef std::string raw_frame_t;
+	typedef icmp_net_frame raw_frame_t;
 	typedef boost::signals2::signal<void(const tap_frame_t &)> on_tap_frame_t;
 	icmp_net(const char *dev, int mtu);
 	void run();

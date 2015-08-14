@@ -5,6 +5,7 @@
 #include <utility>
 #include <functional>
 #include <iostream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -15,8 +16,6 @@ using namespace std;
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/socket.h>
-#include <linux/icmp.h>
-#include <linux/ip.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <time.h>
@@ -100,57 +99,64 @@ void icmp_net::raw_reader(yield_context yield) {
 			cout << "make_unique<raw_frame_t>: " << exc.what() << endl;
 			continue;
 		}
+	}
+}
+
+template<typename T>
+string::const_iterator icmp_net_frame::read(string::const_iterator begin, T *&ptr) {
+	if (buf.end() - begin < sizeof(*ptr)) {
+		throw invalid_argument("packet too short");
+	}
+	ptr = (T *)(begin - buf.begin() + buf.data());
+	return begin + sizeof(*ptr);
+}
+
+icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
+	buf(buf_arg, len) {
+	// Skip headers
+	if (len == sizeof(buf)) {
+		cout << "Warning: buffer full (" << len << " bytes)" << endl;
+	}
+	string::const_iterator cur = buf.begin();
+	read(cur, ip);
+	cur = read(cur + ip->ihl * 4, icmp);
+
+	// Verify some fields
+	unsigned short tot_len = ntohs(ip->tot_len);
+	if (len != tot_len) {
+		printf("Expected tot_len=%d, got tot_len=%d\n", len, tot_len);
+		throw invalid_argument("invalid packet length");
+	}
+	if (icmp->type != ICMP_ECHO) {
+		throw invalid_argument("unexpected ICMP packet type");
+	}
+
+	reply = make_unique<icmp_reply>(ip->saddr, icmp->un.echo.id, icmp->un.echo.sequence);
+	printf("received id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
 
 #if 0
-		// Step 1: Collect echo requests and write out data to the tap fd.
-		// Subscribe any active connections to the stream.
-		// Assume that writing to tap is non-blocking.
-		if (FD_ISSET(raw_fd, &fds)) {
-			struct iphdr *ip = (struct iphdr *)buf;
-			ssize_t len = recv(raw_fd, buf, sizeof(buf), MSG_DONTWAIT);
-			if (len < 0) {
-				perror("recv ip");
-			} else {
-				if (len == sizeof(buf)) {
-					printf("Warning: buffer full (%u bytes)\n", len);
-				}
-				ssize_t ip_hlen = ip->ihl * 4;
-				struct icmphdr *icmp = (struct icmphdr *)(((char *)ip) + ip_hlen);
-				unsigned short tot_len = ntohs(ip->tot_len);
-				if (len != tot_len) {
-					printf("Expected tot_len=%d, got tot_len=%d\n", len, tot_len);
-				} else {
-					char *data = ((char *)icmp) + sizeof(*icmp);
-					ssize_t data_len = buf + len - data;
-
-					if (icmp->type == ICMP_ECHO) {
-						icmp_reply reply(ip->saddr, icmp->un.echo.id, icmp->un.echo.sequence);
-						printf("received id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
-						connection_id cid = reply.id;
-						bool new_conn = !conns.count(cid);
-						icmp_net_conn &conn = conns[cid];
-						if (new_conn) {
-							printf("new connection to %s\n", inet_ntoa(*(in_addr *)&reply.addr));
-							conn.pos = tot_recv;
-						}
-						conn.time = reply.time;
-						conn.replies.insert(reply);
-
-						if (data_len) {
-							printf("tap: writing %d\n", data_len);
-							ssize_t written = write(tap_fd, data, data_len);
-							if (written < 0) {
-								perror("write");
-							} else if (written != data_len) {
-								printf("wrote %d instead of %d\n", written, data_len);
-							}
-						}
-					}
-				}
-			}
+	{
+		connection_id cid = reply->id;
+		bool new_conn = !conns.count(cid);
+		icmp_net_conn &conn = conns[cid];
+		if (new_conn) {
+			printf("new connection to %s\n", inet_ntoa(*(in_addr *)&reply.addr));
+			conn.pos = tot_recv;
 		}
-#endif
+		conn.time = reply.time;
+		conn.replies.insert(reply);
 	}
+
+	if (data_len) {
+		printf("tap: writing %d\n", data_len);
+		ssize_t written = write(tap_fd, data, data_len);
+		if (written < 0) {
+			perror("write");
+		} else if (written != data_len) {
+			printf("wrote %d instead of %d\n", written, data_len);
+		}
+	}
+#endif
 }
 
 #if 0
