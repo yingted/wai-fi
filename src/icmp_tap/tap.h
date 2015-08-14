@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <memory>
 
-boost::asio::posix::stream_descriptor create_tap_dev(boost::asio::io_service &io, char *dev);
-void ip_set_up(char *dev, int mtu);
+std::unique_ptr<boost::asio::posix::stream_descriptor> create_tap_dev(boost::asio::io_service &io, const char *dev);
+void ip_set_up(const char *dev, int mtu);

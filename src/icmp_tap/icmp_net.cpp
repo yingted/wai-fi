@@ -1,8 +1,10 @@
+#define BOOST_ASIO_HAS_MOVE
 #include <algorithm>
 #include <map>
 #include <set>
 #include <utility>
 #include <functional>
+#include <iostream>
 
 using namespace std;
 using namespace std::placeholders;
@@ -68,20 +70,16 @@ bool operator<(const icmp_reply &a, const icmp_reply &b) {
 	return lt_seq(a, b);
 }
 
-icmp_net::icmp_net(const char *dev_arg, int mtu) :
-	io_() {
-	char dev[IFNAMSIZ + 1];
-	strncpy(dev, dev_arg, IFNAMSIZ);
-
-	asio::posix::stream_descriptor tap(std::move(create_tap_dev(io_, dev)));
-	tap.native_non_blocking(true);
-
-	icmp::socket raw(io_, icmp::v4());
+icmp_net::icmp_net(const char *dev, int mtu) :
+	io_(),
+	tap_(std::move(*create_tap_dev(io_, dev))),
+	raw_(io_, icmp::v4()) {
+	tap_.native_non_blocking(true);
 
 	{
 		struct icmp_filter filt;
 		filt.data = ~(1U << ICMP_ECHO);
-		if (setsockopt(raw.native(), IPPROTO_RAW, ICMP_FILTER, &filt, sizeof(filt)) < 0) {
+		if (setsockopt(raw_.native(), IPPROTO_RAW, ICMP_FILTER, &filt, sizeof(filt)) < 0) {
 			perror("setsockopt");
 		}
 	}
@@ -93,9 +91,11 @@ icmp_net::icmp_net(const char *dev_arg, int mtu) :
 }
 
 void icmp_net::tap_reader(yield_context yield) {
+	cout << "tap_reader: started" << endl;
 }
 
 void icmp_net::raw_reader(yield_context yield) {
+	cout << "raw_reader: started" << endl;
 }
 
 #if 0
@@ -263,3 +263,7 @@ void icmp_net::raw_reader(yield_context yield) {
 		}
 	}
 #endif
+
+void icmp_net::run() {
+	io_.run();
+}
