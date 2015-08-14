@@ -92,15 +92,23 @@ icmp_net::icmp_net(const char *dev, int mtu) :
 
 void icmp_net::tap_reader(yield_context yield) {
 	cout << "tap_reader: started" << endl;
+	for (;;) {
+		static char buf[64 * 1024];
+		ssize_t len = tap_.async_read_some(asio::buffer(buf), yield);
+		cout << "tap_reader: read: " << len << " B" << endl;
+	}
 }
 
 void icmp_net::raw_reader(yield_context yield) {
 	cout << "raw_reader: started" << endl;
+	for (;;) {
+		static char buf[64 * 1024];
+		ssize_t len = raw_.async_receive(asio::buffer(buf), yield);
+		cout << "raw_reader: read: " << len << " B" << endl;
+	}
 }
 
 #if 0
-	int fd_max = max(tap_fd, raw_fd) + 1;
-
 	boost::circular_buffer<frame_t> outq(1024);
 	size_t tot_recv = 0; // represents outq.end()
 	fd_set fds;

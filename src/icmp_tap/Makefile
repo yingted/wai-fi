@@ -1,8 +1,9 @@
 CC = g++
-CXXFLAGS = -std=c++11 -Wall
+CXXFLAGS = -std=c++11
 LDFLAGS += -L/usr/local/lib64 -lboost_system -lboost_coroutine
-ifeq (DEBUG,1)
-	CXXFLAGS += -g3
+ifeq ($(DEBUG),1)
+	CXXFLAGS += -g3 -Wall -fsanitize=address
+	LDFLAGS += -g3 -Wall -fsanitize=address
 endif
 OBJECTS := icmp_tap.o tuntap.o inet_checksum.o tap.o icmp_net.o
 DEPEND := $(OBJECTS:.o=.d)
