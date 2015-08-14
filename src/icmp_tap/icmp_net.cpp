@@ -7,7 +7,6 @@
 #include <iostream>
 
 using namespace std;
-using namespace std::placeholders;
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,12 +24,14 @@ using namespace std::placeholders;
 #include <boost/circular_buffer.hpp>
 #include <boost/asio.hpp>
 #include <boost/coroutine/all.hpp>
+#include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
 
-using namespace boost;
+namespace asio = boost::asio;
 using asio::yield_context;
 using asio::ip::icmp;
 using asio::io_service;
+using boost::signals2::scoped_connection;
 
 #include "tap.h"
 #include "inet_checksum.h"
@@ -53,8 +54,8 @@ icmp_net::icmp_net(const char *dev, int mtu) :
 
 	ip_set_up(dev, mtu);
 
-	asio::spawn(io_, bind(&icmp_net::tap_reader, this, _1));
-	asio::spawn(io_, bind(&icmp_net::raw_reader, this, _1));
+	asio::spawn(io_, boost::bind(&icmp_net::tap_reader, this, _1));
+	asio::spawn(io_, boost::bind(&icmp_net::raw_reader, this, _1));
 }
 
 void icmp_net::tap_reader(yield_context yield) {
@@ -63,7 +64,17 @@ void icmp_net::tap_reader(yield_context yield) {
 		static char buf[64 * 1024];
 		ssize_t len = tap_.async_read_some(asio::buffer(buf), yield);
 		cout << "tap_reader: read: " << len << " B" << endl;
+		on_tap_frame_(tap_frame_t(buf, len));
 	}
+}
+
+icmp_net_conn::icmp_net_conn(icmp_net::on_tap_frame_t &sig) :
+	sig_conn_(sig.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))) {
+}
+
+void icmp_net_conn::on_tap_frame(icmp_net::tap_frame_t frame) {
+	cout << "on_tap_frame: read: " << frame.size() << " B" << endl;
+	// XXX
 }
 
 void icmp_net::raw_reader(yield_context yield) {
@@ -72,18 +83,8 @@ void icmp_net::raw_reader(yield_context yield) {
 		static char buf[64 * 1024];
 		ssize_t len = raw_.async_receive(asio::buffer(buf), yield);
 		cout << "raw_reader: read: " << len << " B" << endl;
-	}
-}
 
 #if 0
-	boost::circular_buffer<frame_t> outq(1024);
-	size_t tot_recv = 0; // represents outq.end()
-	fd_set fds;
-	map<connection_id, connection> conns;
-	char buf[64 * 1024]; // max IPv4 packet size
-
-	for (;;) {
-
 		// Step 1: Collect echo requests and write out data to the tap fd.
 		// Subscribe any active connections to the stream.
 		// Assume that writing to tap is non-blocking.
@@ -106,15 +107,11 @@ void icmp_net::raw_reader(yield_context yield) {
 					ssize_t data_len = buf + len - data;
 
 					if (icmp->type == ICMP_ECHO) {
-						icmp_reply reply;
-						reply.id = ntohs(icmp->un.echo.id);
-						reply.seq = ntohs(icmp->un.echo.sequence);
-						reply.addr = ip->saddr;
-						clock_gettime(CLOCK_MONOTONIC, &reply.time);
+						icmp_reply reply(ip->saddr, icmp->un.echo.id, icmp->un.echo.sequence);
 						printf("received id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 						connection_id cid = reply.id;
 						bool new_conn = !conns.count(cid);
-						connection &conn = conns[cid];
+						icmp_net_conn &conn = conns[cid];
 						if (new_conn) {
 							printf("new connection to %s\n", inet_ntoa(*(in_addr *)&reply.addr));
 							conn.pos = tot_recv;
@@ -135,20 +132,18 @@ void icmp_net::raw_reader(yield_context yield) {
 				}
 			}
 		}
-		// Step 2: Collect data from the tap fd and update the outgoing queue.
-		if (FD_ISSET(tap_fd, &fds)) {
-			ssize_t len = read(tap_fd, buf, sizeof(buf));
-			if (len < 0) {
-				perror("recv tap");
-			} else {
-				printf("tap: reading %d\n", len);
-				if (len == sizeof(buf)) {
-					printf("Warning: buffer full (%u bytes)\n", len);
-				}
-				outq.push_back(string(buf, buf + len));
-				++tot_recv;
-			}
-		}
+#endif
+	}
+}
+
+#if 0
+	boost::circular_buffer<frame_t> outq(1024);
+	size_t tot_recv = 0; // represents outq.end()
+	fd_set fds;
+	map<connection_id, icmp_net_conn> conns;
+	char buf[64 * 1024]; // max IPv4 packet size
+
+	for (;;) {
 		// Step 3: Write out the data to each connection.
 		// Also time out some connections.
 		// Split by:
@@ -157,7 +152,7 @@ void icmp_net::raw_reader(yield_context yield) {
 		clock_gettime(CLOCK_MONOTONIC, &min_time);
 		min_time.tv_sec -= 150; // 150 seconds timeout
 		for (auto &it : conns) {
-			connection &conn = it.second;
+			icmp_net_conn &conn = it.second;
 			size_t packets = tot_recv - conn.pos;
 			unsigned char queued = max<unsigned char>(0, min<long>(UCHAR_MAX, (long)packets - (long)conn.replies.size()));
 			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {

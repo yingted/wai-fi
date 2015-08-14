@@ -6,16 +6,9 @@
 #include <set>
 
 struct icmp_reply {
+	icmp_reply(__be32 addr, unsigned short id, unsigned short seq);
 	__be32 addr;
 	unsigned short id, seq;
-	struct timespec time;
-};
-
-typedef unsigned short connection_id;
-
-struct connection {
-	size_t pos;
-	std::set<icmp_reply> replies;
 	struct timespec time;
 };
 
