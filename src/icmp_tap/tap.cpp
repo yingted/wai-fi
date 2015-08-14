@@ -6,17 +6,18 @@
 #include <string>
 #include <cstring>
 #include <cerrno>
+#include <boost/move/unique_ptr.hpp>
+#include <boost/make_unique.hpp>
 
 using namespace boost::system;
 using boost::asio::io_service;
 using boost::asio::posix::stream_descriptor;
 using std::string;
-using std::unique_ptr;
 
 #include "tuntap.h"
 #include "tap.h"
 
-unique_ptr<stream_descriptor> create_tap_dev(io_service &io, const char *dev_arg) {
+std::unique_ptr<stream_descriptor> create_tap_dev(io_service &io, const char *dev_arg) {
 	char dev[IFNAMSIZ + 1];
 	assert(dev_arg);
 	strncpy(dev, dev_arg, IFNAMSIZ);
@@ -25,7 +26,7 @@ unique_ptr<stream_descriptor> create_tap_dev(io_service &io, const char *dev_arg
 	if ((tap_fd = tun_alloc(dev, IFF_TAP)) < 0) {
 		throw system_error(errno, system_category(), "tun_alloc");
 	}
-	return unique_ptr<stream_descriptor>(new stream_descriptor(io, tap_fd));
+	return boost::make_unique<stream_descriptor>(io, tap_fd);
 }
 
 void ip_set_up(const char *dev, int mtu) {

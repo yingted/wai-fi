@@ -26,8 +26,10 @@ using namespace std;
 #include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
+#include <boost/make_unique.hpp>
 
 namespace asio = boost::asio;
+using boost::make_unique;
 using asio::yield_context;
 using asio::ip::icmp;
 using asio::io_service;
@@ -64,7 +66,14 @@ void icmp_net::tap_reader(yield_context yield) {
 		static char buf[64 * 1024];
 		ssize_t len = tap_.async_read_some(asio::buffer(buf), yield);
 		cout << "tap_reader: read: " << len << " B" << endl;
-		on_tap_frame_(tap_frame_t(buf, len));
+		unique_ptr<tap_frame_t> frame;
+		try {
+			frame = make_unique<tap_frame_t>(buf, len);
+		} catch (const invalid_argument &exc) {
+			cout << "make_unique<tap_frame_t>: " << exc.what() << endl;
+			continue;
+		}
+		on_tap_frame_(*frame);
 	}
 }
 
@@ -83,6 +92,14 @@ void icmp_net::raw_reader(yield_context yield) {
 		static char buf[64 * 1024];
 		ssize_t len = raw_.async_receive(asio::buffer(buf), yield);
 		cout << "raw_reader: read: " << len << " B" << endl;
+
+		unique_ptr<raw_frame_t> frame;
+		try {
+			frame = make_unique<raw_frame_t>(buf, len);
+		} catch (const invalid_argument &exc) {
+			cout << "make_unique<raw_frame_t>: " << exc.what() << endl;
+			continue;
+		}
 
 #if 0
 		// Step 1: Collect echo requests and write out data to the tap fd.
