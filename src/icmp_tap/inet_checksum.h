@@ -1,5 +1,4 @@
-#ifndef __INET_CHECKSUM_H__
-#define __INET_CHECKSUM_H__
+#pragma once
 
 #include <stdint.h>
 
@@ -11,6 +10,4 @@ uint16_t inet_checksum(void *begin, void *end);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

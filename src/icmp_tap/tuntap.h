@@ -1,5 +1,4 @@
-#ifndef __TUNTAP_H__
-#define __TUNTAP_H__
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -9,6 +8,4 @@ int tun_alloc(char *dev, short type);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

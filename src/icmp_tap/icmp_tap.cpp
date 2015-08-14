@@ -11,8 +11,6 @@ using namespace std;
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
 #include <linux/icmp.h>
 #include <linux/ip.h>
 #include <arpa/inet.h>
@@ -20,8 +18,12 @@ using namespace std;
 #include <time.h>
 #include <limits.h>
 #include <boost/circular_buffer.hpp>
+#include <boost/asio.hpp>
 
-#include "tuntap.h"
+using namespace boost;
+using asio::ip::icmp;
+
+#include "tap.h"
 #include "inet_checksum.h"
 
 struct icmp_reply {
@@ -65,50 +67,31 @@ int main(int argc, char *argv[]) {
 		strncpy(dev, argv[1], IFNAMSIZ);
 	}
 	const ssize_t mtu = 1400 - 2; // for header
-	char buf[64 * 1024]; // max IPv4 packet size
-	int tap_fd, raw_fd, fd_max;
-	boost::circular_buffer<frame_t> outq(1024);
-	size_t tot_recv = 0; // represents outq.end()
-	fd_set fds;
+	int tap_fd, raw_fd;
+	boost::asio::io_service io;
 
-	map<connection_id, connection> conns;
+	asio::posix::stream_descriptor tap(move(create_tap_dev(io, dev)));
+	tap.native_non_blocking(true);
 
-	if ((tap_fd = tun_alloc(dev, IFF_TAP)) < 0) {
-		perror("tun_alloc");
-		return -1;
-	}
+	icmp::socket raw(io, icmp::v4());
 
 	{
-		int flags = fcntl(tap_fd, F_GETFL, 0);
-		if (fcntl(tap_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-			perror("fcntl: nonblock");
+		struct icmp_filter filt;
+		filt.data = ~(1U << ICMP_ECHO);
+		if (setsockopt(raw.native(), IPPROTO_RAW, ICMP_FILTER, &filt, sizeof(filt)) < 0) {
+			perror("setsockopt");
 		}
 	}
 
-	if ((raw_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
-		perror("socket");
-		return -1;
-	}
+	int fd_max = max(tap_fd, raw_fd) + 1;
 
-	struct icmp_filter filt;
-	filt.data = ~(1U << ICMP_ECHO);
-	if (setsockopt(raw_fd, IPPROTO_RAW, ICMP_FILTER, &filt, sizeof(filt)) < 0) {
-		perror("setsockopt");
-	}
+	ip_set_up(dev, mtu);
 
-	fd_max = max(tap_fd, raw_fd) + 1;
-
-	printf("Opened tunnel on %.*s\n", IFNAMSIZ, dev);
-
-	{
-		string cmd;
-		cmd = "ip link set " + string(dev) + " mtu " + to_string(mtu - 14); // mac header
-		system(cmd.c_str());
-		cmd = "ip link set dev " + string(dev) + " up";
-		system(cmd.c_str());
-		cmd = "ifconfig " + string(dev) + " 192.168.10.1";
-		system(cmd.c_str());
-	}
+	boost::circular_buffer<frame_t> outq(1024);
+	size_t tot_recv = 0; // represents outq.end()
+	fd_set fds;
+	map<connection_id, connection> conns;
+	char buf[64 * 1024]; // max IPv4 packet size
 
 	for (;;) {
 		FD_ZERO(&fds);
