@@ -496,8 +496,12 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
                     if (*dst) {
                         user_dprintf("duplicate packet %u", seqno);
                     } else {
-                        pbuf_ref(p);
-                        *dst = p;
+                        // Copy to ram
+                        struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+                        if (pbuf_copy(q, p)) {
+                            assert(false);
+                        }
+                        *dst = q;
                     }
                 }
             }

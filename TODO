@@ -1,6 +1,3 @@
-- LFN network optimization:
-  - copy received packets from DMA buffers
-  - timeouts
 - server-side analysis, ui
 - switch to SCons
 - move certs to TarFile, to postgresql, add built elf (to a BINARY column)
