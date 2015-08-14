@@ -63,7 +63,7 @@ static void espconn_reconnect_cb(void *arg, sint8 err) {
 
     // XXX Can be called from NMI, should queue until
     // after unlock.
-#if 0
+#if 1 // hack to fix this for now
     switch (err) {
         case ESPCONN_CONN: // -11
             // Connection timeout

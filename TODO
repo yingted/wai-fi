@@ -1,3 +1,4 @@
+- fix reentrancy bug properly
 - server-side analysis, ui
 - switch to SCons
 - move certs to TarFile, to postgresql, add built elf (to a BINARY column)
