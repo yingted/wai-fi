@@ -5,11 +5,11 @@
 #include <stddef.h>
 #include <set>
 #include <boost/chrono.hpp>
+#include "types.h"
 
 struct icmp_reply {
-	typedef boost::chrono::steady_clock boost_clock_t;
 	icmp_reply(__be32 addr, unsigned short id, unsigned short seq);
 	__be32 addr;
 	unsigned short id, seq;
-	boost_clock_t::time_point time;
+	time_point_t time;
 };

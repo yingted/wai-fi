@@ -6,9 +6,6 @@
 #include <functional>
 #include <iostream>
 #include <stdexcept>
-
-using namespace std;
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -26,18 +23,25 @@ using namespace std;
 #include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/make_unique.hpp>
+#include "tap.h"
+#include "inet_checksum.h"
+#include "icmp_net.h"
+#include "icmp_reply.h"
 
+using std::string;
+using std::unique_ptr;
+using std::shared_ptr;
+using std::make_shared;
+using std::invalid_argument;
+using std::cout;
+using std::endl;
 namespace asio = boost::asio;
+namespace chrono = std::chrono;
 using boost::make_unique;
 using asio::yield_context;
 using asio::ip::icmp;
 using asio::io_service;
 using boost::signals2::scoped_connection;
-
-#include "tap.h"
-#include "inet_checksum.h"
-#include "icmp_net.h"
-#include "icmp_reply.h"
 
 icmp_net::icmp_net(const char *dev, int mtu) :
 	io_(),
@@ -75,7 +79,7 @@ void icmp_net::tap_reader(yield_context yield) {
 
 		{
 			shared_ptr<tap_frame_t> shared_frame(std::move(frame));
-			on_tap_frame_(const_pointer_cast<const tap_frame_t>(shared_frame));
+			on_tap_frame_(std::const_pointer_cast<const tap_frame_t>(shared_frame));
 		}
 	}
 }
@@ -89,10 +93,10 @@ icmp_net_conn::icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first
 	asio::spawn(inet.io_, boost::bind(&icmp_net_conn::echo_reader, this, _1));
 }
 
-void icmp_net::write_to_tap(const icmp_net::raw_frame_t &frame) {
-	ssize_t data_len = asio::buffer_size(frame->buffer());
+void icmp_net::write_to_tap(const icmp_net::raw_frame_t &frame, yield_context yield) {
+	ssize_t data_len = asio::buffer_size(frame.buffer());
 	if (data_len) {
-		ssize_t written = tap_.async_write_some(frame->buffer(), yield);
+		ssize_t written = tap_.async_write_some(frame.buffer(), yield);
 		cout << "raw_reader: tap: write: " << written << " of " << data_len << " B" << endl;
 		if (written != data_len) {
 			cout << "raw_reader: tap: write: wrong number of bytes written" << endl;
@@ -100,12 +104,16 @@ void icmp_net::write_to_tap(const icmp_net::raw_frame_t &frame) {
 	}
 }
 
+time_point_t icmp_net_frame::inbound_deadline() const {
+	return reply->time + chrono::milliseconds(500);
+}
+
 void icmp_net_conn::echo_reader(yield_context yield) {
 	for (;;) {
 		// Find the next packet to process
-		chrono::time_point now = chrono::steady_clock::now();
+		time_point_t now = chrono::steady_clock::now();
 		bool idle = false;
-		auto it;
+		inbound_t::iterator it;
 		for (;;) {
 			if (inbound_.empty()) {
 				// Wait for any packet
@@ -119,15 +127,16 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 			if ((it = inbound_.find(next_i_)) != inbound_.end()) {
 				std::unique_ptr<icmp_net_frame> frame(move(it->second));
 				++next_i_;
-				inbound_.erase(it);
-				process_inbound_frame(frame);
+				process_inbound_frame(it, yield);
 				continue;
 			}
 			// If we have any packets whose deadlines force us to process them, do so now
 			{
-				it = inbound_sliding_earlier_elements(next_i_, now, boost::bind(&icmp_net_conn::process_inbound_frame, this, _1));
+				it = inbound_sliding_earlier_elements(next_i_, now,
+					boost::bind(&icmp_net_conn::process_inbound_frame, this, _1, yield)
+				);
 				assert(it != inbound_.end());
-				timer_.expires_at(it->inbound_deadline());
+				timer_.expires_at(it->second->inbound_deadline());
 			}
 		}
 
@@ -156,8 +165,10 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 	icmp_net_->conns_.erase(cid_);
 }
 
-void icmp_net_conn::process_inbound_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
-	icmp_net_->write_to_tap(*frame);
+void icmp_net_conn::process_inbound_frame(inbound_t::iterator it, yield_context yield) {
+	unique_ptr<icmp_net::raw_frame_t> &frame(it->second);
+	icmp_net_->write_to_tap(*frame, yield);
+	inbound_.erase(it++);
 }
 
 void icmp_net_conn::on_tap_frame(shared_ptr<const icmp_net::tap_frame_t> frame) {
@@ -173,13 +184,13 @@ void icmp_net_conn::on_raw_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
 }
 
 void icmp_net_conn::inbound_sliding_insert(unique_ptr<icmp_net::raw_frame_t> &frame) {
-	inbound_.insert(std::move(frame));
+	inbound_.emplace(frame->reply->seq, std::move(frame));
 }
 
 void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
-	static_assert(((sequence_t)-1) > 0);
+	static_assert(((sequence_t)-1) > 0, "sequence_t is signed");
 	for (auto it = inbound_.begin(); it != inbound_.end();) {
-		if ((sequence_t)(it->first - start) <= numeric_limits<sequence_t>::max() / 2) {
+		if ((sequence_t)(it->first - start) <= std::numeric_limits<sequence_t>::max() / 2) {
 			it = inbound_.erase(it);
 		} else {
 			++it;
@@ -187,13 +198,13 @@ void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
 	}
 }
 
-// TODO improve the performance
-icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_element(sequence_t start, chrono::time_point now, function<void(icmp_net_conn::inbound_t::iterator)> cb) {
-	auto begin0 = inbound_.lower_bound(start), end0 = inbound_.end(), begin1 = inbound_.begin(), it;
+// TODO improve the performance of this and the above function
+icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(icmp_net_conn::inbound_t::iterator)> cb) {
+	inbound_t::iterator begin0 = inbound_.lower_bound(start), end0 = inbound_.end(), begin1 = inbound_.begin(), it;
 
 	auto max_until_now = inbound_.end();
 	it = begin0;
-	for (size_t count = inbound_.size(); (it == end0 && (it = begin1)), count--;) {
+	for (size_t count = inbound_.size(); (it = (it == end0 ? begin1 : it)), count--;) {
 		if (it->second->inbound_deadline() <= now) {
 			if (max_until_now == inbound_.end() || max_until_now->first >= it->first) {
 				max_until_now = it;
@@ -203,17 +214,18 @@ icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elemen
 	}
 	// No items to output
 	if (max_until_now == inbound_.end()) {
-		return inbound_.end();
+		// Inline the first iteration of the loop
+		return begin0 == end0 ? begin1 : begin0;
 	}
 
 	it = begin0;
-	for (size_t count = inbound_.size(); (it == end0 && (it = begin1)), count--;) {
-		cb(it);
-		if (it == max_until_now) {
+	for (size_t count = inbound_.size(); (it = (it == end0 ? begin1 : it)), count--;) {
+		auto saved_it = it;
+		if (it++ == max_until_now) {
 			// Advance the iterator and break
 			count = 0;
 		}
-		++it;
+		cb(saved_it);
 	}
 	return it;
 }
