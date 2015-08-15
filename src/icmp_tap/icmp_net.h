@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.h"
 #include <string>
 #include <boost/asio.hpp>
 #include <boost/function.hpp>
@@ -7,7 +8,6 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/signals2.hpp>
 #include <boost/signals2/connection.hpp>
-#include "types.h"
 #include <map>
 #include <deque>
 #include "icmp_reply.h"

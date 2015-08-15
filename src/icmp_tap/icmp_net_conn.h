@@ -1,8 +1,8 @@
 #pragma once
 
+#include "types.h"
 #include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
-#include "types.h"
 #include <memory>
 #include "icmp_net.h"
 #include "icmp_net_conn_inbound.h"
@@ -11,7 +11,7 @@
 class icmp_net_conn {
 public:
 	icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first);
-	void on_raw_frame(std::unique_ptr<raw_frame_t> &frame);
+	void on_raw_frame(std::shared_ptr<raw_frame_t> &frame);
 	icmp_net &icmp_net_;
 	const connection_id cid_;
 	void stop();

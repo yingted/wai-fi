@@ -1,3 +1,4 @@
+#include "types.h"
 #include <cstring>
 #include <boost/asio.hpp>
 #include "icmp_net.h"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.h"
 #include "icmp_reply.h"
 #include <string>
 #include <memory>
@@ -10,7 +11,7 @@ struct icmp_net_frame {
 	struct iphdr *ip;
 	struct icmphdr *icmp;
 	std::string::const_iterator data_begin;
-	std::unique_ptr<icmp_reply> reply;
+	std::shared_ptr<icmp_reply> reply;
 	icmp_net_frame(const char *buf, int len);
 	boost::asio::const_buffers_1 buffer() const;
 	time_point_t inbound_deadline() const;

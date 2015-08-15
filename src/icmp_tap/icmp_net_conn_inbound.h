@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.h"
 #include <string>
 #include <boost/asio.hpp>
 #include <boost/function.hpp>
@@ -7,7 +8,6 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/signals2.hpp>
 #include <boost/signals2/connection.hpp>
-#include "types.h"
 #include <map>
 #include <deque>
 #include "icmp_reply.h"
@@ -24,10 +24,10 @@ class icmp_net_conn;
 
 class icmp_net_conn_inbound : public interruptible_loop {
 public:
-	typedef std::map<sequence_t, std::unique_ptr<icmp_net_frame> > inbound_t;
+	typedef std::map<sequence_t, std::shared_ptr<icmp_net_frame> > inbound_t;
 	icmp_net_conn_inbound(icmp_net_conn &conn, sequence_t next_i);
 	void main_loop(boost::asio::yield_context yield);
-	void sliding_insert(std::unique_ptr<raw_frame_t> &frame);
+	void sliding_insert(std::shared_ptr<raw_frame_t> &frame);
 private:
 	void sliding_clear_half_below(sequence_t start);
 	inbound_t::iterator sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(inbound_t::iterator)> cb);

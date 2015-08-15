@@ -1,4 +1,4 @@
-#define BOOST_ASIO_HAS_MOVE
+#include "types.h"
 #include <boost/asio.hpp>
 #include <boost/system/system_error.hpp>
 #include <utility>

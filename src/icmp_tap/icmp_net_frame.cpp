@@ -1,4 +1,4 @@
-#define BOOST_ASIO_HAS_MOVE
+#include "types.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -22,7 +22,6 @@
 #include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
-#include <boost/make_unique.hpp>
 #include "tap.h"
 #include "inet_checksum.h"
 #include "icmp_net.h"
@@ -32,7 +31,7 @@
 #include "interruptible_loop.h"
 
 using std::string;
-using std::unique_ptr;
+using std::shared_ptr;
 using std::shared_ptr;
 using std::make_shared;
 using std::invalid_argument;
@@ -40,7 +39,6 @@ using std::cout;
 using std::endl;
 namespace asio = boost::asio;
 namespace chrono = std::chrono;
-using boost::make_unique;
 using asio::yield_context;
 using asio::ip::icmp;
 using asio::io_service;
@@ -87,6 +85,6 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 		throw invalid_argument("unexpected ICMP packet type");
 	}
 
-	reply = make_unique<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
+	reply = make_shared<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
 	printf("icmp_net_frame: id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
 }

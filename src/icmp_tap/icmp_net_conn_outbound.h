@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.h"
 #include <string>
 #include <boost/asio.hpp>
 #include <boost/function.hpp>
@@ -7,7 +8,6 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/signals2.hpp>
 #include <boost/signals2/connection.hpp>
-#include "types.h"
 #include <map>
 #include <deque>
 #include "icmp_reply.h"
@@ -26,7 +26,7 @@ public:
 	icmp_net_conn_outbound(icmp_net_conn &conn);
 	void main_loop(boost::asio::yield_context yield);
 	void enqueue_output(std::shared_ptr<const tap_frame_t> frame);
-	void enqueue_reply(std::unique_ptr<raw_frame_t> &frame);
+	void enqueue_reply(std::shared_ptr<raw_frame_t> &frame);
 private:
 	void send_reply(icmp_reply &reply);
 	icmp_net_conn &conn_;

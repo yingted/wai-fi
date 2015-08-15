@@ -1,4 +1,4 @@
-#define BOOST_ASIO_HAS_MOVE
+#include "types.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -22,7 +22,6 @@
 #include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
-#include <boost/make_unique.hpp>
 #include "tap.h"
 #include "inet_checksum.h"
 #include "icmp_net.h"
@@ -32,7 +31,7 @@
 #include "interruptible_loop.h"
 
 using std::string;
-using std::unique_ptr;
+using std::shared_ptr;
 using std::shared_ptr;
 using std::make_shared;
 using std::invalid_argument;
@@ -40,7 +39,6 @@ using std::cout;
 using std::endl;
 namespace asio = boost::asio;
 namespace chrono = std::chrono;
-using boost::make_unique;
 using asio::yield_context;
 using asio::ip::icmp;
 using asio::io_service;
@@ -76,18 +74,15 @@ void icmp_net::tap_reader(yield_context yield) {
 		static char buf[64 * 1024];
 		ssize_t len = tap_.async_read_some(asio::buffer(buf), yield);
 		cout << "tap_reader: read: " << len << " B" << endl;
-		unique_ptr<tap_frame_t> frame;
+		shared_ptr<tap_frame_t> frame;
 		try {
-			frame = make_unique<tap_frame_t>(buf, len);
+			frame = make_shared<tap_frame_t>(buf, len);
 		} catch (const invalid_argument &exc) {
-			cout << "make_unique<tap_frame_t>: " << exc.what() << endl;
+			cout << "make_shared<tap_frame_t>: " << exc.what() << endl;
 			continue;
 		}
 
-		{
-			shared_ptr<tap_frame_t> shared_frame(std::move(frame));
-			on_tap_frame_(std::const_pointer_cast<const tap_frame_t>(shared_frame));
-		}
+		on_tap_frame_(std::const_pointer_cast<const tap_frame_t>(frame));
 	}
 }
 
@@ -121,11 +116,11 @@ void icmp_net::raw_reader(yield_context yield) {
 		ssize_t len = raw_.async_receive(asio::buffer(buf), yield);
 		cout << "raw_reader: read: " << len << " B" << endl;
 
-		unique_ptr<raw_frame_t> frame;
+		shared_ptr<raw_frame_t> frame;
 		try {
-			frame = make_unique<raw_frame_t>(buf, len);
+			frame = make_shared<raw_frame_t>(buf, len);
 		} catch (const invalid_argument &exc) {
-			cout << "raw_reader: make_unique<raw_frame_t>: " << exc.what() << endl;
+			cout << "raw_reader: make_shared<raw_frame_t>: " << exc.what() << endl;
 			continue;
 		}
 
@@ -138,7 +133,6 @@ void icmp_net::raw_reader(yield_context yield) {
 				conns_.emplace(cid, make_shared<icmp_net_conn>(*this, cid, frame->reply->seq));
 			}
 			conns_[cid]->on_raw_frame(frame);
-			assert(!frame);
 		}
 	}
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.h"
 #include <boost/asio.hpp>
 #include <memory>
 

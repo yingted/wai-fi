@@ -1,3 +1,4 @@
+#include "types.h"
 #include "icmp_reply.h"
 
 icmp_reply::icmp_reply(__be32 addr, unsigned short id, unsigned short seq) :

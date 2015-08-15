@@ -1,4 +1,4 @@
-#define BOOST_ASIO_HAVE_NONE
+#include "types.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -22,7 +22,6 @@
 #include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
-#include <boost/make_unique.hpp>
 #include "tap.h"
 #include "inet_checksum.h"
 #include "icmp_net.h"
@@ -33,7 +32,7 @@
 #include "icmp_net_conn_inbound.h"
 
 using std::string;
-using std::unique_ptr;
+using std::shared_ptr;
 using std::shared_ptr;
 using std::make_shared;
 using std::invalid_argument;
@@ -41,7 +40,6 @@ using std::cout;
 using std::endl;
 namespace asio = boost::asio;
 namespace chrono = std::chrono;
-using boost::make_unique;
 using asio::yield_context;
 using asio::ip::icmp;
 using asio::io_service;
@@ -110,7 +108,7 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 
 void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 	assert(it->second);
-	unique_ptr<raw_frame_t> &frame(it->second);
+	shared_ptr<raw_frame_t> &frame(it->second);
 	assert(it->second);
 	conn_.icmp_net_.write_to_tap(*frame, *yield_);
 	drop_frame(it);
@@ -122,7 +120,7 @@ icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icm
 	return inbound_.erase(it);
 }
 
-void icmp_net_conn_inbound::sliding_insert(unique_ptr<raw_frame_t> &frame) {
+void icmp_net_conn_inbound::sliding_insert(shared_ptr<raw_frame_t> &frame) {
 	sequence_t seq = frame->reply->seq;
 	inbound_.emplace(seq, std::move(frame));
 	assert(inbound_[seq]);
