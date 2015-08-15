@@ -137,7 +137,6 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 			}
 			// Check for sequentially next packet
 			if ((it = inbound_.find(next_i_)) != inbound_.end()) {
-				std::unique_ptr<icmp_net_frame> frame(move(it->second));
 				++next_i_;
 				process_inbound_frame(it); // invalidates it
 				continue;
@@ -258,7 +257,9 @@ void icmp_net_conn::process_outbound_frames() {
 }
 
 void icmp_net_conn::process_inbound_frame(inbound_t::iterator it) {
+	assert(it->second);
 	unique_ptr<icmp_net::raw_frame_t> &frame(it->second);
+	assert(it->second);
 	icmp_net_->write_to_tap(*frame, *yield_);
 	drop_inbound_frame(it);
 }
@@ -282,7 +283,9 @@ void icmp_net_conn::on_raw_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
 }
 
 void icmp_net_conn::inbound_sliding_insert(unique_ptr<icmp_net::raw_frame_t> &frame) {
-	inbound_.emplace(frame->reply->seq, std::move(frame));
+	sequence_t seq = frame->reply->seq;
+	inbound_.emplace(seq, std::move(frame));
+	assert(inbound_[seq]);
 }
 
 void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
