@@ -177,16 +177,19 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 }
 
 void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
-	auto it = outbound_.begin();
-	if (it == outbound_.end()) {
-		return;
+	shared_ptr<const icmp_net::tap_frame_t> frame;
+	{
+		auto it = outbound_.begin();
+		if (it == outbound_.end()) {
+			return;
+		}
+		frame = *it;
+		outbound_.erase(it);
 	}
-	shared_ptr<const icmp_net::tap_frame_t> frame = *it;
-	outbound_.erase(it);
 
-#if 0
 	printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 
+	static char buf[64 * 1024];
 	char *out = buf;
 
 	struct icmphdr *icmp = (struct icmphdr *)out;
@@ -203,29 +206,25 @@ void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
 	// padding
 	*out++ = 0;
 
-	const string &frame = *(outq.end() - (tot_recv - conn.pos++));
-	out = copy(frame.begin(), frame.end(), out);
+	out = std::copy(frame->begin(), frame->end(), out);
 
 	icmp->checksum = inet_checksum(icmp, out);
 
-	struct sockaddr_in dst = {
-		.sin_family = AF_INET,
-		.sin_port = 0,
-		.sin_addr = {
-			.s_addr = reply.addr,
-		},
-	};
+	icmp_net::raw_t::endpoint_type dst(asio::ip::address::from_string(inet_ntoa(*(in_addr *)&reply.addr)), reply.id);
 	ssize_t send_len = out - buf;
 	assert(send_len <= sizeof(buf));
-	ssize_t sent = sendto(raw_fd, buf, send_len, MSG_DONTWAIT, (struct sockaddr *)&dst, sizeof(dst));
-	if (sent < 0) {
-		perror("sendto");
-	} else if (send_len != sent) {
-		printf("sent %u instead of %u\n", sent, send_len);
+
+	icmp_net_->write_to_raw(asio::buffer((const char *)buf, send_len), dst, *yield_);
+}
+
+void icmp_net::write_to_raw(asio::const_buffers_1 buf, icmp_net::raw_t::endpoint_type dst, yield_context yield) {
+	ssize_t send_len = asio::buffer_size(buf);
+	ssize_t sent = raw_.async_send_to(buf, dst, MSG_DONTWAIT, yield);
+	if (send_len != sent) {
+		cout << "sent " << sent << " instead of " << send_len << endl;
 	} else {
-		printf("sent %u to %s\n", sent, inet_ntoa(*(in_addr *)&reply.addr));
+		cout << "sent " << sent << " to " << dst << endl;
 	}
-#endif
 }
 
 void icmp_net_conn::process_outbound_frames() {
