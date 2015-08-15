@@ -31,6 +31,8 @@ void user_init(void) {
     gdb_stub_break();
 #endif
     user_dprintf("Starting up...");
+    extern short icmp_net_device_id;
+    __asm__("rsr.ccount %0":"=r"(icmp_net_device_id));
 
     connmgr_init();
     connmgr_start();

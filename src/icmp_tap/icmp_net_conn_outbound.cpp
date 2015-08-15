@@ -32,6 +32,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 		// TODO improve the performance of all the sliding window stuff
 		for (auto it = inbound_.begin(); it != inbound_.end();) {
 			if (it->second->outbound_deadline() <= now) {
+				cout << "outbound: timing out seq=" << it->first << endl;
 				it = inbound_.erase(it);
 			} else {
 				++it;
@@ -50,7 +51,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 				break;
 			}
 			send_reply(*frame->reply);
-			inbound_.erase(frame->reply->id);
+			inbound_.erase(frame->reply->seq);
 		}
 		timer_.expires_at(time_point_t::max());
 		if (!timer_wait()) {
@@ -116,6 +117,7 @@ void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const tap_frame_t> f
 
 void icmp_net_conn_outbound::enqueue_reply(std::shared_ptr<raw_frame_t> frame) {
 	assert(frame);
-	inbound_.emplace(frame->reply->id, frame);
+	cout << "outbound: enqueue_reply: seq=" << frame->reply->seq << endl;
+	inbound_.emplace(frame->reply->seq, frame);
 	interrupt();
 }
