@@ -73,7 +73,12 @@ void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 		outbound_.erase(it);
 	}
 
-	printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
+	cout
+		<< "replying id=" << reply.id
+		<< " seq=" << reply.seq
+		<< " saddr=" << inet_ntoa(*(in_addr *)&reply.addr)
+		<< " queued=" << ((int)queued_)
+		<< endl;
 
 	// XXX This depends on not doing IO between this and async_send_to
 	static char buf[64 * 1024];
