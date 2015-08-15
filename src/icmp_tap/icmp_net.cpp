@@ -121,14 +121,15 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 		bool idle = false;
 		inbound_t::iterator it;
 		for (;;) {
+			// Remove old packets (invalidates it)
+			inbound_sliding_clear_half_below(next_i_);
+
 			if (inbound_.empty()) {
 				// Wait for any packet
 				timer_.expires_at(now + chrono::seconds(150));
 				idle = true;
 				break;
 			}
-			// Remove old packets (invalidates it)
-			inbound_sliding_clear_half_below(next_i_);
 			// Check for sequentially next packet
 			if ((it = inbound_.find(next_i_)) != inbound_.end()) {
 				std::unique_ptr<icmp_net_frame> frame(move(it->second));
