@@ -48,23 +48,19 @@ using boost::signals2::scoped_connection;
 
 icmp_net_conn::icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first) :
 	icmp_net_(&inet),
-	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))),
-	inbound_timer_(inet.io_),
-	outbound_timer_(inet.io_),
 	cid_(cid),
-	next_i_(first),
-	echo_yield_(NULL),
-	tap_yield_(NULL),
-	queued_(0),
+	outbound_(inet.io_),
+	inbound_(inet.io_, first),
+	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))),
 	alive_(true) {
-	asio::spawn(inet.io_, boost::bind(&icmp_net_conn::echo_writer, this, _1));
-	asio::spawn(inet.io_, boost::bind(&icmp_net_conn::echo_reader, this, _1));
+	outbound_.run();
+	inbound_.run();
 }
 
 void icmp_net_conn::stop() {
 	alive = false;
-	inbound_timer_.cancel();
-	outbound_timer_.cancel();
+	inbound_.stop();
+	outbound_.stop();
 	// Let's extend its life a bit
 	auto sp = icmp_net_->conns_[cid_];
 	icmp_net_->conns_.erase(cid_);
@@ -237,17 +233,23 @@ icmp_net_conn::inbound_t::iterator icmp_net_conn::drop_inbound_frame(inbound_t::
 }
 
 void icmp_net_conn::on_tap_frame(shared_ptr<const icmp_net::tap_frame_t> frame) {
+	if (!alive_) {
+		return;
+	}
 	cout << "on_tap_frame: read: " << frame->size() << " B" << endl;
-	outbound_.push_back(frame);
-	outbound_timer_.cancel();
+	outbound_.outbound_.push_back(frame);
+	outbound_.interrupt();
 }
 
 void icmp_net_conn::on_raw_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
+	if (!alive_) {
+		return;
+	}
 	cout << "on_raw_frame: echo: seq=" << frame->reply->seq << endl;
-	inbound_sliding_insert(frame);
-	outbound_insert(frame);
-	inbound_timer_.cancel();
-	outbound_timer_.cancel();
+	inbound_.sliding_insert(frame);
+	inbound_.interrupt();
+	outbound_.outbound_.insert(frame);
+	outbound_.interrupt();
 }
 
 void icmp_net_conn::inbound_sliding_insert(unique_ptr<icmp_net::raw_frame_t> &frame) {

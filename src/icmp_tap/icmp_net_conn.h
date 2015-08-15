@@ -16,34 +16,50 @@
 #include <memory>
 #include <stdexcept>
 #include "icmp_net.h"
+#include "interruptible_loop.h"
+
+typedef unsigned short sequence_t; // must be unsigned
+
+class icmp_net_conn;
+
+class icmp_net_conn_outbound : public interruptible_loop {
+public:
+	typedef std::deque<std::shared_ptr<const icmp_net::tap_frame_t> > outbound_t;
+	icmp_net_conn_outbound(icmp_net_conn *conn);
+private:
+	void process_frames();
+	void send_reply(icmp_reply &reply);
+	icmp_net_conn *conn_;
+	unsigned char queued_;
+	outbound_t outbound_;
+};
+
+class icmp_net_conn_inbound : public interruptible_loop {
+public:
+	icmp_net_conn_inbound(icmp_net_conn *conn, sequence_t next_i);
+private:
+	typedef std::map<sequence_t, std::unique_ptr<icmp_net_frame> > inbound_t;
+	void sliding_insert(std::unique_ptr<icmp_net::raw_frame_t> &frame);
+	void sliding_clear_half_below(sequence_t start);
+	inbound_t::iterator sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(inbound_t::iterator)> cb);
+	void process_frame(inbound_t::iterator it);
+	inbound_t::iterator drop_frame(inbound_t::iterator it);
+	icmp_net_conn *conn_;
+	sequence_t next_i_;
+	inbound_t inbound_;
+};
 
 class icmp_net_conn {
 public:
-	typedef unsigned short sequence_t; // must be unsigned
 	icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first);
-	void on_tap_frame(std::shared_ptr<const icmp_net::tap_frame_t> frame);
-	void on_raw_frame(std::unique_ptr<icmp_net::raw_frame_t> &frame);
-	typedef std::map<sequence_t, std::unique_ptr<icmp_net_frame> > inbound_t;
-	typedef std::deque<std::shared_ptr<const icmp_net::tap_frame_t> > outbound_t;
 private:
 	icmp_net *const icmp_net_;
-	outbound_t outbound_;
-	inbound_t inbound_;
-	boost::signals2::scoped_connection sig_conn_;
-	boost_timer_t inbound_timer_, outbound_timer_;
 	connection_id cid_;
-	sequence_t next_i_;
-	boost::asio::yield_context *echo_yield_, *tap_yield_;
-	unsigned char queued_;
+	icmp_net_conn_outbound outbound_;
+	icmp_net_conn_inbound inbound_;
+	boost::signals2::scoped_connection sig_conn_;
 
-	void inbound_sliding_insert(std::unique_ptr<icmp_net::raw_frame_t> &frame);
-	void inbound_sliding_clear_half_below(sequence_t start);
-	inbound_t::iterator inbound_sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(inbound_t::iterator)> cb);
 	void stop();
-	void echo_writer(boost::asio::yield_context yield);
-	void echo_reader(boost::asio::yield_context yield);
-	void process_inbound_frame(inbound_t::iterator it);
-	inbound_t::iterator drop_inbound_frame(inbound_t::iterator it);
-	void process_outbound_frames();
-	void send_outbound_reply(icmp_reply &reply);
+	void on_tap_frame(std::shared_ptr<const icmp_net::tap_frame_t> frame);
+	void on_raw_frame(std::unique_ptr<icmp_net::raw_frame_t> &frame);
 };

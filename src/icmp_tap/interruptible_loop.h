@@ -6,17 +6,18 @@
 
 class interruptible_loop {
 public:
-	interruptible_loop();
-	void start(boost::asio::io_service &io_);
+	interruptible_loop(boost::asio::io_service &io_);
+	void start();
 	void interrupt();
 	void stop();
 protected:
 	void main_loop(boost::asio::yield_context yield);
 	bool timer_wait();
+	boost::asio::io_service &io_;
 	boost_timer_t timer_;
+	boost::asio::yield_context *yield_;
 private:
 	class stopped {};
 	bool stopped_, interrupted_;
-	boost::asio::yield_context *yield_;
 	void main_loop_caller(boost::asio::yield_context yield);
 };

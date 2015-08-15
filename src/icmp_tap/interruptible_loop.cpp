@@ -46,7 +46,8 @@ using asio::ip::icmp;
 using asio::io_service;
 using boost::signals2::scoped_connection;
 
-interruptible_loop::interruptible_loop() :
+interruptible_loop::interruptible_loop(boost::asio::io_service &io) :
+	io_(io), timer_(io),
 	stopped_(false), interrupted_(false), yield_(NULL) {
 }
 
@@ -73,10 +74,15 @@ bool interruptible_loop::timer_wait() {
 	if (stopped_) {
 		throw stopped();
 	}
-	if (ec) {
+	if (interrupted_) {
 		assert(ec == boost::asio::error::operation_aborted);
+		return false;
 	}
-	return !ec;
+	if (ec) {
+		// Not expected
+		throw boost::system::system_error(ec);
+	}
+	return true;
 }
 
 void interruptible_loop::main_loop_caller(boost::asio::yield_context yield) {
