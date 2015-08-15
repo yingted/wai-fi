@@ -82,5 +82,5 @@ private:
 	void process_inbound_frame(inbound_t::iterator it);
 	inbound_t::iterator drop_inbound_frame(inbound_t::iterator it);
 	void process_outbound_frames();
-	void send_outbound_reply(const icmp_reply &reply);
+	void send_outbound_reply(icmp_reply &reply);
 };

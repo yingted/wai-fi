@@ -183,7 +183,8 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 	yield_ = NULL;
 }
 
-void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
+void icmp_net_conn::send_outbound_reply(icmp_reply &reply) {
+	assert(!reply.consumed);
 	reply.consumed = true;
 	shared_ptr<const icmp_net::tap_frame_t> frame;
 	{
@@ -194,6 +195,7 @@ void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
 		frame = *it;
 		outbound_.erase(it);
 	}
+	reply.consumed = true;
 
 	printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 
@@ -266,8 +268,11 @@ void icmp_net_conn::process_inbound_frame(inbound_t::iterator it) {
 }
 
 icmp_net_conn::inbound_t::iterator icmp_net_conn::drop_inbound_frame(inbound_t::iterator it) {
-	send_outbound_reply(*it->second->reply);
-	cout << "drop_inbound_frame: seq=" << it->second->reply->seq << endl;
+	icmp_reply &reply = *it->second->reply;
+	if (!reply.consumed) {
+		send_outbound_reply(reply);
+	}
+	cout << "drop_inbound_frame: seq=" << reply.seq << endl;
 	return inbound_.erase(it);
 }
 

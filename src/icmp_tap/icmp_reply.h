@@ -12,5 +12,5 @@ struct icmp_reply {
 	__be32 addr;
 	unsigned short id, seq;
 	time_point_t time;
-	bool consumed;
+	bool consumed, assembled;
 };
