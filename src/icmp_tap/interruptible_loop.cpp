@@ -11,6 +11,8 @@ interruptible_loop::interruptible_loop(asio::io_service &io) :
 	stopped_(false), interrupted_(false) {
 }
 
+interruptible_loop::~interruptible_loop() = default;
+
 void interruptible_loop::start() {
 	asio::spawn(io_, boost::bind(&interruptible_loop::main_loop_caller, this, _1));
 }

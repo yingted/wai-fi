@@ -4,7 +4,6 @@
 #include <boost/asio.hpp>
 #include <boost/function.hpp>
 #include <map>
-#include "icmp_reply.h"
 #include <memory>
 #include "interruptible_loop.h"
 

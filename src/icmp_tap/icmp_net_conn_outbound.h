@@ -4,10 +4,10 @@
 #include <boost/asio.hpp>
 #include <map>
 #include <deque>
-#include "icmp_reply.h"
 #include <memory>
 #include "interruptible_loop.h"
 
+class icmp_reply;
 class icmp_net_conn;
 
 class icmp_net_conn_outbound : public interruptible_loop {

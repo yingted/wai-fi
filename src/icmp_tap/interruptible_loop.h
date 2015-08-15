@@ -7,6 +7,7 @@
 class interruptible_loop {
 public:
 	interruptible_loop(boost::asio::io_service &io_);
+	virtual ~interruptible_loop();
 	void start();
 	void interrupt();
 	void stop();

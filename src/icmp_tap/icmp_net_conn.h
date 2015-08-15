@@ -3,9 +3,10 @@
 #include "types.h"
 #include <boost/signals2/connection.hpp>
 #include <memory>
-#include "icmp_net.h"
 #include "icmp_net_conn_inbound.h"
 #include "icmp_net_conn_outbound.h"
+
+class icmp_net;
 
 class icmp_net_conn {
 public:
