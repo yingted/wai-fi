@@ -184,6 +184,7 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 }
 
 void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
+	reply.consumed = true;
 	shared_ptr<const icmp_net::tap_frame_t> frame;
 	{
 		auto it = outbound_.begin();
@@ -340,8 +341,7 @@ icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elemen
 }
 
 void icmp_net_conn::notify() {
-	size_t count = timer_.cancel();
-	assert(count == 1);
+	timer_.cancel();
 }
 
 void icmp_net::raw_reader(yield_context yield) {
@@ -407,7 +407,7 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	}
 
 	reply = make_unique<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
-	printf("received id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
+	printf("icmp_net_frame: id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
 }
 
 void icmp_net::run() {
