@@ -57,9 +57,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 			if (frame->outbound_deadline() <= now) {
 				@remove it
 			}
-			if (!frame->reply->consumed) {
-				replies.push_back(frame);
-			}
+			replies.push_back(frame);
 		}
 		std::sort(replies.begin(), replies.end(), [](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
 			return a->reply->time < b->reply->time;
@@ -70,6 +68,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 				break;
 			}
 			send_reply(*frame->reply);
+			@erase it
 		}
 		timer_.expires_at(boost::posix_time::pos_infin);
 		if (!timer_wait()) {
@@ -82,8 +81,6 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 }
 
 void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
-	assert(!reply.consumed);
-	reply.consumed = true;
 	shared_ptr<const tap_frame_t> frame;
 	{
 		auto it = outbound_.begin();
@@ -93,7 +90,6 @@ void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 		frame = *it;
 		outbound_.erase(it);
 	}
-	reply.consumed = true;
 
 	printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 

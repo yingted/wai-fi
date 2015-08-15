@@ -118,9 +118,6 @@ void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 
 icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icmp_net_conn_inbound::inbound_t::iterator it) {
 	icmp_reply &reply = *it->second->reply;
-	if (!reply.consumed) {
-		send_outbound_reply(reply);
-	}
 	cout << "drop_frame: seq=" << reply.seq << endl;
 	return inbound_.erase(it);
 }
