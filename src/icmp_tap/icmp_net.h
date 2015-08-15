@@ -10,7 +10,7 @@
 #include <boost/ptr_container/ptr_set.hpp>
 #include "types.h"
 #include <map>
-#include <queue>
+#include <deque>
 #include "icmp_reply.h"
 #include <linux/icmp.h>
 #include <linux/ip.h>
@@ -59,7 +59,7 @@ public:
 	void on_tap_frame(std::shared_ptr<const icmp_net::tap_frame_t> frame);
 	void on_raw_frame(std::unique_ptr<icmp_net::raw_frame_t> &frame);
 	typedef std::map<sequence_t, std::unique_ptr<icmp_net_frame> > inbound_t;
-	typedef std::queue<std::shared_ptr<const icmp_net::tap_frame_t> > outbound_t;
+	typedef std::deque<std::shared_ptr<const icmp_net::tap_frame_t> > outbound_t;
 private:
 	icmp_net *const icmp_net_;
 	outbound_t outbound_;
@@ -68,11 +68,16 @@ private:
 	boost_timer_t timer_;
 	connection_id cid_;
 	sequence_t next_i_;
+	boost::asio::yield_context *yield_;
+	unsigned char queued_;
 
 	void inbound_sliding_insert(std::unique_ptr<icmp_net::raw_frame_t> &frame);
 	void inbound_sliding_clear_half_below(sequence_t start);
 	inbound_t::iterator inbound_sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(inbound_t::iterator)> cb);
-	void process_inbound_frame(inbound_t::iterator it, boost::asio::yield_context yield);
 	void notify();
 	void echo_reader(boost::asio::yield_context yield);
+	void process_inbound_frame(inbound_t::iterator it);
+	inbound_t::iterator drop_inbound_frame(inbound_t::iterator it);
+	void process_outbound_frames();
+	void send_outbound_reply(const icmp_reply &reply);
 };

@@ -89,7 +89,9 @@ icmp_net_conn::icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first
 	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))),
 	timer_(inet.io_),
 	cid_(cid),
-	next_i_(first) {
+	next_i_(first),
+	yield_(NULL),
+	queued_(0) {
 	asio::spawn(inet.io_, boost::bind(&icmp_net_conn::echo_reader, this, _1));
 }
 
@@ -109,7 +111,11 @@ time_point_t icmp_net_frame::inbound_deadline() const {
 }
 
 void icmp_net_conn::echo_reader(yield_context yield) {
+	assert(yield_ == NULL);
+	yield_ = &yield;
 	for (;;) {
+		process_outbound_frames();
+
 		// Find the next packet to process
 		time_point_t now = chrono::steady_clock::now();
 		bool idle = false;
@@ -121,21 +127,24 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 				idle = true;
 				break;
 			}
-			// Remove old packets
+			// Remove old packets (invalidates it)
 			inbound_sliding_clear_half_below(next_i_);
 			// Check for sequentially next packet
 			if ((it = inbound_.find(next_i_)) != inbound_.end()) {
 				std::unique_ptr<icmp_net_frame> frame(move(it->second));
 				++next_i_;
-				process_inbound_frame(it, yield);
+				process_inbound_frame(it); // invalidates it
 				continue;
 			}
 			// If we have any packets whose deadlines force us to process them, do so now
 			{
 				it = inbound_sliding_earlier_elements(next_i_, now,
-					boost::bind(&icmp_net_conn::process_inbound_frame, this, _1, yield)
+					boost::bind(&icmp_net_conn::process_inbound_frame, this, _1)
 				);
-				assert(it != inbound_.end());
+				if (it == inbound_.end()) {
+					// Go to the empty case
+					continue;
+				}
 				timer_.expires_at(it->second->inbound_deadline());
 			}
 		}
@@ -161,19 +170,98 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 		next_i_ = it->first;
 	}
 	// Clean-up
-	cout << "Closing connection " << cid_ << endl;
+	cout << "echo_reader: closing connection " << cid_ << endl;
 	icmp_net_->conns_.erase(cid_);
+	assert(yield_);
+	yield_ = NULL;
 }
 
-void icmp_net_conn::process_inbound_frame(inbound_t::iterator it, yield_context yield) {
+void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
+	auto it = outbound_.begin();
+	if (it == outbound_.end()) {
+		return;
+	}
+	shared_ptr<const icmp_net::tap_frame_t> frame = *it;
+	outbound_.erase(it);
+
+#if 0
+	printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
+
+	char *out = buf;
+
+	struct icmphdr *icmp = (struct icmphdr *)out;
+	{
+		out += sizeof(*icmp);
+		icmp->type = ICMP_ECHOREPLY;
+		icmp->code = 0;
+		icmp->un.echo.id = htons(reply.id);
+		icmp->un.echo.sequence = htons(reply.seq);
+		icmp->checksum = 0;
+	}
+
+	*out++ = queued_;
+	// padding
+	*out++ = 0;
+
+	const string &frame = *(outq.end() - (tot_recv - conn.pos++));
+	out = copy(frame.begin(), frame.end(), out);
+
+	icmp->checksum = inet_checksum(icmp, out);
+
+	struct sockaddr_in dst = {
+		.sin_family = AF_INET,
+		.sin_port = 0,
+		.sin_addr = {
+			.s_addr = reply.addr,
+		},
+	};
+	ssize_t send_len = out - buf;
+	assert(send_len <= sizeof(buf));
+	ssize_t sent = sendto(raw_fd, buf, send_len, MSG_DONTWAIT, (struct sockaddr *)&dst, sizeof(dst));
+	if (sent < 0) {
+		perror("sendto");
+	} else if (send_len != sent) {
+		printf("sent %u instead of %u\n", sent, send_len);
+	} else {
+		printf("sent %u to %s\n", sent, inet_ntoa(*(in_addr *)&reply.addr));
+	}
+#endif
+}
+
+void icmp_net_conn::process_outbound_frames() {
+	std::vector<icmp_reply *> replies;
+	for (const auto &it : inbound_) {
+		icmp_reply *reply = it.second->reply.get();
+		if (!reply->consumed) {
+			replies.push_back(reply);
+		}
+	}
+	std::sort(replies.begin(), replies.end(), [](icmp_reply *a, icmp_reply *b) {
+		return a->time < b->time;
+	});
+	queued_ = std::max<long>(0, std::min<long>(UCHAR_MAX, (long)outbound_.size() - (long)replies.size()));
+	for (const auto &reply : replies) {
+		if (outbound_.empty()) {
+			break;
+		}
+		send_outbound_reply(*reply);
+	}
+}
+
+void icmp_net_conn::process_inbound_frame(inbound_t::iterator it) {
 	unique_ptr<icmp_net::raw_frame_t> &frame(it->second);
-	icmp_net_->write_to_tap(*frame, yield);
-	inbound_.erase(it++);
+	icmp_net_->write_to_tap(*frame, *yield_);
+	drop_inbound_frame(it);
+}
+
+icmp_net_conn::inbound_t::iterator icmp_net_conn::drop_inbound_frame(inbound_t::iterator it) {
+	send_outbound_reply(*it->second->reply);
+	return inbound_.erase(it);
 }
 
 void icmp_net_conn::on_tap_frame(shared_ptr<const icmp_net::tap_frame_t> frame) {
 	cout << "on_tap_frame: read: " << frame->size() << " B" << endl;
-	outbound_.push(frame);
+	outbound_.push_back(frame);
 	notify();
 }
 
@@ -191,7 +279,7 @@ void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
 	static_assert(((sequence_t)-1) > 0, "sequence_t is signed");
 	for (auto it = inbound_.begin(); it != inbound_.end();) {
 		if ((sequence_t)(it->first - start) <= std::numeric_limits<sequence_t>::max() / 2) {
-			it = inbound_.erase(it);
+			it = drop_inbound_frame(it);
 		} else {
 			++it;
 		}
@@ -200,11 +288,12 @@ void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
 
 // TODO improve the performance of this and the above function
 icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(icmp_net_conn::inbound_t::iterator)> cb) {
-	inbound_t::iterator begin0 = inbound_.lower_bound(start), end0 = inbound_.end(), begin1 = inbound_.begin(), it;
+	inbound_t::iterator lb_start = inbound_.lower_bound(start), it;
+	assert(!inbound_.empty());
 
 	auto max_until_now = inbound_.end();
-	it = begin0;
-	for (size_t count = inbound_.size(); (it = (it == end0 ? begin1 : it)), count--;) {
+	it = lb_start;
+	for (size_t count = inbound_.size(); (it = (it == inbound_.end() ? inbound_.begin() : it)), count--;) {
 		if (it->second->inbound_deadline() <= now) {
 			if (max_until_now == inbound_.end() || max_until_now->first >= it->first) {
 				max_until_now = it;
@@ -212,14 +301,19 @@ icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elemen
 		}
 		++it;
 	}
-	// No items to output
+	// No items to output. Everything is after deadline.
 	if (max_until_now == inbound_.end()) {
 		// Inline the first iteration of the loop
-		return begin0 == end0 ? begin1 : begin0;
+		it = lb_start == inbound_.end() ? inbound_.begin() : lb_start;
+		// Check we're returning something
+		assert(it != inbound_.end());
+		return it;
 	}
 
-	it = begin0;
-	for (size_t count = inbound_.size(); (it = (it == end0 ? begin1 : it)), count--;) {
+	it = lb_start;
+	// From here, we might invalidate iterators
+	for (size_t count = inbound_.size(); (it = (it == inbound_.end() ? inbound_.begin() : it)), count--;) {
+		assert(it != inbound_.end());
 		auto saved_it = it;
 		if (it++ == max_until_now) {
 			// Advance the iterator and break
@@ -227,6 +321,7 @@ icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elemen
 		}
 		cb(saved_it);
 	}
+	assert((it != inbound_.end()) == !!inbound_.empty());
 	return it;
 }
 
@@ -300,86 +395,6 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	reply = make_unique<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
 	printf("received id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
 }
-
-#if 0
-		// Step 3: Write out the data to each connection.
-		// Also time out some connections.
-		// Split by:
-		// getsockopt(raw_fd, SOL_SOCKET, SO_MAX_MSG_SIZE, (int *)&optval, &optlen);
-		struct timespec min_time;
-		clock_gettime(CLOCK_MONOTONIC, &min_time);
-		min_time.tv_sec -= 150; // 150 seconds timeout
-		for (auto &it : conns) {
-			icmp_net_conn &conn = it.second;
-			size_t packets = tot_recv - conn.pos;
-			unsigned char queued = max<unsigned char>(0, min<long>(UCHAR_MAX, (long)packets - (long)conn.replies.size()));
-			for (auto it = conn.replies.begin(); it != conn.replies.end(); conn.replies.erase(it++)) {
-				if (conn.pos == tot_recv) {
-					break; // queue is empty
-				}
-				const icmp_reply &reply = *it;
-				printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
-				assert(conn.pos < tot_recv);
-
-				char *out = buf;
-
-				struct icmphdr *icmp = (struct icmphdr *)out;
-				{
-					out += sizeof(*icmp);
-					icmp->type = ICMP_ECHOREPLY;
-					icmp->code = 0;
-					icmp->un.echo.id = htons(reply.id);
-					icmp->un.echo.sequence = htons(reply.seq);
-					icmp->checksum = 0;
-				}
-
-				*out++ = queued;
-				// padding
-				*out++ = 0;
-
-				const string &frame = *(outq.end() - (tot_recv - conn.pos++));
-				out = copy(frame.begin(), frame.end(), out);
-
-				icmp->checksum = inet_checksum(icmp, out);
-
-				struct sockaddr_in dst = {
-					.sin_family = AF_INET,
-					.sin_port = 0,
-					.sin_addr = {
-						.s_addr = reply.addr,
-					},
-				};
-				ssize_t send_len = out - buf;
-				assert(send_len <= sizeof(buf));
-				ssize_t sent = sendto(raw_fd, buf, send_len, MSG_DONTWAIT, (struct sockaddr *)&dst, sizeof(dst));
-				if (sent < 0) {
-					perror("sendto");
-				} else if (send_len != sent) {
-					printf("sent %u instead of %u\n", sent, send_len);
-				} else {
-					printf("sent %u to %s\n", sent, inet_ntoa(*(in_addr *)&reply.addr));
-				}
-			}
-
-			for (auto it = conn.replies.begin(); it != conn.replies.end();) {
-				const icmp_reply &reply = *it;
-				auto reply_it = it++;
-				if (reply.time < min_time) {
-					printf("timing out id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
-					// XXX send empty reply?
-					conn.replies.erase(reply_it);
-				}
-			}
-		}
-		for (auto it = conns.begin(); it != conns.end();) {
-			if (it->second.time < min_time) {
-				printf("closing connection\n");
-				conns.erase(it++);
-			} else {
-				++it;
-			}
-		}
-#endif
 
 void icmp_net::run() {
 	io_.run();
