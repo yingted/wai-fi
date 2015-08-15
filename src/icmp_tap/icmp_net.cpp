@@ -189,6 +189,7 @@ void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
 
 	printf("replying id=%d seq=%d saddr=%s\n", reply.id, reply.seq, inet_ntoa(*(in_addr *)&reply.addr));
 
+	// XXX This depends on not doing IO between this and async_send_to
 	static char buf[64 * 1024];
 	char *out = buf;
 
@@ -229,6 +230,7 @@ void icmp_net::write_to_raw(asio::const_buffers_1 buf, icmp_net::raw_t::endpoint
 
 void icmp_net_conn::process_outbound_frames() {
 	std::vector<icmp_reply *> replies;
+	// TODO improve the performance of all the sliding window stuff
 	for (const auto &it : inbound_) {
 		icmp_reply *reply = it.second->reply.get();
 		if (!reply->consumed) {
