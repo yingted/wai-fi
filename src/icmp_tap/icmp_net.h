@@ -7,7 +7,9 @@
 #include <boost/signals2.hpp>
 #include <boost/signals2/connection.hpp>
 #include <boost/ptr_container/ptr_set.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <map>
+#include <queue>
 #include "icmp_reply.h"
 #include <linux/icmp.h>
 #include <linux/ip.h>
@@ -39,24 +41,39 @@ public:
 	typedef boost::signals2::signal<void(const tap_frame_t &)> on_tap_frame_t;
 	icmp_net(const char *dev, int mtu);
 	void run();
+	void write_to_tap(const icmp_net::raw_frame_t &frame);
 	on_tap_frame_t on_tap_frame_;
-private:
 	boost::asio::io_service io_;
+	std::map<connection_id, std::shared_ptr<icmp_net_conn> > conns_;
+private:
 	boost::asio::posix::stream_descriptor tap_;
 	boost::asio::ip::icmp::socket raw_;
-	std::map<connection_id, std::shared_ptr<icmp_net_conn> > conns_;
 
 	void tap_reader(boost::asio::yield_context yield);
 	void raw_reader(boost::asio::yield_context yield);
 };
 
 class icmp_net_conn {
-	icmp_net *const icmp_net_;
-	std::set<icmp_reply> replies_;
-	struct timespec time_;
-	boost::signals2::scoped_connection sig_conn_;
 public:
-	icmp_net_conn(icmp_net &inet, const std::unique_ptr<icmp_reply> &first);
-	void on_tap_frame(const icmp_net::tap_frame_t &frame);
-	void on_icmp_echo(std::unique_ptr<icmp_reply> &icmp_reply);
+	typedef unsigned short sequence_t; // must be unsigned
+	icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first);
+	void on_tap_frame(std::shared_ptr<const icmp_net::tap_frame_t> frame);
+	void on_raw_frame(std::unique_ptr<icmp_net::raw_frame_t> &frame);
+private:
+	icmp_net *const icmp_net_;
+	typedef std::map<sequence_t, std::unique_ptr<icmp_net_frame> > inbound_t;
+	typedef std::queue<std::shared_ptr<const icmp_net::tap_frame_t> > outbound_t;
+	outbound_t outbound_;
+	inbound_t inbound_;
+	boost::signals2::scoped_connection sig_conn_;
+	boost::asio::steady_timer timer_;
+	connection_id cid_;
+	sequence_t next_i_;
+
+	void inbound_sliding_insert(std::unique_ptr<icmp_net::raw_frame_t> &frame);
+	void inbound_sliding_clear_half_below(sequence_t start);
+	inbound_t::iterator inbound_sliding_earlier_elements(sequence_t start, std::chrono::time_point now, std::function<void(inbound_t::iterator)> cb);
+	void process_inbound_frame(std::unique_ptr<icmp_net::raw_frame_t> &frame);
+	void notify();
+	void echo_reader(boost::asio::yield_context yield);
 };

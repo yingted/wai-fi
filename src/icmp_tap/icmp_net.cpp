@@ -72,25 +72,155 @@ void icmp_net::tap_reader(yield_context yield) {
 			cout << "make_unique<tap_frame_t>: " << exc.what() << endl;
 			continue;
 		}
-		on_tap_frame_(*frame);
+
+		{
+			shared_ptr<tap_frame_t> shared_frame(std::move(frame));
+			on_tap_frame_(const_pointer_cast<const tap_frame_t>(shared_frame));
+		}
 	}
 }
 
-icmp_net_conn::icmp_net_conn(icmp_net &inet, const unique_ptr<icmp_reply> &first) :
+icmp_net_conn::icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first) :
 	icmp_net_(&inet),
-	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))) {
-	// XXX timeout
+	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))),
+	timer_(inet.io_),
+	cid_(cid),
+	next_i_(first) {
+	asio::spawn(inet.io_, boost::bind(&icmp_net_conn::echo_reader, this, _1));
 }
 
-void icmp_net_conn::on_tap_frame(const icmp_net::tap_frame_t &frame) {
-	cout << "on_tap_frame: read: " << frame.size() << " B" << endl;
-	// XXX
+void icmp_net::write_to_tap(const icmp_net::raw_frame_t &frame) {
+	ssize_t data_len = asio::buffer_size(frame->buffer());
+	if (data_len) {
+		ssize_t written = tap_.async_write_some(frame->buffer(), yield);
+		cout << "raw_reader: tap: write: " << written << " of " << data_len << " B" << endl;
+		if (written != data_len) {
+			cout << "raw_reader: tap: write: wrong number of bytes written" << endl;
+		}
+	}
 }
 
-void icmp_net_conn::on_icmp_echo(std::unique_ptr<icmp_reply> &reply) {
-	replies_.insert(*reply);
-	cout << "on_icmp_echo: echo: " << reply->seq << endl;
-	// XXX
+void icmp_net_conn::echo_reader(yield_context yield) {
+	for (;;) {
+		// Find the next packet to process
+		chrono::time_point now = chrono::steady_clock::now();
+		bool idle = false;
+		auto it;
+		for (;;) {
+			if (inbound_.empty()) {
+				// Wait for any packet
+				timer_.expires_at(now + chrono::seconds(150));
+				idle = true;
+				break;
+			}
+			// Remove old packets
+			inbound_sliding_clear_half_below(next_i_);
+			// Check for sequentially next packet
+			if ((it = inbound_.find(next_i_)) != inbound_.end()) {
+				std::unique_ptr<icmp_net_frame> frame(move(it->second));
+				++next_i_;
+				inbound_.erase(it);
+				process_inbound_frame(frame);
+				continue;
+			}
+			// If we have any packets whose deadlines force us to process them, do so now
+			{
+				it = inbound_sliding_earlier_elements(next_i_, now, boost::bind(&icmp_net_conn::process_inbound_frame, this, _1));
+				assert(it != inbound_.end());
+				timer_.expires_at(it->inbound_deadline());
+			}
+		}
+
+		// Wait the timeout
+		{
+			// Either cancelled or a packet timed out
+			{
+				boost::system::error_code ec;
+				timer_.async_wait(yield[ec]);
+				if (ec) { // Cancelled, refresh everything
+					assert(ec == boost::asio::error::operation_aborted);
+					continue;
+				}
+			}
+
+			// Connection died
+			if (idle) {
+				break;
+			}
+		}
+		// Seek to next position
+		next_i_ = it->first;
+	}
+	// Clean-up
+	cout << "Closing connection " << cid_ << endl;
+	icmp_net_->conns_.erase(cid_);
+}
+
+void icmp_net_conn::process_inbound_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
+	icmp_net_->write_to_tap(*frame);
+}
+
+void icmp_net_conn::on_tap_frame(shared_ptr<const icmp_net::tap_frame_t> frame) {
+	cout << "on_tap_frame: read: " << frame->size() << " B" << endl;
+	outbound_.push(frame);
+	notify();
+}
+
+void icmp_net_conn::on_raw_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
+	cout << "on_raw_frame: echo: " << frame->reply->seq << endl;
+	inbound_sliding_insert(frame);
+	notify();
+}
+
+void icmp_net_conn::inbound_sliding_insert(unique_ptr<icmp_net::raw_frame_t> &frame) {
+	inbound_.insert(std::move(frame));
+}
+
+void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
+	static_assert(((sequence_t)-1) > 0);
+	for (auto it = inbound_.begin(); it != inbound_.end();) {
+		if ((sequence_t)(it->first - start) <= numeric_limits<sequence_t>::max() / 2) {
+			it = inbound_.erase(it);
+		} else {
+			++it;
+		}
+	}
+}
+
+// TODO improve the performance
+icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_element(sequence_t start, chrono::time_point now, function<void(icmp_net_conn::inbound_t::iterator)> cb) {
+	auto begin0 = inbound_.lower_bound(start), end0 = inbound_.end(), begin1 = inbound_.begin(), it;
+
+	auto max_until_now = inbound_.end();
+	it = begin0;
+	for (size_t count = inbound_.size(); (it == end0 && (it = begin1)), count--;) {
+		if (it->second->inbound_deadline() <= now) {
+			if (max_until_now == inbound_.end() || max_until_now->first >= it->first) {
+				max_until_now = it;
+			}
+		}
+		++it;
+	}
+	// No items to output
+	if (max_until_now == inbound_.end()) {
+		return inbound_.end();
+	}
+
+	it = begin0;
+	for (size_t count = inbound_.size(); (it == end0 && (it = begin1)), count--;) {
+		cb(it);
+		if (it == max_until_now) {
+			// Advance the iterator and break
+			count = 0;
+		}
+		++it;
+	}
+	return it;
+}
+
+void icmp_net_conn::notify() {
+	size_t count = timer_.cancel();
+	assert(count == 1);
 }
 
 void icmp_net::raw_reader(yield_context yield) {
@@ -114,19 +244,10 @@ void icmp_net::raw_reader(yield_context yield) {
 			bool new_conn = !conns_.count(cid);
 			if (new_conn) {
 				printf("raw_reader: new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
-				conns_[cid] = make_shared<icmp_net_conn>(*this, frame->reply);
+				conns_.emplace(cid, make_shared<icmp_net_conn>(*this, cid, frame->reply->seq));
 			}
-			conns_[cid]->on_icmp_echo(frame->reply);
-			assert(frame->reply);
-		}
-
-		ssize_t data_len = asio::buffer_size(frame->buffer());
-		if (data_len) {
-			ssize_t written = tap_.async_write_some(frame->buffer(), yield);
-			cout << "raw_reader: tap: write: " << written << " of " << data_len << " B" << endl;
-			if (written != data_len) {
-				cout << "raw_reader: tap: write: wrong number of bytes written" << endl;
-			}
+			conns_[cid]->on_raw_frame(frame);
+			assert(!frame);
 		}
 	}
 }
@@ -169,13 +290,6 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 }
 
 #if 0
-	boost::circular_buffer<frame_t> outq(1024);
-	size_t tot_recv = 0; // represents outq.end()
-	fd_set fds;
-	map<connection_id, icmp_net_conn> conns;
-	char buf[64 * 1024]; // max IPv4 packet size
-
-	for (;;) {
 		// Step 3: Write out the data to each connection.
 		// Also time out some connections.
 		// Split by:
@@ -253,7 +367,6 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 				++it;
 			}
 		}
-	}
 #endif
 
 void icmp_net::run() {

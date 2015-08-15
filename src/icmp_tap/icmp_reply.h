@@ -13,5 +13,3 @@ struct icmp_reply {
 	unsigned short id, seq;
 	boost_clock_t::time_point time;
 };
-
-bool operator<(const icmp_reply &a, const icmp_reply &b);
