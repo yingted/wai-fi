@@ -68,7 +68,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 			send_reply(*frame->reply);
 			@erase it
 		}
-		timer_.expires_at(boost::posix_time::pos_infin);
+		timer_.expires_at(time_point_t::max());
 		if (!timer_wait()) {
 			continue;
 		}

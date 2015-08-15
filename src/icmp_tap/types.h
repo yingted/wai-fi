@@ -1,7 +1,6 @@
 #pragma once
 
 #define BOOST_ASIO_HAS_MOVE
-#define BOOST_ASIO_DISABLE_STD_CHRONO
 #ifdef __cplusplus
 #include <boost/asio/steady_timer.hpp>
 #include <boost/chrono/include.hpp>
