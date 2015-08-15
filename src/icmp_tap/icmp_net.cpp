@@ -103,6 +103,8 @@ void icmp_net::write_to_tap(const icmp_net::raw_frame_t &frame, yield_context yi
 		if (written != data_len) {
 			cout << "raw_reader: tap: write: wrong number of bytes written" << endl;
 		}
+	} else {
+		cout << "got keepalive" << endl;
 	}
 }
 
@@ -117,17 +119,20 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 		process_outbound_frames();
 
 		// Find the next packet to process
-		time_point_t now = chrono::steady_clock::now();
 		bool idle = false;
 		inbound_t::iterator it;
 		for (;;) {
 			// Remove old packets (invalidates it)
 			inbound_sliding_clear_half_below(next_i_);
 
+			// Get a new timestamp
+			time_point_t now = chrono::steady_clock::now();
+
 			if (inbound_.empty()) {
 				// Wait for any packet
 				timer_.expires_at(now + chrono::seconds(150));
 				idle = true;
+				cout << "echo_reader: wait for any packet" << endl;
 				break;
 			}
 			// Check for sequentially next packet
@@ -147,6 +152,8 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 					continue;
 				}
 				timer_.expires_at(it->second->inbound_deadline());
+				cout << "echo_reader: wait for packet timeout" << endl;
+				break;
 			}
 		}
 
@@ -214,7 +221,7 @@ void icmp_net_conn::send_outbound_reply(const icmp_reply &reply) {
 
 	icmp_net::raw_t::endpoint_type dst(asio::ip::address::from_string(inet_ntoa(*(in_addr *)&reply.addr)), reply.id);
 	ssize_t send_len = out - buf;
-	assert(send_len <= sizeof(buf));
+	assert(((size_t)send_len) <= sizeof(buf));
 
 	icmp_net_->write_to_raw(asio::buffer((const char *)buf, send_len), dst, *yield_);
 }
@@ -258,6 +265,7 @@ void icmp_net_conn::process_inbound_frame(inbound_t::iterator it) {
 
 icmp_net_conn::inbound_t::iterator icmp_net_conn::drop_inbound_frame(inbound_t::iterator it) {
 	send_outbound_reply(*it->second->reply);
+	cout << "drop_inbound_frame: seq=" << it->second->reply->seq << endl;
 	return inbound_.erase(it);
 }
 
@@ -268,7 +276,7 @@ void icmp_net_conn::on_tap_frame(shared_ptr<const icmp_net::tap_frame_t> frame) 
 }
 
 void icmp_net_conn::on_raw_frame(unique_ptr<icmp_net::raw_frame_t> &frame) {
-	cout << "on_raw_frame: echo: " << frame->reply->seq << endl;
+	cout << "on_raw_frame: echo: seq=" << frame->reply->seq << endl;
 	inbound_sliding_insert(frame);
 	notify();
 }
@@ -280,7 +288,8 @@ void icmp_net_conn::inbound_sliding_insert(unique_ptr<icmp_net::raw_frame_t> &fr
 void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
 	static_assert(((sequence_t)-1) > 0, "sequence_t is signed");
 	for (auto it = inbound_.begin(); it != inbound_.end();) {
-		if ((sequence_t)(it->first - start) <= std::numeric_limits<sequence_t>::max() / 2) {
+		sequence_t diff = it->first - start;
+		if (diff > std::numeric_limits<sequence_t>::max() / 2) {
 			it = drop_inbound_frame(it);
 		} else {
 			++it;
