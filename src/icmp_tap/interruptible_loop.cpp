@@ -49,10 +49,14 @@ bool interruptible_loop::timer_wait() {
 }
 
 void interruptible_loop::main_loop_caller(asio::yield_context yield) {
+	assert(!yield_);
+	yield_ = &yield;
 	try {
 		main_loop(yield);
 		assert(!stopped_);
 	} catch (const stopped &exc) {
 		assert(stopped_);
 	}
+	assert(yield_);
+	yield_ = NULL;
 }
