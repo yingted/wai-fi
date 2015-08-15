@@ -76,13 +76,21 @@ void icmp_net::tap_reader(yield_context yield) {
 	}
 }
 
-icmp_net_conn::icmp_net_conn(icmp_net::on_tap_frame_t &sig) :
-	sig_conn_(sig.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))) {
+icmp_net_conn::icmp_net_conn(icmp_net &inet, const unique_ptr<icmp_reply> &first) :
+	icmp_net_(&inet),
+	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))) {
+	// XXX timeout
 }
 
-void icmp_net_conn::on_tap_frame(icmp_net::tap_frame_t frame) {
+void icmp_net_conn::on_tap_frame(const icmp_net::tap_frame_t &frame) {
 	cout << "on_tap_frame: read: " << frame.size() << " B" << endl;
 	// XXX
+}
+
+void icmp_net_conn::on_icmp_echo(std::unique_ptr<icmp_reply> &reply) {
+	cout << "on_icmp_echo: echo: " << reply->seq << endl;
+	// XXX
+	//replies_.insert(reply);
 }
 
 void icmp_net::raw_reader(yield_context yield) {
@@ -99,7 +107,32 @@ void icmp_net::raw_reader(yield_context yield) {
 			cout << "make_unique<raw_frame_t>: " << exc.what() << endl;
 			continue;
 		}
+
+		{
+			assert(frame->reply);
+			connection_id cid = frame->reply->id;
+			bool new_conn = !conns_.count(cid);
+			if (new_conn) {
+				printf("new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
+				conns_[cid] = make_shared<icmp_net_conn>(*this, frame->reply);
+			}
+			conns_[cid]->on_icmp_echo(frame->reply);
+			assert(frame->reply);
+		}
+
+		ssize_t data_len = asio::buffer_size(frame->buffer());
+		if (data_len) {
+			printf("tap: writing %ld\n", data_len);
+			ssize_t written = tap_.async_write_some(frame->buffer(), yield);
+			if (written != data_len) {
+				printf("wrote %ld instead of %ld\n", written, data_len);
+			}
+		}
 	}
+}
+
+asio::const_buffers_1 icmp_net_frame::buffer() const {
+	return asio::buffer(data_begin - buf.begin() + buf.data(), buf.end() - data_begin);
 }
 
 template<typename T>
@@ -117,9 +150,9 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	if (len == sizeof(buf)) {
 		cout << "Warning: buffer full (" << len << " bytes)" << endl;
 	}
-	string::const_iterator cur = buf.begin();
-	read(cur, ip);
-	cur = read(cur + ip->ihl * 4, icmp);
+	string::const_iterator begin = buf.begin();
+	read(begin, ip);
+	data_begin = read(begin + ip->ihl * 4, icmp);
 
 	// Verify some fields
 	unsigned short tot_len = ntohs(ip->tot_len);
@@ -131,32 +164,8 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 		throw invalid_argument("unexpected ICMP packet type");
 	}
 
-	reply = make_unique<icmp_reply>(ip->saddr, icmp->un.echo.id, icmp->un.echo.sequence);
+	reply = make_unique<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
 	printf("received id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
-
-#if 0
-	{
-		connection_id cid = reply->id;
-		bool new_conn = !conns.count(cid);
-		icmp_net_conn &conn = conns[cid];
-		if (new_conn) {
-			printf("new connection to %s\n", inet_ntoa(*(in_addr *)&reply.addr));
-			conn.pos = tot_recv;
-		}
-		conn.time = reply.time;
-		conn.replies.insert(reply);
-	}
-
-	if (data_len) {
-		printf("tap: writing %d\n", data_len);
-		ssize_t written = write(tap_fd, data, data_len);
-		if (written < 0) {
-			perror("write");
-		} else if (written != data_len) {
-			printf("wrote %d instead of %d\n", written, data_len);
-		}
-	}
-#endif
 }
 
 #if 0

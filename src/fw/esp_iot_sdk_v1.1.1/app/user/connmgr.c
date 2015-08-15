@@ -258,7 +258,8 @@ void connmgr_init() {
 
     wifi_station_set_auto_connect(0);
 
-    icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
+    //icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
+    icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
 
     // Create the ICMP tap device and never delete it.
     if (!netif_add(
