@@ -13,6 +13,8 @@ OBJECTS := \
 	tap.o \
 	icmp_net.o \
 	icmp_reply.o \
+	icmp_net_frame.o \
+	icmp_net_conn.o \
 
 DEPEND = $(OBJECTS:.o=.d)
 EXEC = icmp_tap
