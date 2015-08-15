@@ -104,7 +104,7 @@ void icmp_net::raw_reader(yield_context yield) {
 		try {
 			frame = make_unique<raw_frame_t>(buf, len);
 		} catch (const invalid_argument &exc) {
-			cout << "make_unique<raw_frame_t>: " << exc.what() << endl;
+			cout << "raw_reader: make_unique<raw_frame_t>: " << exc.what() << endl;
 			continue;
 		}
 
@@ -113,7 +113,7 @@ void icmp_net::raw_reader(yield_context yield) {
 			connection_id cid = frame->reply->id;
 			bool new_conn = !conns_.count(cid);
 			if (new_conn) {
-				printf("new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
+				printf("raw_reader: new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
 				conns_[cid] = make_shared<icmp_net_conn>(*this, frame->reply);
 			}
 			conns_[cid]->on_icmp_echo(frame->reply);
@@ -122,10 +122,10 @@ void icmp_net::raw_reader(yield_context yield) {
 
 		ssize_t data_len = asio::buffer_size(frame->buffer());
 		if (data_len) {
-			printf("tap: writing %ld\n", data_len);
 			ssize_t written = tap_.async_write_some(frame->buffer(), yield);
+			cout << "raw_reader: tap: write: " << written << " of " << data_len << " B" << endl;
 			if (written != data_len) {
-				printf("wrote %ld instead of %ld\n", written, data_len);
+				cout << "raw_reader: tap: write: wrong number of bytes written" << endl;
 			}
 		}
 	}
