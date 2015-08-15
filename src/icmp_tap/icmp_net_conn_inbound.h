@@ -24,5 +24,6 @@ private:
 	inbound_t::iterator drop_frame(inbound_t::iterator it);
 	icmp_net_conn &conn_;
 	sequence_t next_i_;
+	time_point_t last_frame_at_;
 	inbound_t inbound_;
 };

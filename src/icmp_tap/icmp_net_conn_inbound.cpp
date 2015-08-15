@@ -17,7 +17,8 @@ using asio::yield_context;
 icmp_net_conn_inbound::icmp_net_conn_inbound(icmp_net_conn &conn, sequence_t next_i) :
 	interruptible_loop(conn.icmp_net_.io_),
 	conn_(conn),
-	next_i_(next_i) {
+	next_i_(next_i),
+	last_frame_at_(boost_clock_t::now()) {
 }
 
 void icmp_net_conn_inbound::main_loop(yield_context yield) {
@@ -35,9 +36,9 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 
 			if (inbound_.empty()) {
 				// Wait for any packet
-				timer_.expires_at(now + chrono::seconds(300));
+				timer_.expires_at(last_frame_at_ + chrono::seconds(300));
 				idle = true;
-				cout << "echo_reader: wait for any packet" << endl;
+				cout << "inbound: wait for any packet" << endl;
 				break;
 			}
 			// Check for sequentially next packet
@@ -56,7 +57,7 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 					continue;
 				}
 				timer_.expires_at(it->second->inbound_deadline());
-				cout << "echo_reader: wait for packet timeout" << endl;
+				cout << "inbound: wait for packet timeout" << endl;
 				break;
 			}
 		}
@@ -83,7 +84,9 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 
 void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 	assert(it->second);
+	cout << "process_frame: seq=" << it->first << endl;
 	shared_ptr<raw_frame_t> frame(it->second);
+	last_frame_at_ = it->second->reply->time;
 	assert(it->second);
 	conn_.icmp_net_.write_to_tap(*frame, *yield_);
 	drop_frame(it);
