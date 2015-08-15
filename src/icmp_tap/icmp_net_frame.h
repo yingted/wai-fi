@@ -20,3 +20,5 @@ private:
 	std::string::const_iterator read(std::string::const_iterator begin, T *&ptr);
 };
 
+typedef std::string tap_frame_t;
+typedef icmp_net_frame raw_frame_t;

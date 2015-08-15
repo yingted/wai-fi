@@ -76,7 +76,7 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 			// If we have any packets whose deadlines force us to process them, do so now
 			{
 				it = sliding_earlier_elements(next_i_, now,
-					boost::bind(&icmp_net_conn::process_frame, this, _1)
+					boost::bind(&icmp_net_conn_inbound::process_frame, this, _1)
 				);
 				if (it == inbound_.end()) {
 					// Go to the empty case
@@ -110,10 +110,10 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 
 void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 	assert(it->second);
-	unique_ptr<icmp_net::raw_frame_t> &frame(it->second);
+	unique_ptr<raw_frame_t> &frame(it->second);
 	assert(it->second);
-	icmp_net_->write_to_tap(*frame, *yield_);
-	drop_inbound_frame(it);
+	conn_.icmp_net_.write_to_tap(*frame, *yield_);
+	drop_frame(it);
 }
 
 icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icmp_net_conn_inbound::inbound_t::iterator it) {
@@ -121,14 +121,15 @@ icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icm
 	if (!reply.consumed) {
 		send_outbound_reply(reply);
 	}
-	cout << "drop_inbound_frame: seq=" << reply.seq << endl;
+	cout << "drop_frame: seq=" << reply.seq << endl;
 	return inbound_.erase(it);
 }
 
-void icmp_net_conn_inbound::sliding_insert(unique_ptr<icmp_net::raw_frame_t> &frame) {
+void icmp_net_conn_inbound::sliding_insert(unique_ptr<raw_frame_t> &frame) {
 	sequence_t seq = frame->reply->seq;
 	inbound_.emplace(seq, std::move(frame));
 	assert(inbound_[seq]);
+	interrupt();
 }
 
 void icmp_net_conn_inbound::sliding_clear_half_below(sequence_t start) {
@@ -136,7 +137,7 @@ void icmp_net_conn_inbound::sliding_clear_half_below(sequence_t start) {
 	for (auto it = inbound_.begin(); it != inbound_.end();) {
 		sequence_t diff = it->first - start;
 		if (diff > std::numeric_limits<sequence_t>::max() / 2) {
-			it = drop_inbound_frame(it);
+			it = drop_frame(it);
 		} else {
 			++it;
 		}

@@ -91,7 +91,7 @@ void icmp_net::tap_reader(yield_context yield) {
 	}
 }
 
-void icmp_net::write_to_tap(const icmp_net::raw_frame_t &frame, yield_context yield) {
+void icmp_net::write_to_tap(const raw_frame_t &frame, yield_context yield) {
 	ssize_t data_len = asio::buffer_size(frame.buffer());
 	if (data_len) {
 		ssize_t written = tap_.async_write_some(frame.buffer(), yield);

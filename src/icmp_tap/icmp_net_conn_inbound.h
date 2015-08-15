@@ -27,8 +27,8 @@ public:
 	typedef std::map<sequence_t, std::unique_ptr<icmp_net_frame> > inbound_t;
 	icmp_net_conn_inbound(icmp_net_conn &conn, sequence_t next_i);
 	void main_loop(boost::asio::yield_context yield);
+	void sliding_insert(std::unique_ptr<raw_frame_t> &frame);
 private:
-	void sliding_insert(std::unique_ptr<icmp_net::raw_frame_t> &frame);
 	void sliding_clear_half_below(sequence_t start);
 	inbound_t::iterator sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(inbound_t::iterator)> cb);
 	void process_frame(inbound_t::iterator it);

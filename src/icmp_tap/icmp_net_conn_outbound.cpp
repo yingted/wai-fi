@@ -50,26 +50,26 @@ using boost::signals2::scoped_connection;
 void icmp_net_conn_outbound::main_loop(yield_context yield) {
 	for (;;) {
 		time_point_t now = chrono::steady_clock::now();
-		std::vector<icmp_reply *> replies;
+		std::vector<shared_ptr<icmp_net_frame> > replies;
 		// TODO improve the performance of all the sliding window stuff
 		for (const auto &it : inbound_) {
-			icmp_reply *reply = it.second->reply.get();
-			if (reply->outbound_deadline() <= now) {
+			shared_ptr<icmp_net_frame> frame = it.second;
+			if (frame->outbound_deadline() <= now) {
 				@remove it
 			}
-			if (!reply->consumed) {
-				replies.push_back(reply);
+			if (!frame->reply->consumed) {
+				replies.push_back(frame);
 			}
 		}
-		std::sort(replies.begin(), replies.end(), [](icmp_reply *a, icmp_reply *b) {
-			return a->time < b->time;
+		std::sort(replies.begin(), replies.end(), [](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
+			return a->reply->time < b->reply->time;
 		});
 		queued_ = std::max<long>(0, std::min<long>(UCHAR_MAX, (long)outbound_.size() - (long)replies.size()));
-		for (const auto &reply : replies) {
+		for (const auto &frame : replies) {
 			if (outbound_.empty()) {
 				break;
 			}
-			send_outbound_reply(*reply);
+			send_reply(*frame->reply);
 		}
 		timer_.expires_at(boost::posix_time::pos_infin);
 		if (!timer_wait()) {
@@ -84,7 +84,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 	assert(!reply.consumed);
 	reply.consumed = true;
-	shared_ptr<const icmp_net::tap_frame_t> frame;
+	shared_ptr<const tap_frame_t> frame;
 	{
 		auto it = outbound_.begin();
 		if (it == outbound_.end()) {
@@ -126,12 +126,12 @@ void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 	icmp_net_->write_to_raw(asio::buffer((const char *)buf, send_len), dst, *yield_);
 }
 
-void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const icmp_net::tap_frame_t> frame) {
+void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const tap_frame_t> frame) {
 	...
 	interrupt();
 }
 
-void icmp_net_conn_outbound::enqueue_reply(std::unique_ptr<icmp_net::raw_frame_t> &frame) {
+void icmp_net_conn_outbound::enqueue_reply(std::unique_ptr<raw_frame_t> &frame) {
 	...
 	interrupt();
 }

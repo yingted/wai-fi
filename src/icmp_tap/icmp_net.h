@@ -21,8 +21,6 @@ class icmp_net_conn;
 
 class icmp_net {
 public:
-	typedef std::string tap_frame_t;
-	typedef icmp_net_frame raw_frame_t;
 	typedef boost::asio::posix::stream_descriptor tap_t;
 	typedef boost::asio::ip::icmp::socket raw_t;
 	typedef boost::signals2::signal<void(std::shared_ptr<const tap_frame_t>)> on_tap_frame_t;
