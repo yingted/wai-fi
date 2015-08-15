@@ -1,50 +1,12 @@
 #include "types.h"
-#include <algorithm>
-#include <map>
-#include <set>
-#include <utility>
-#include <functional>
-#include <iostream>
-#include <stdexcept>
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <time.h>
-#include <limits.h>
-#include <boost/circular_buffer.hpp>
+#include <boost/bind.hpp>
 #include <boost/asio.hpp>
-#include <boost/coroutine/all.hpp>
-#include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
-#include "tap.h"
-#include "inet_checksum.h"
-#include "icmp_net.h"
-#include "icmp_reply.h"
-#include "icmp_net_frame.h"
-#include "icmp_net_conn.h"
 #include "interruptible_loop.h"
 
-using std::string;
-using std::shared_ptr;
-using std::shared_ptr;
-using std::make_shared;
-using std::invalid_argument;
-using std::cout;
-using std::endl;
 namespace asio = boost::asio;
-namespace chrono = std::chrono;
-using asio::yield_context;
-using asio::ip::icmp;
-using asio::io_service;
-using boost::signals2::scoped_connection;
 
-interruptible_loop::interruptible_loop(boost::asio::io_service &io) :
+interruptible_loop::interruptible_loop(asio::io_service &io) :
 	io_(io), timer_(io), yield_(NULL),
 	stopped_(false), interrupted_(false) {
 }
@@ -74,7 +36,7 @@ bool interruptible_loop::timer_wait() {
 		throw stopped();
 	}
 	if (interrupted_) {
-		assert(ec == boost::asio::error::operation_aborted);
+		assert(ec == asio::error::operation_aborted);
 		return false;
 	}
 	if (ec) {
@@ -84,7 +46,7 @@ bool interruptible_loop::timer_wait() {
 	return true;
 }
 
-void interruptible_loop::main_loop_caller(boost::asio::yield_context yield) {
+void interruptible_loop::main_loop_caller(asio::yield_context yield) {
 	try {
 		main_loop(yield);
 		assert(!stopped_);

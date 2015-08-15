@@ -1,21 +1,19 @@
 #include "types.h"
 #include <boost/asio.hpp>
 #include <boost/system/system_error.hpp>
-#include <utility>
 #include <linux/if_tun.h>
 #include <string>
 #include <cstring>
 #include <cerrno>
 #include <boost/move/unique_ptr.hpp>
 #include <boost/make_unique.hpp>
+#include "tuntap.h"
+#include "tap.h"
 
 using namespace boost::system;
 using boost::asio::io_service;
 using boost::asio::posix::stream_descriptor;
 using std::string;
-
-#include "tuntap.h"
-#include "tap.h"
 
 std::unique_ptr<stream_descriptor> create_tap_dev(io_service &io, const char *dev_arg) {
 	char dev[IFNAMSIZ + 1];
