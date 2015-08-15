@@ -45,6 +45,11 @@ using asio::ip::icmp;
 using asio::io_service;
 using boost::signals2::scoped_connection;
 
+icmp_net_conn_outbound::icmp_net_conn_outbound(icmp_net_conn &conn) :
+	interruptible_loop(conn.icmp_net_.io_),
+	conn_(conn) {
+}
+
 void icmp_net_conn_outbound::main_loop(yield_context yield) {
 	for (;;) {
 		time_point_t now = chrono::steady_clock::now();

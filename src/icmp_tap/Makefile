@@ -15,6 +15,7 @@ OBJECTS := \
 	icmp_reply.o \
 	icmp_net_frame.o \
 	icmp_net_conn.o \
+	interruptible_loop.o \
 	icmp_net_conn_inbound.o \
 	icmp_net_conn_outbound.o \
 

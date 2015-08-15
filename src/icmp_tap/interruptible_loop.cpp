@@ -45,11 +45,11 @@ using asio::io_service;
 using boost::signals2::scoped_connection;
 
 interruptible_loop::interruptible_loop(boost::asio::io_service &io) :
-	io_(io), timer_(io),
-	stopped_(false), interrupted_(false), yield_(NULL) {
+	io_(io), timer_(io), yield_(NULL),
+	stopped_(false), interrupted_(false) {
 }
 
-void interruptible_loop::start(boost::asio::io_service &io_) {
+void interruptible_loop::start() {
 	asio::spawn(io_, boost::bind(&interruptible_loop::main_loop_caller, this, _1));
 }
 
@@ -67,8 +67,9 @@ void interruptible_loop::stop() {
 }
 
 bool interruptible_loop::timer_wait() {
+	assert(yield_);
 	boost::system::error_code ec;
-	timer_.async_wait(yield[ec]);
+	timer_.async_wait((*yield_)[ec]);
 	if (stopped_) {
 		throw stopped();
 	}

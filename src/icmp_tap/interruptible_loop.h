@@ -11,7 +11,7 @@ public:
 	void interrupt();
 	void stop();
 protected:
-	void main_loop(boost::asio::yield_context yield);
+	virtual void main_loop(boost::asio::yield_context yield) = 0;
 	bool timer_wait();
 	boost::asio::io_service &io_;
 	boost_timer_t timer_;

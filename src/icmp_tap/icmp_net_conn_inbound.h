@@ -26,7 +26,7 @@ class icmp_net_conn_inbound : public interruptible_loop {
 public:
 	typedef std::map<sequence_t, std::shared_ptr<icmp_net_frame> > inbound_t;
 	icmp_net_conn_inbound(icmp_net_conn &conn, sequence_t next_i);
-	void main_loop(boost::asio::yield_context yield);
+	void main_loop(boost::asio::yield_context yield) final;
 	void sliding_insert(std::shared_ptr<raw_frame_t> &frame);
 private:
 	void sliding_clear_half_below(sequence_t start);

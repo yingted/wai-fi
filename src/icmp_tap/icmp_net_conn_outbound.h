@@ -25,7 +25,7 @@ public:
 	typedef std::deque<std::shared_ptr<const tap_frame_t> > outbound_t;
 	typedef std::map<sequence_t, std::shared_ptr<icmp_net_frame> > inbound_t;
 	icmp_net_conn_outbound(icmp_net_conn &conn);
-	void main_loop(boost::asio::yield_context yield);
+	void main_loop(boost::asio::yield_context yield) final;
 	void enqueue_output(std::shared_ptr<const tap_frame_t> frame);
 	void enqueue_reply(std::shared_ptr<raw_frame_t> &frame);
 private:

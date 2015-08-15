@@ -44,10 +44,6 @@ using asio::ip::icmp;
 using asio::io_service;
 using boost::signals2::scoped_connection;
 
-void main_loop(boost::asio::yield_context yield) {
-	// Default no-op
-}
-
 icmp_net::icmp_net(const char *dev, int mtu) :
 	io_(),
 	tap_(std::move(*create_tap_dev(io_, dev))),

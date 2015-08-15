@@ -45,6 +45,12 @@ using asio::ip::icmp;
 using asio::io_service;
 using boost::signals2::scoped_connection;
 
+icmp_net_conn_inbound::icmp_net_conn_inbound(icmp_net_conn &conn, sequence_t next_i) :
+	interruptible_loop(conn.icmp_net_.io_),
+	conn_(conn),
+	next_i_(next_i) {
+}
+
 void icmp_net_conn_inbound::main_loop(yield_context yield) {
 	for (;;) {
 
