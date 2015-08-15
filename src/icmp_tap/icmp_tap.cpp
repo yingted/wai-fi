@@ -1,8 +1,6 @@
 #include "types.h"
 #include <cstring>
-#include <boost/asio.hpp>
 #include "icmp_net.h"
-
 #include "tap.h"
 
 int main(int argc, char *argv[]) {
