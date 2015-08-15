@@ -49,16 +49,16 @@ using boost::signals2::scoped_connection;
 icmp_net_conn::icmp_net_conn(icmp_net &inet, connection_id cid, sequence_t first) :
 	icmp_net_(&inet),
 	cid_(cid),
-	outbound_(inet.io_),
-	inbound_(inet.io_, first),
+	outbound_(*this),
+	inbound_(*this, first),
 	sig_conn_(inet.on_tap_frame_.connect(boost::bind(&icmp_net_conn::on_tap_frame, this, _1))),
 	alive_(true) {
-	outbound_.run();
-	inbound_.run();
+	outbound_.start();
+	inbound_.start();
 }
 
 void icmp_net_conn::stop() {
-	alive = false;
+	alive_ = false;
 	inbound_.stop();
 	outbound_.stop();
 	// Let's extend its life a bit
@@ -67,18 +67,13 @@ void icmp_net_conn::stop() {
 	assert(sp.use_count() == 1);
 }
 
-void icmp_net_conn::echo_writer(yield_context yield) {
-	assert(tap_yield_ == NULL);
-	tap_yield_ = &yield;
+void icmp_net_conn_outbound::main_loop(yield_context yield) {
 	XXX
-	assert(tap_yield_);
-	tap_yield_ = NULL;
-	stop();
+	cout << "outbound: closing connection " << conn_.cid_ << endl;
+	conn_.stop();
 }
 
-void icmp_net_conn::echo_reader(yield_context yield) {
-	assert(echo_yield_ == NULL);
-	echo_yield_ = &yield;
+void icmp_net_conn_inbound::main_loop(yield_context yield) {
 	for (;;) {
 
 		// Find the next packet to process
@@ -143,10 +138,8 @@ void icmp_net_conn::echo_reader(yield_context yield) {
 		next_i_ = it->first;
 	}
 	// Clean-up
-	cout << "echo_reader: closing connection " << cid_ << endl;
-	assert(echo_yield_);
-	echo_yield_ = NULL;
-	stop();
+	cout << "inbound: closing connection " << conn_.cid_ << endl;
+	conn_.stop();
 }
 
 void icmp_net_conn::send_outbound_reply(icmp_reply &reply) {
@@ -223,7 +216,7 @@ void icmp_net_conn::process_inbound_frame(inbound_t::iterator it) {
 	drop_inbound_frame(it);
 }
 
-icmp_net_conn::inbound_t::iterator icmp_net_conn::drop_inbound_frame(inbound_t::iterator it) {
+icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn::drop_inbound_frame(icmp_net_conn_inbound::inbound_t::iterator it) {
 	icmp_reply &reply = *it->second->reply;
 	if (!reply.consumed) {
 		send_outbound_reply(reply);
@@ -271,7 +264,7 @@ void icmp_net_conn::inbound_sliding_clear_half_below(sequence_t start) {
 }
 
 // TODO improve the performance of this and the above function
-icmp_net_conn::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(icmp_net_conn::inbound_t::iterator)> cb) {
+icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn::inbound_sliding_earlier_elements(sequence_t start, time_point_t now, boost::function<void(icmp_net_conn_inbound::inbound_t::iterator)> cb) {
 	inbound_t::iterator lb_start = inbound_.lower_bound(start), it;
 	assert(!inbound_.empty());
 
