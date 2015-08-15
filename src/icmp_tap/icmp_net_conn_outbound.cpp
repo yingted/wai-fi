@@ -53,7 +53,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 		for (const auto &it : inbound_) {
 			shared_ptr<icmp_net_frame> frame = it.second;
 			if (frame->outbound_deadline() <= now) {
-				@remove it
+				assert(false); //@remove it
 			}
 			replies.push_back(frame);
 		}
@@ -66,7 +66,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 				break;
 			}
 			send_reply(*frame->reply);
-			@erase it
+			assert(false); //@erase it
 		}
 		timer_.expires_at(time_point_t::max());
 		if (!timer_wait()) {
@@ -117,15 +117,15 @@ void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 	ssize_t send_len = out - buf;
 	assert(((size_t)send_len) <= sizeof(buf));
 
-	icmp_net_->write_to_raw(asio::buffer((const char *)buf, send_len), dst, *yield_);
+	conn_.icmp_net_.write_to_raw(asio::buffer((const char *)buf, send_len), dst, *yield_);
 }
 
 void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const tap_frame_t> frame) {
-	...
+	assert(false); //@enqueue frame
 	interrupt();
 }
 
 void icmp_net_conn_outbound::enqueue_reply(std::shared_ptr<raw_frame_t> &frame) {
-	...
+	assert(false); //@enqueue frame
 	interrupt();
 }
