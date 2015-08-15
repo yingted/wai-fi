@@ -52,7 +52,7 @@ private:
 
 class icmp_net_conn {
 	icmp_net *const icmp_net_;
-	boost::ptr_set<icmp_reply> replies_;
+	std::set<icmp_reply> replies_;
 	struct timespec time_;
 	boost::signals2::scoped_connection sig_conn_;
 public:

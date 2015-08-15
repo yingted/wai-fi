@@ -4,13 +4,14 @@
 #include <linux/ip.h>
 #include <stddef.h>
 #include <set>
+#include <boost/chrono.hpp>
 
 struct icmp_reply {
+	typedef boost::chrono::steady_clock boost_clock_t;
 	icmp_reply(__be32 addr, unsigned short id, unsigned short seq);
 	__be32 addr;
 	unsigned short id, seq;
-	struct timespec time;
+	boost_clock_t::time_point time;
 };
 
-bool operator<(const struct timespec &a, const struct timespec &b);
 bool operator<(const icmp_reply &a, const icmp_reply &b);

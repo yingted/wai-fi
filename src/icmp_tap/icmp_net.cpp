@@ -88,9 +88,9 @@ void icmp_net_conn::on_tap_frame(const icmp_net::tap_frame_t &frame) {
 }
 
 void icmp_net_conn::on_icmp_echo(std::unique_ptr<icmp_reply> &reply) {
+	replies_.insert(*reply);
 	cout << "on_icmp_echo: echo: " << reply->seq << endl;
 	// XXX
-	//replies_.insert(reply);
 }
 
 void icmp_net::raw_reader(yield_context yield) {
