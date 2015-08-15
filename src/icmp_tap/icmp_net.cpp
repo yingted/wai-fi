@@ -94,6 +94,7 @@ void icmp_net::raw_reader(yield_context yield) {
 		}
 
 		{
+			assert(frame);
 			assert(frame->reply);
 			connection_id cid = frame->reply->id;
 			bool new_conn = !conns_.count(cid);

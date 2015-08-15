@@ -109,7 +109,8 @@ void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const tap_frame_t> f
 	interrupt();
 }
 
-void icmp_net_conn_outbound::enqueue_reply(std::shared_ptr<raw_frame_t> &frame) {
+void icmp_net_conn_outbound::enqueue_reply(std::shared_ptr<raw_frame_t> frame) {
+	assert(frame);
 	inbound_.emplace(frame->reply->id, frame);
 	interrupt();
 }

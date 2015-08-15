@@ -26,7 +26,7 @@ void icmp_net_conn::on_tap_frame(shared_ptr<const tap_frame_t> frame) {
 	outbound_.enqueue_output(frame);
 }
 
-void icmp_net_conn::on_raw_frame(shared_ptr<raw_frame_t> &frame) {
+void icmp_net_conn::on_raw_frame(shared_ptr<raw_frame_t> frame) {
 	if (!alive_) {
 		return;
 	}

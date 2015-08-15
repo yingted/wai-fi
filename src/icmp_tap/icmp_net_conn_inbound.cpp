@@ -83,7 +83,7 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 
 void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 	assert(it->second);
-	shared_ptr<raw_frame_t> &frame(it->second);
+	shared_ptr<raw_frame_t> frame(it->second);
 	assert(it->second);
 	conn_.icmp_net_.write_to_tap(*frame, *yield_);
 	drop_frame(it);
@@ -95,9 +95,9 @@ icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icm
 	return inbound_.erase(it);
 }
 
-void icmp_net_conn_inbound::sliding_insert(shared_ptr<raw_frame_t> &frame) {
+void icmp_net_conn_inbound::sliding_insert(shared_ptr<raw_frame_t> frame) {
 	sequence_t seq = frame->reply->seq;
-	inbound_.emplace(seq, std::move(frame));
+	inbound_.emplace(seq, frame);
 	assert(inbound_[seq]);
 	interrupt();
 }
