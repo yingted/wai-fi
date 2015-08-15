@@ -32,7 +32,12 @@ static void process_queued_pbufs();
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 static void packet_reply_timeout();
 
+struct icmp_net_out_hdr {
+    uint16_t device_id;
+};
+
 struct icmp_net_hdr {
+    struct icmp_net_out_hdr hdr;
     unsigned char queued, pad_[1];
 };
 
@@ -119,13 +124,18 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
 
     { // copy p
         assert(p->tot_len < 2000);
-        struct pbuf *r = pbuf_alloc(PBUF_RAW, L3_HLEN + p->tot_len, PBUF_RAM);
+        const static s16_t tot_hlen = L3_HLEN + sizeof(struct icmp_net_out_hdr);
+        struct pbuf *r = pbuf_alloc(PBUF_RAW, tot_hlen + p->tot_len, PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
             mem_error();
             return ERR_MEM;
         }
-        if (pbuf_header(r, (s16_t)-L3_HLEN)) {
+        {
+            struct icmp_net_out_hdr *hdr = (struct icmp_net_out_hdr *)(((char *)p->payload) + L3_HLEN);
+            hdr->device_id = icmp_net_device_id;
+        }
+        if (pbuf_header(r, -tot_hlen)) {
             user_dprintf("reserve header failed");
 err_buf:
             pbuf_free(r);
@@ -135,7 +145,7 @@ err_buf:
             user_dprintf("copy failed");
             goto err_buf;
         }
-        if (pbuf_header(r, L3_HLEN)) {
+        if (pbuf_header(r, tot_hlen)) {
             user_dprintf("move to header failed");
             goto err_buf;
         }
@@ -156,7 +166,7 @@ send:
         iecho->type = ICMP_ECHO;
         iecho->code = 0;
         iecho->chksum = 0;
-        iecho->id = htons(icmp_net_device_id);
+        iecho->id = htons(config->icmp_id);
         ICMP_NET_CONFIG_LOCK(config);
         if (ICMP_NET_CONFIG_QLEN(config) == ICMP_NET_QSIZE) {
             user_dprintf("drop packet #%u", config->recv_i);
@@ -326,6 +336,7 @@ err_t icmp_net_init(struct netif *netif) {
     config->netif = netif;
     config->slave = NULL;
     config->send_i = config->recv_i = 0;
+    os_get_random((unsigned char *)&config->icmp_id, sizeof(config->icmp_id));
     {
         netif->hwaddr_len = 6;
         static u8_t *last_hwaddr = NULL;
@@ -431,6 +442,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
     const static s16_t icmp_hlen = sizeof(u32_t) * 2;
+    _Static_assert(sizeof(struct icmp_net_out_hdr) == 2, "Incorrect header size");
     if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_hdr)) {
         user_dprintf("short: %d bytes", p->tot_len);
         {
@@ -465,14 +477,14 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         pbuf_header(p, -icmp_hlen);
         assert((((size_t)p->payload) & 0x1) == 0);
 
-        if (iecho->id != htons(icmp_net_device_id)) {
-            goto skip;
-        }
-
         uint16_t seqno = ntohs(iecho->seqno);
         user_dprintf("echo reply: seqno=%u", seqno);
 
         struct icmp_net_hdr *ihdr = p->payload;
+        if (ihdr->hdr.device_id != icmp_net_device_id) {
+            pbuf_header(p, ip_hlen + icmp_hlen);
+            goto skip;
+        }
         pbuf_header(p, (s16_t)-sizeof(*ihdr));
         assert((((size_t)p->payload) & 0x1) == 0);
 
@@ -481,6 +493,9 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         struct icmp_net_config *config;
         for (config = root; config; config = config->next) {
             assert_heap();
+            if (iecho->id != htons(config->icmp_id)) {
+                continue;
+            }
             ICMP_NET_CONFIG_LOCK(config);
             assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
             if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {

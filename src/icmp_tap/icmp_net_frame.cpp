@@ -46,7 +46,10 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	}
 	string::const_iterator begin = buf.begin();
 	read(begin, ip);
-	data_begin = read(begin + ip->ihl * 4, icmp);
+	begin = read(begin + ip->ihl * 4, icmp);
+	uint16_t *device_id_p;
+	data_begin = read(begin, device_id_p);
+	device_id = *device_id_p;
 
 	// Verify some fields
 	unsigned short tot_len = ntohs(ip->tot_len);

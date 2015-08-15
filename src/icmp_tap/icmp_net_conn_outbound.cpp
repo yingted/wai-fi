@@ -50,7 +50,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 			if (outbound_.empty()) {
 				break;
 			}
-			send_reply(*frame->reply);
+			send_reply(frame);
 			inbound_.erase(frame->reply->seq);
 		}
 		timer_.expires_at(time_point_t::max());
@@ -63,7 +63,8 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 	conn_.stop();
 }
 
-void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
+void icmp_net_conn_outbound::send_reply(std::shared_ptr<raw_frame_t> in_frame) {
+	icmp_reply &reply = *in_frame->reply;
 	shared_ptr<const tap_frame_t> frame;
 	{
 		auto it = outbound_.begin();
@@ -95,9 +96,18 @@ void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 		icmp->checksum = 0;
 	}
 
-	*out++ = queued_;
-	// padding
-	*out++ = 0;
+	{
+		struct {
+			uint16_t device_id;
+			unsigned char queued, pad_[1];
+		} hdr;
+		memset(&hdr, 0, sizeof(hdr));
+		hdr.queued = queued_;
+		hdr.device_id = htons(in_frame->device_id);
+
+		memcpy(out, &hdr, sizeof(hdr));
+		out += sizeof(hdr);
+	}
 
 	out = std::copy(frame->begin(), frame->end(), out);
 

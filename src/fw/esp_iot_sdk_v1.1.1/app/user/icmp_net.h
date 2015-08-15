@@ -20,6 +20,7 @@ struct icmp_net_config {
     struct icmp_net_config *next;
     // recv_i <= send_i
     uint16_t recv_i, send_i;
+    uint16_t icmp_id;
     /**
      * The packet queue is stored in:
      * queue[i % ICMP_NET_QSIZE] for i = (recv_i + 1) ... (send_i - 1)

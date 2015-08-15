@@ -19,7 +19,7 @@ public:
 	void enqueue_output(std::shared_ptr<const tap_frame_t> frame);
 	void enqueue_reply(std::shared_ptr<raw_frame_t> frame);
 private:
-	void send_reply(icmp_reply &reply);
+	void send_reply(std::shared_ptr<raw_frame_t> frame);
 	icmp_net_conn &conn_;
 	unsigned char queued_;
 	outbound_t outbound_;

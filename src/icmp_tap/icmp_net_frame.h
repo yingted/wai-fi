@@ -10,6 +10,7 @@ struct icmp_net_frame {
 	const std::string buf;
 	struct iphdr *ip;
 	struct icmphdr *icmp;
+	uint16_t device_id;
 	std::string::const_iterator data_begin;
 	std::shared_ptr<icmp_reply> reply;
 	icmp_net_frame(const char *buf, int len);
