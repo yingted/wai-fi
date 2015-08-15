@@ -28,14 +28,18 @@ icmp_net_conn_outbound::icmp_net_conn_outbound(icmp_net_conn &conn) :
 void icmp_net_conn_outbound::main_loop(yield_context yield) {
 	for (;;) {
 		time_point_t now = chrono::steady_clock::now();
-		std::vector<shared_ptr<icmp_net_frame> > replies;
+
 		// TODO improve the performance of all the sliding window stuff
-		for (const auto &it : inbound_) {
-			shared_ptr<icmp_net_frame> frame = it.second;
-			if (frame->outbound_deadline() <= now) {
-				assert(false); //@remove it
+		for (auto it = inbound_.begin(); it != inbound_.end();) {
+			if (it->second->outbound_deadline() <= now) {
+				it = inbound_.erase(it);
+			} else {
+				++it;
 			}
-			replies.push_back(frame);
+		}
+		std::vector<shared_ptr<icmp_net_frame> > replies;
+		for (const auto &it : inbound_) {
+			replies.push_back(it.second);
 		}
 		std::sort(replies.begin(), replies.end(), [](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
 			return a->reply->time < b->reply->time;
@@ -46,7 +50,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 				break;
 			}
 			send_reply(*frame->reply);
-			assert(false); //@erase it
+			inbound_.erase(frame->reply->id);
 		}
 		timer_.expires_at(time_point_t::max());
 		if (!timer_wait()) {
@@ -101,11 +105,11 @@ void icmp_net_conn_outbound::send_reply(icmp_reply &reply) {
 }
 
 void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const tap_frame_t> frame) {
-	assert(false); //@enqueue frame
+	outbound_.push_back(frame);
 	interrupt();
 }
 
 void icmp_net_conn_outbound::enqueue_reply(std::shared_ptr<raw_frame_t> &frame) {
-	assert(false); //@enqueue frame
+	inbound_.emplace(frame->reply->id, frame);
 	interrupt();
 }
