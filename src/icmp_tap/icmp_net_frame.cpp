@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <linux/icmp.h>
 #include <time.h>
 #include <limits.h>
 #include <boost/circular_buffer.hpp>

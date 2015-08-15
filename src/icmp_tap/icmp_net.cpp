@@ -22,6 +22,7 @@
 #include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
 #include <boost/asio/spawn.hpp>
+#include <linux/icmp.h>
 #include "tap.h"
 #include "inet_checksum.h"
 #include "icmp_net.h"
@@ -48,7 +49,7 @@ icmp_net::icmp_net(const char *dev, int mtu) :
 	io_(),
 	tap_(std::move(*create_tap_dev(io_, dev))),
 	raw_(io_, icmp::v4()) {
-	tap_.native_non_blocking(true);
+	tap_.native_non_blocking(true); // XXX
 
 	{
 		struct icmp_filter filt;

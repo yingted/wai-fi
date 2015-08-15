@@ -1,7 +1,6 @@
 #pragma once
 
 #include "types.h"
-#include <boost/coroutine/all.hpp>
 #include <boost/signals2/connection.hpp>
 #include <memory>
 #include "icmp_net.h"

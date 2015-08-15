@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <limits.h>
+#include <linux/icmp.h>
 #include <boost/circular_buffer.hpp>
 #include <boost/asio.hpp>
 #include <boost/coroutine/all.hpp>

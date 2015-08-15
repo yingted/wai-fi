@@ -1,20 +1,11 @@
 #pragma once
 
 #include "types.h"
-#include <string>
 #include <boost/asio.hpp>
-#include <boost/function.hpp>
-#include <boost/coroutine/all.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/signals2.hpp>
-#include <boost/signals2/connection.hpp>
 #include <map>
-#include <deque>
-#include "icmp_reply.h"
-#include <linux/icmp.h>
-#include <linux/ip.h>
 #include <memory>
-#include <stdexcept>
 #include "icmp_net_frame.h"
 
 class icmp_net_conn;

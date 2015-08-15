@@ -1,21 +1,11 @@
 #pragma once
 
 #include "types.h"
-#include <string>
 #include <boost/asio.hpp>
 #include <boost/function.hpp>
-#include <boost/coroutine/all.hpp>
-#include <boost/asio/spawn.hpp>
-#include <boost/signals2.hpp>
-#include <boost/signals2/connection.hpp>
 #include <map>
-#include <deque>
 #include "icmp_reply.h"
-#include <linux/icmp.h>
-#include <linux/ip.h>
 #include <memory>
-#include <stdexcept>
-#include "icmp_net.h"
 #include "interruptible_loop.h"
 
 typedef unsigned short sequence_t; // must be unsigned
