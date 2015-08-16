@@ -4,6 +4,7 @@
 #include "icmp_reply.h"
 #include <string>
 #include <memory>
+#include <stdexcept>
 #include <boost/asio.hpp>
 #include <iostream>
 
@@ -13,6 +14,11 @@ typedef struct connection_id_ {
 
 bool operator<(const connection_id &a, const connection_id &b);
 std::ostream &operator<<(std::ostream &os, const connection_id &cid);
+
+class invalid_frame : public std::runtime_error {
+public:
+	invalid_frame(const std::string &what);
+};
 
 struct icmp_net_frame {
 	const std::string buf;

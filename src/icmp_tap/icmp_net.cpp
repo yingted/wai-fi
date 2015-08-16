@@ -10,7 +10,6 @@
 
 using std::shared_ptr;
 using std::make_shared;
-using std::invalid_argument;
 using std::cout;
 using std::endl;
 namespace asio = boost::asio;
@@ -45,7 +44,7 @@ void icmp_net::tap_reader(yield_context yield) {
 		shared_ptr<tap_frame_t> frame;
 		try {
 			frame = make_shared<tap_frame_t>(buf, len);
-		} catch (const invalid_argument &exc) {
+		} catch (const invalid_frame &exc) {
 			cout << "make_shared<tap_frame_t>: " << exc.what() << endl;
 			continue;
 		}
@@ -84,7 +83,7 @@ void icmp_net::raw_reader(yield_context yield) {
 		shared_ptr<raw_frame_t> frame;
 		try {
 			frame = make_shared<raw_frame_t>(buf, len);
-		} catch (const invalid_argument &exc) {
+		} catch (const invalid_frame &exc) {
 			cout << "raw: make_shared<raw_frame_t>: " << exc.what() << endl;
 			continue;
 		}

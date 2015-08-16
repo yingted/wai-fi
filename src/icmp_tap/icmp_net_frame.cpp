@@ -4,6 +4,7 @@
 #include <linux/icmp.h>
 #include <limits.h>
 #include <boost/asio.hpp>
+#include <stdexcept>
 #include "tap.h"
 #include "inet_checksum.h"
 #include "icmp_reply.h"
@@ -11,11 +12,14 @@
 
 using std::string;
 using std::make_shared;
-using std::invalid_argument;
 using std::cout;
 using std::endl;
 namespace asio = boost::asio;
 namespace chrono = std::chrono;
+
+invalid_frame::invalid_frame(const std::string &what)
+	: std::runtime_error(what) {
+}
 
 time_point_t icmp_net_frame::inbound_deadline() const {
 	return reply->time + chrono::milliseconds(500);
@@ -32,7 +36,7 @@ asio::const_buffers_1 icmp_net_frame::buffer() const {
 template<typename T>
 string::const_iterator icmp_net_frame::read(string::const_iterator begin, T *&ptr) {
 	if (buf.end() - begin < sizeof(*ptr)) {
-		throw invalid_argument("packet too short");
+		throw invalid_frame("packet too short");
 	}
 	ptr = (T *)(begin - buf.begin() + buf.data());
 	return begin + sizeof(*ptr);
@@ -60,10 +64,10 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	unsigned short tot_len = ntohs(ip->tot_len);
 	if (len != tot_len) {
 		printf("Expected tot_len=%d, got tot_len=%d\n", len, tot_len);
-		throw invalid_argument("invalid packet length");
+		throw invalid_frame("invalid packet length");
 	}
 	if (icmp->type != ICMP_ECHO) {
-		throw invalid_argument("unexpected ICMP packet type");
+		throw invalid_frame("unexpected ICMP packet type");
 	}
 
 	reply = make_shared<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));

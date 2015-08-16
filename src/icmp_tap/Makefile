@@ -1,8 +1,8 @@
 CC = g++
-CXXFLAGS = -std=c++11 -MMD -fwrapv
+CXXFLAGS = -std=c++11 -MMD -fwrapv -ggdb3 -Wall
 LDFLAGS += -L/usr/local/lib -lboost_system -lboost_coroutine -lboost_signals -lboost_chrono
 ifeq ($(DEBUG),1)
-	ALLFLAGS = -ggdb3 -Wall #-fsanitize=address
+	ALLFLAGS = -fsanitize=address
 	CXXFLAGS += $(ALLFLAGS)
 	LDFLAGS += $(ALLFLAGS)
 endif
