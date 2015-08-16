@@ -47,9 +47,14 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	string::const_iterator begin = buf.begin();
 	read(begin, ip);
 	begin = read(begin + ip->ihl * 4, icmp);
-	uint16_t *device_id_p;
-	data_begin = read(begin, device_id_p);
-	device_id = *device_id_p;
+	{
+		uint16_t *device_id_p, *orig_seq_p;
+		begin = read(begin, device_id_p);
+		device_id = *device_id_p;
+		begin = read(begin, orig_seq_p);
+		orig_seq = *orig_seq_p;
+	}
+	data_begin = begin;
 
 	// Verify some fields
 	unsigned short tot_len = ntohs(ip->tot_len);
@@ -68,14 +73,14 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 connection_id icmp_net_frame::cid() const {
 	connection_id ret;
 	ret.device_id = device_id;
-	ret.icmp_id = reply->id;
+	ret.orig_seq = orig_seq;
 	return ret;
 }
 
 bool operator<(const connection_id &a, const connection_id &b) {
-	return std::tie(a.icmp_id, a.device_id) < std::tie(b.icmp_id, b.device_id);
+	return std::tie(a.orig_seq, a.device_id) < std::tie(b.orig_seq, b.device_id);
 }
 
 std::ostream &operator<<(std::ostream &os, const connection_id &cid) {
-	return os << cid.icmp_id << '@' << cid.device_id;
+	return os << cid.orig_seq << '@' << cid.device_id;
 }

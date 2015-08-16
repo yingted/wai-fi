@@ -8,7 +8,7 @@
 #include <iostream>
 
 typedef struct connection_id_ {
-	uint16_t icmp_id, device_id;
+	uint16_t device_id, orig_seq;
 } connection_id;
 
 bool operator<(const connection_id &a, const connection_id &b);
@@ -18,7 +18,7 @@ struct icmp_net_frame {
 	const std::string buf;
 	struct iphdr *ip;
 	struct icmphdr *icmp;
-	uint16_t device_id;
+	uint16_t device_id, orig_seq;
 	std::string::const_iterator data_begin;
 	std::shared_ptr<icmp_reply> reply;
 	icmp_net_frame(const char *buf, int len);

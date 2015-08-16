@@ -32,12 +32,17 @@ static void process_queued_pbufs();
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 static void packet_reply_timeout();
 
-struct icmp_net_out_hdr {
+struct icmp_net_shared_hdr {
     uint16_t device_id;
 };
 
-struct icmp_net_hdr {
-    struct icmp_net_out_hdr hdr;
+struct icmp_net_out_hdr {
+    struct icmp_net_shared_hdr hdr;
+    uint16_t orig_seq;
+};
+
+struct icmp_net_in_hdr {
+    struct icmp_net_shared_hdr hdr;
     unsigned char queued, pad_[1];
 };
 
@@ -122,6 +127,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     assert(p->len < 2000);
     assert(p->tot_len < 2000);
 
+    struct icmp_net_out_hdr *hdr;
     { // copy p
         assert(p->tot_len < 2000);
         const static s16_t tot_hlen = L3_HLEN + sizeof(struct icmp_net_out_hdr);
@@ -131,10 +137,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
             mem_error();
             return ERR_MEM;
         }
-        {
-            struct icmp_net_out_hdr *hdr = (struct icmp_net_out_hdr *)(((char *)p->payload) + L3_HLEN);
-            hdr->device_id = icmp_net_device_id;
-        }
+        hdr = (struct icmp_net_out_hdr *)(((char *)p->payload) + L3_HLEN);
         if (pbuf_header(r, -tot_hlen)) {
             user_dprintf("reserve header failed");
 err_buf:
@@ -179,7 +182,8 @@ send:
         config->ttl[index] = ICMP_NET_TTL;
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
-        iecho->seqno = htons(seqno);
+        hdr->hdr.device_id = icmp_net_device_id;
+        hdr->orig_seq = iecho->seqno = htons(seqno);
         iecho->chksum = inet_chksum(p->payload, p->len);
     }
 
@@ -442,8 +446,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     struct ip_hdr *iphdr = p->payload;
     s16_t ip_hlen = IPH_HL(iphdr) * 4;
     const static s16_t icmp_hlen = sizeof(u32_t) * 2;
-    _Static_assert(sizeof(struct icmp_net_out_hdr) == 2, "Incorrect header size");
-    if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_hdr)) {
+    _Static_assert(sizeof(struct icmp_net_out_hdr) == 4, "Incorrect header size");
+    if (p->tot_len < ip_hlen + icmp_hlen + sizeof(struct icmp_net_in_hdr)) {
         user_dprintf("short: %d bytes", p->tot_len);
         {
             int i;
@@ -480,7 +484,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         uint16_t seqno = ntohs(iecho->seqno);
         user_dprintf("echo reply: seqno=%u", seqno);
 
-        struct icmp_net_hdr *ihdr = p->payload;
+        struct icmp_net_in_hdr *ihdr = p->payload;
         if (ihdr->hdr.device_id != icmp_net_device_id) {
             pbuf_header(p, ip_hlen + icmp_hlen);
             goto skip;
