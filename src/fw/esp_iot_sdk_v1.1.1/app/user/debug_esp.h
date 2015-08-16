@@ -33,6 +33,7 @@ void debug_esp_install_exc_handler();
 extern size_t intr_lock_count[XCHAL_NMILEVEL], intr_lock_count_sum;
 void debug_esp_user_intr_lock();
 void debug_esp_user_intr_unlock();
+void debug_esp_assert_not_nmi();
 
 #else
 
@@ -40,6 +41,7 @@ void debug_esp_user_intr_unlock();
 #define show_esf_buf()
 #define mem_error()
 #define debug_esp_install_exc_handler()
+#define debug_esp_assert_not_nmi()
 
 #endif
 

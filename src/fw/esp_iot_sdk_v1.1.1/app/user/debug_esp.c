@@ -334,22 +334,46 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
     assert(--count == 0);
 }
 
+ICACHE_FLASH_ATTR
+static size_t debug_esp_get_intlevel() {
+    size_t ps;
+    __asm__ __volatile__("rsr %0, ps":"=r"(ps));
+    assert(0 <= PS_INTLEVEL(ps) && PS_INTLEVEL(ps) <= XCHAL_NMILEVEL);
+    return PS_INTLEVEL(ps);
+}
+
+ICACHE_FLASH_ATTR
+void debug_esp_assert_not_nmi() {
+    assert(debug_esp_get_intlevel() != XCHAL_NMILEVEL);
+}
+
+/**
+ * Interrupt lock counters.
+ * We set the NMI level to 0 because sometimes the interrupt level gets changed.
+ */
 size_t intr_lock_count[XCHAL_NMILEVEL] = {0}, intr_lock_count_sum = 0;
 
 ICACHE_FLASH_ATTR
+void debug_esp_check_intr_lock_count_sum() {
+    int sum = 0, i;
+    for (i = 0; i != XCHAL_NMILEVEL; ++i) {
+        sum += intr_lock_count[i];
+    }
+    assert(sum == intr_lock_count_sum);
+}
+
+ICACHE_FLASH_ATTR
 void debug_esp_user_intr_lock() {
-    size_t ps;
-    __asm__ __volatile__("rsr %0, ps":"=r"(ps));
-    assert(intr_lock_count[PS_INTLEVEL(ps)]++ == intr_lock_count_sum++);
     ets_intr_lock();
+    assert(intr_lock_count[debug_esp_get_intlevel() % XCHAL_NMILEVEL]++ == intr_lock_count_sum++);
+    debug_esp_check_intr_lock_count_sum();
 }
 
 ICACHE_FLASH_ATTR
 void debug_esp_user_intr_unlock() {
+    debug_esp_check_intr_lock_count_sum();
+    assert(--intr_lock_count[debug_esp_get_intlevel() % XCHAL_NMILEVEL] == --intr_lock_count_sum);
     ets_intr_unlock();
-    size_t ps;
-    __asm__ __volatile__("rsr %0, ps":"=r"(ps));
-    assert(--intr_lock_count[PS_INTLEVEL(ps)] == --intr_lock_count_sum);
 }
 
 #endif

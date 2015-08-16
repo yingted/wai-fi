@@ -28,7 +28,8 @@ static bool filter_dest = false, filter_bssid = false;
 
 static void ssl_connect();
 ICACHE_FLASH_ATTR
-static void schedule_reconnect() {
+static void schedule_reconnect_impl() {
+    debug_esp_assert_not_nmi();
     assert_heap();
 
     USER_INTR_LOCK();
@@ -39,12 +40,17 @@ static void schedule_reconnect() {
     connmgr_connected = false;
     connmgr_disconnect_cb();
 #ifdef DEBUG_ESP
-    // Delay a bit, so we get out of the NMI
-    sys_timeout(1, ssl_connect, NULL);
+    ssl_connect();
 #else
     sys_timeout(1000, ssl_connect, NULL);
 #endif
     USER_INTR_UNLOCK();
+}
+
+ICACHE_FLASH_ATTR
+static void schedule_reconnect() {
+    // Delay a bit, so we get out of the NMI
+    sys_timeout(1, schedule_reconnect_impl, NULL);
 }
 
 ICACHE_FLASH_ATTR
@@ -61,9 +67,7 @@ ICACHE_FLASH_ATTR
 static void espconn_reconnect_cb(void *arg, sint8 err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
 
-    // XXX Can be called from NMI, should queue until
-    // after unlock.
-#if 1 // hack to fix this for now
+#if 0 // for debugging
     switch (err) {
         case ESPCONN_CONN: // -11
             // Connection timeout
