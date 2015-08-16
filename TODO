@@ -1,4 +1,3 @@
-- handle amazon icmp renumbering
 - fix reentrancy bug properly
 - server-side analysis, ui
 - switch to SCons
