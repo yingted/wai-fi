@@ -94,12 +94,12 @@ void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 
 icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icmp_net_conn_inbound::inbound_t::iterator it) {
 	icmp_reply &reply = *it->second->reply;
-	cout << "drop_frame: seq=" << reply.seq << endl;
+	cout << "drop_frame: seq=" << reply.orig_seq << endl;
 	return inbound_.erase(it);
 }
 
 void icmp_net_conn_inbound::sliding_insert(shared_ptr<raw_frame_t> frame) {
-	sequence_t seq = frame->reply->seq;
+	sequence_t seq = frame->orig_seq;
 	inbound_.emplace(seq, frame);
 	assert(inbound_[seq]);
 	interrupt();

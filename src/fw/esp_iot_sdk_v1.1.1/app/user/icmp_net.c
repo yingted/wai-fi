@@ -182,7 +182,7 @@ send:
         config->ttl[index] = ICMP_NET_TTL;
         short seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
-        hdr->hdr.device_id = icmp_net_device_id;
+        hdr->hdr.device_id = htons(icmp_net_device_id);
         hdr->orig_seq = iecho->seqno = htons(seqno);
         iecho->chksum = inet_chksum(p->payload, p->len);
     }
@@ -485,7 +485,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         user_dprintf("echo reply: seqno=%u", seqno);
 
         struct icmp_net_in_hdr *ihdr = p->payload;
-        if (ihdr->hdr.device_id != icmp_net_device_id) {
+        if (ihdr->hdr.device_id != htons(icmp_net_device_id)) {
             pbuf_header(p, ip_hlen + icmp_hlen);
             goto skip;
         }

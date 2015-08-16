@@ -51,7 +51,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 				break;
 			}
 			send_reply(frame);
-			inbound_.erase(frame->reply->seq);
+			inbound_.erase(frame->orig_seq);
 		}
 		timer_.expires_at(time_point_t::max());
 		if (!timer_wait()) {
@@ -77,7 +77,7 @@ void icmp_net_conn_outbound::send_reply(std::shared_ptr<raw_frame_t> in_frame) {
 
 	cout
 		<< "replying id=" << reply.id
-		<< " seq=" << reply.seq
+		<< " seq=" << frame->orig_seq
 		<< " saddr=" << inet_ntoa(*(in_addr *)&reply.addr)
 		<< " queued=" << ((int)queued_)
 		<< endl;
@@ -127,7 +127,7 @@ void icmp_net_conn_outbound::enqueue_output(std::shared_ptr<const tap_frame_t> f
 
 void icmp_net_conn_outbound::enqueue_reply(std::shared_ptr<raw_frame_t> frame) {
 	assert(frame);
-	cout << "outbound: enqueue_reply: seq=" << frame->reply->seq << endl;
-	inbound_.emplace(frame->reply->seq, frame);
+	cout << "outbound: enqueue_reply: seq=" << frame->orig_seq << endl;
+	inbound_.emplace(frame->orig_seq, frame);
 	interrupt();
 }

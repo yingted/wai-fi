@@ -100,7 +100,7 @@ void icmp_net::raw_reader(yield_context yield) {
 			bool new_conn = !conns_.count(cid);
 			if (new_conn) {
 				printf("raw_reader: new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
-				conns_.emplace(cid, make_shared<icmp_net_conn>(*this, cid, frame->reply->seq));
+				conns_.emplace(cid, make_shared<icmp_net_conn>(*this, cid, frame->orig_seq));
 			}
 			conns_[cid]->on_raw_frame(frame);
 		}
