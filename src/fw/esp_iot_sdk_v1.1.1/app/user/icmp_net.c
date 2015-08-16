@@ -73,10 +73,8 @@ static err_t send_keepalive(struct netif *netif) {
 void __real_tcp_tmr();
 ICACHE_FLASH_ATTR
 void __wrap_tcp_tmr() {
-    assert_heap();
     __real_tcp_tmr();
     packet_reply_timeout();
-    assert_heap();
 }
 
 /**
@@ -328,6 +326,13 @@ static void packet_reply_timeout() {
 #ifndef NDEBUG
                 retained_any = true;
 #endif
+            }
+        }
+
+        while (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
+            if (send_keepalive(config->netif)) {
+                user_dprintf("fetch queued: error");
+                break;
             }
         }
         ICMP_NET_CONFIG_UNLOCK(config);
