@@ -1,6 +1,6 @@
 CC = g++
 CXXFLAGS = -std=c++11 -MMD -fwrapv
-LDFLAGS += -L/usr/local/lib64 -lboost_system -lboost_coroutine -lboost_signals -lboost_chrono
+LDFLAGS += -L/usr/local/lib -lboost_system -lboost_coroutine -lboost_signals -lboost_chrono
 ifeq ($(DEBUG),1)
 	ALLFLAGS = -ggdb3 -Wall #-fsanitize=address
 	CXXFLAGS += $(ALLFLAGS)
