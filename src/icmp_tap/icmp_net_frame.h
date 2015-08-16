@@ -8,7 +8,7 @@
 #include <iostream>
 
 typedef struct connection_id_ {
-	uint16_t device_id, orig_seq;
+	uint16_t icmp_id, device_id;
 } connection_id;
 
 bool operator<(const connection_id &a, const connection_id &b);

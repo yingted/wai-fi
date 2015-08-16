@@ -73,14 +73,14 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 connection_id icmp_net_frame::cid() const {
 	connection_id ret;
 	ret.device_id = device_id;
-	ret.orig_seq = orig_seq;
+	ret.icmp_id = reply->id;
 	return ret;
 }
 
 bool operator<(const connection_id &a, const connection_id &b) {
-	return std::tie(a.orig_seq, a.device_id) < std::tie(b.orig_seq, b.device_id);
+	return std::tie(a.icmp_id, a.device_id) < std::tie(b.icmp_id, b.device_id);
 }
 
 std::ostream &operator<<(std::ostream &os, const connection_id &cid) {
-	return os << cid.orig_seq << '@' << cid.device_id;
+	return os << cid.icmp_id << '@' << cid.device_id;
 }

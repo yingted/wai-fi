@@ -30,7 +30,7 @@ void icmp_net_conn::on_raw_frame(shared_ptr<raw_frame_t> frame) {
 	if (!alive_) {
 		return;
 	}
-	cout << "on_raw_frame: echo: seq=" << frame->reply->seq << endl;
+	cout << "on_raw_frame: echo: cid=" << frame->cid() << " seq=" << frame->orig_seq << endl;
 	inbound_.sliding_insert(frame);
 	outbound_.enqueue_reply(frame);
 }
