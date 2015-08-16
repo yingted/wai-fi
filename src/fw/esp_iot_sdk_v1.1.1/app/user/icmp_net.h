@@ -25,10 +25,8 @@ struct icmp_net_config {
     /**
      * The packet queue is stored in:
      * queue[i % ICMP_NET_QSIZE] for i = (recv_i + 1) ... (send_i - 1)
-     * The invariant is: send_i - recv_i
      * Other values are undefined.
-     * The pipe is given by:
-     * send_i - recv_i
+     * The number of outstanding packets is: send_i - recv_i
      * The queue size is given by:
      * send_i - (recv_i + 1)
      * Where the recv_i is the lowest-index packet still not received.
