@@ -27,6 +27,8 @@ static int icmp_net_lwip_entry_count = 0;
 #define L2_HLEN (PBUF_LINK_HLEN + IP_HLEN)
 #define L3_HLEN (L2_HLEN + sizeof(struct icmp_echo_hdr))
 
+#define TOT_HLEN (s16_t)(L3_HLEN + sizeof(struct icmp_net_out_hdr))
+
 static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static void process_queued_pbufs();
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
@@ -63,12 +65,7 @@ ICACHE_FLASH_ATTR
 static err_t send_keepalive(struct netif *netif) {
     ICMP_NET_CONFIG_UNLOCK(config);
     user_dprintf("sending keepalive");
-    struct pbuf *p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
-    if (p == NULL) {
-        mem_error();
-    }
-    pbuf_header(p, (s16_t)-L3_HLEN);
-    err_t ret = icmp_net_linkoutput(netif, p);
+    err_t ret = icmp_net_linkoutput(netif, NULL);
     ICMP_NET_CONFIG_LOCK(config);
     return ret;
 }
@@ -121,34 +118,37 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     assert(config->slave);
 #ifdef DEBUG_ESP
     user_dprintf("%p %p", netif, p);
-    user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+    if (p != NULL) {
+        user_dprintf("ref: %d, len: %d, tot_len: %d", p->ref, p->len, p->tot_len);
+    }
 #endif
-    assert(p->ref >= 1);
-    assert(p->len < 2000);
-    assert(p->tot_len < 2000);
+    if (p != NULL) {
+        assert(p->ref >= 1);
+        assert(p->len < 2000);
+        assert(p->tot_len < 2000);
+    }
 
     struct icmp_net_out_hdr *hdr;
     { // copy p
-        assert(p->tot_len < 2000);
-        const static s16_t tot_hlen = L3_HLEN + sizeof(struct icmp_net_out_hdr);
-        struct pbuf *r = pbuf_alloc(PBUF_RAW, tot_hlen + p->tot_len, PBUF_RAM);
+        assert(p == NULL || p->tot_len < 2000);
+        struct pbuf *r = pbuf_alloc(PBUF_RAW, TOT_HLEN + (p == NULL ? 0 : p->tot_len), PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
             mem_error();
             return ERR_MEM;
         }
-        hdr = (struct icmp_net_out_hdr *)(((char *)p->payload) + L3_HLEN);
-        if (pbuf_header(r, -tot_hlen)) {
+        hdr = (struct icmp_net_out_hdr *)(((char *)r->payload) + L3_HLEN);
+        if (pbuf_header(r, -TOT_HLEN)) {
             user_dprintf("reserve header failed");
 err_buf:
             pbuf_free(r);
             return ERR_BUF;
         }
-        if (pbuf_copy(r, p) != ERR_OK) {
+        if (p != NULL && pbuf_copy(r, p) != ERR_OK) {
             user_dprintf("copy failed");
             goto err_buf;
         }
-        if (pbuf_header(r, tot_hlen)) {
+        if (pbuf_header(r, TOT_HLEN)) {
             user_dprintf("move to header failed");
             goto err_buf;
         }
@@ -208,10 +208,7 @@ send:
 
     if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
         user_dprintf("sending keepalive");
-        p = pbuf_alloc(PBUF_RAW, L3_HLEN, PBUF_RAM);
-        if (p == NULL) {
-            mem_error();
-        }
+        p = NULL;
         goto send;
     }
 
