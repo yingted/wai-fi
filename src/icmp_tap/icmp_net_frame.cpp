@@ -64,3 +64,18 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	reply = make_shared<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
 	printf("icmp_net_frame: id=%d seq=%d saddr=%s\n", reply->id, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
 }
+
+connection_id icmp_net_frame::cid() const {
+	connection_id ret;
+	ret.device_id = device_id;
+	ret.icmp_id = reply->id;
+	return ret;
+}
+
+bool operator<(const connection_id &a, const connection_id &b) {
+	return std::tie(a.icmp_id, a.device_id) < std::tie(b.icmp_id, b.device_id);
+}
+
+std::ostream &operator<<(std::ostream &os, const connection_id &cid) {
+	return os << cid.icmp_id << '@' << cid.device_id;
+}

@@ -96,7 +96,7 @@ void icmp_net::raw_reader(yield_context yield) {
 		{
 			assert(frame);
 			assert(frame->reply);
-			connection_id cid = frame->reply->id;
+			connection_id cid = frame->cid();
 			bool new_conn = !conns_.count(cid);
 			if (new_conn) {
 				printf("raw_reader: new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));

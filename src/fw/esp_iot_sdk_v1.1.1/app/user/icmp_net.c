@@ -494,6 +494,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
         for (config = root; config; config = config->next) {
             assert_heap();
             if (iecho->id != htons(config->icmp_id)) {
+                user_dprintf("echo id %u doesn't match", ntohs(iecho->id));
                 continue;
             }
             ICMP_NET_CONFIG_LOCK(config);

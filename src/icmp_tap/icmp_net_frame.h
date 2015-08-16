@@ -5,6 +5,14 @@
 #include <string>
 #include <memory>
 #include <boost/asio.hpp>
+#include <iostream>
+
+typedef struct connection_id_ {
+	uint16_t icmp_id, device_id;
+} connection_id;
+
+bool operator<(const connection_id &a, const connection_id &b);
+std::ostream &operator<<(std::ostream &os, const connection_id &cid);
 
 struct icmp_net_frame {
 	const std::string buf;
@@ -17,6 +25,7 @@ struct icmp_net_frame {
 	boost::asio::const_buffers_1 buffer() const;
 	time_point_t inbound_deadline() const;
 	time_point_t outbound_deadline() const;
+	connection_id cid() const;
 private:
 	template<typename T>
 	std::string::const_iterator read(std::string::const_iterator begin, T *&ptr);
