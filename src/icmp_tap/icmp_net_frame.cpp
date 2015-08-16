@@ -50,9 +50,9 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	{
 		uint16_t *device_id_p, *orig_seq_p;
 		begin = read(begin, device_id_p);
-		device_id = *device_id_p;
+		device_id = ntohs(*device_id_p);
 		begin = read(begin, orig_seq_p);
-		orig_seq = *orig_seq_p;
+		orig_seq = ntohs(*orig_seq_p);
 	}
 	data_begin = begin;
 
