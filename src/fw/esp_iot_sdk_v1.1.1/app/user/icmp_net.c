@@ -297,21 +297,38 @@ static void packet_reply_timeout() {
     struct icmp_net_config *config;
     for (config = root; config; config = config->next) {
         ICMP_NET_CONFIG_LOCK(config);
-        uint16_t i;
+        if (ICMP_NET_CONFIG_QLEN(config) > 0) {
+            uint16_t i;
 #ifndef NDEBUG
-        bool retained_any = false;
+            bool retained_any = false;
 #endif
-        for (i = config->recv_i; i != config->send_i; ++i) {
-            if (!config->ttl[i % ICMP_NET_QSIZE]--) {
-                user_dprintf("timing out packet %u", i);
-                assert(!retained_any);
-                drop_echo_reply(config);
+            // TTL values are monotonically decreasing.
+            // If the next packet is timing out, drop this one.
+            // This is because we have n+1 packets but only n TTL values.
+            uint16_t pending_i = config->recv_i;
+            for (i = config->recv_i + 1; i != config->send_i; ++i) {
+                if (config->queue[i % ICMP_NET_QSIZE] != NULL) {
+                    pending_i = i;
+                }
             }
+            // Everything after pending_i is NULL
+            uint16_t timeout_ttl = ICMP_NET_TTL - ICMP_NET_MAX_JITTER;
+            for (i = config->recv_i; (uint16_t)(i + 1) != config->send_i; ++i) {
+                if (i == pending_i) {
+                    // i + 1 onwards all NULL, update the TTL
+                    timeout_ttl = 0;
+                }
+                unsigned char next_ttl = config->ttl[(i + 1) % ICMP_NET_QSIZE]--;
+                if (i == config->recv_i && next_ttl <= timeout_ttl) {
+                    user_dprintf("timing out packet %u", i);
+                    assert(!retained_any);
+                    drop_echo_reply(config);
+                    continue;
+                }
 #ifndef NDEBUG
-            else {
                 retained_any = true;
-            }
 #endif
+            }
         }
         ICMP_NET_CONFIG_UNLOCK(config);
     }
