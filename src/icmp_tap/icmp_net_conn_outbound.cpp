@@ -42,9 +42,22 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 		for (const auto &it : inbound_) {
 			replies.push_back(it.second);
 		}
-		std::sort(replies.begin(), replies.end(), [](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
-			return a->reply->time < b->reply->time;
+		int16_t origin = 0;
+		{
+			auto max_it = std::max_element(replies.begin(), replies.end(), [](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
+				return a->reply->time < b->reply->time;
+			});
+			if (max_it != replies.end()) {
+				origin = (*max_it)->orig_seq;
+			}
+		}
+		std::sort(replies.begin(), replies.end(), [=](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
+			return ((int16_t)a->orig_seq - origin) < ((int16_t)b->orig_seq - origin);
 		});
+		const static size_t max_replies = 100;
+		if (replies.size() > max_replies) {
+			replies = {replies.end() - max_replies, replies.end()};
+		}
 		queued_ = std::max<long>(0, std::min<long>(UCHAR_MAX, (long)outbound_.size() - (long)replies.size()));
 		for (const auto &frame : replies) {
 			if (outbound_.empty()) {
