@@ -28,7 +28,7 @@ static bool filter_dest = false, filter_bssid = false;
 
 static void ssl_connect();
 ICACHE_FLASH_ATTR
-static void schedule_reconnect_impl() {
+static void schedule_reconnect() {
     debug_esp_assert_not_nmi();
     assert_heap();
 
@@ -45,13 +45,6 @@ static void schedule_reconnect_impl() {
     sys_timeout(1000, ssl_connect, NULL);
 #endif
     USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-static void schedule_reconnect() {
-    // Delay a bit, so we get out of the NMI
-    // XXX this opens a tiny gap where packets can be dropped
-    sys_timeout(1, schedule_reconnect_impl, NULL);
 }
 
 ICACHE_FLASH_ATTR
@@ -81,7 +74,10 @@ static void espconn_reconnect_cb(void *arg, sint8 err) {
 
 ICACHE_FLASH_ATTR
 static void espconn_disconnect_cb(void *arg) {
-    schedule_reconnect();
+    debug_esp_assert_not_nmi(); // should fail
+    // Delay a bit, so we get out of the NMI
+    // XXX this opens a tiny gap where packets can be dropped
+    sys_timeout(0, schedule_reconnect, NULL);
 }
 
 ICACHE_FLASH_ATTR

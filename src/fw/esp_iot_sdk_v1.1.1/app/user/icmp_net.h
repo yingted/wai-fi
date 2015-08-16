@@ -7,9 +7,9 @@
 #include <lwip/netif.h>
 
 // Must be a power of 2
-#define ICMP_NET_QSIZE 4U
-#define ICMP_NET_MAX_KEEPALIVE 1U
-#define ICMP_NET_MIN_KEEPALIVE 1U
+#define ICMP_NET_QSIZE 256U
+#define ICMP_NET_MAX_KEEPALIVE 8U
+#define ICMP_NET_MIN_KEEPALIVE 2U
 // TTL (3 means it survives 3 timeouts and dies on the 4th), in 5 s units
 #define ICMP_NET_TTL (155 / 5)
 

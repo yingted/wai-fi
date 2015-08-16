@@ -129,6 +129,7 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
     }
 
     struct icmp_net_out_hdr *hdr;
+copy:
     { // copy p
         assert(p == NULL || p->tot_len < 2000);
         struct pbuf *r = pbuf_alloc(PBUF_RAW, TOT_HLEN + (p == NULL ? 0 : p->tot_len), PBUF_RAM);
@@ -156,7 +157,8 @@ err_buf:
         p = r;
     }
 
-send:
+    assert(p != NULL);
+
     if (pbuf_header(p, -L2_HLEN)) {
         user_dprintf("move to icmp header failed");
         pbuf_free(p);
@@ -209,7 +211,7 @@ send:
     if (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
         user_dprintf("sending keepalive");
         p = NULL;
-        goto send;
+        goto copy;
     }
 
     assert_heap();
