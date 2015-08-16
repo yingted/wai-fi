@@ -151,6 +151,6 @@ icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::sliding_earlie
 		}
 		cb(saved_it);
 	}
-	assert((it != inbound_.end()) == !!inbound_.empty());
+	assert((it == inbound_.end()) == !!inbound_.empty());
 	return it;
 }

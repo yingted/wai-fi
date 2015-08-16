@@ -50,6 +50,7 @@ static void schedule_reconnect_impl() {
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
     // Delay a bit, so we get out of the NMI
+    // XXX this opens a tiny gap where packets can be dropped
     sys_timeout(1, schedule_reconnect_impl, NULL);
 }
 
