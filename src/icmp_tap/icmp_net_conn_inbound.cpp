@@ -38,7 +38,6 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 				// Wait for any packet
 				timer_.expires_at(last_frame_at_ + chrono::seconds(300));
 				idle = true;
-				cout << "inbound: wait for any packet" << endl;
 				break;
 			}
 			// Check for sequentially next packet
@@ -84,7 +83,7 @@ void icmp_net_conn_inbound::main_loop(yield_context yield) {
 
 void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 	assert(it->second);
-	cout << "process_frame: seq=" << it->first << endl;
+	cout << "inbound: write to tap: seq=" << it->first << endl;
 	shared_ptr<raw_frame_t> frame(it->second);
 	last_frame_at_ = it->second->reply->time;
 	assert(it->second);
@@ -93,7 +92,6 @@ void icmp_net_conn_inbound::process_frame(inbound_t::iterator it) {
 }
 
 icmp_net_conn_inbound::inbound_t::iterator icmp_net_conn_inbound::drop_frame(icmp_net_conn_inbound::inbound_t::iterator it) {
-	cout << "drop_frame: seq=" << it->second->orig_seq << endl;
 	return inbound_.erase(it);
 }
 

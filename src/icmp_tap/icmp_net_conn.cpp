@@ -22,7 +22,6 @@ void icmp_net_conn::on_tap_frame(shared_ptr<const tap_frame_t> frame) {
 	if (!alive_) {
 		return;
 	}
-	cout << "on_tap_frame: read: " << frame->size() << " B" << endl;
 	outbound_.enqueue_output(frame);
 }
 
@@ -30,7 +29,7 @@ void icmp_net_conn::on_raw_frame(shared_ptr<raw_frame_t> frame) {
 	if (!alive_) {
 		return;
 	}
-	cout << "on_raw_frame: echo: cid=" << frame->cid() << " seq=" << frame->orig_seq << endl;
+	cout << "raw: echo: cid=" << frame->cid() << " seq=" << frame->orig_seq << endl;
 	inbound_.sliding_insert(frame);
 	outbound_.enqueue_reply(frame);
 }

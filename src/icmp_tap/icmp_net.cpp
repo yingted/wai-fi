@@ -38,11 +38,10 @@ icmp_net::icmp_net(const char *dev, int mtu) :
 }
 
 void icmp_net::tap_reader(yield_context yield) {
-	cout << "tap_reader: started" << endl;
 	for (;;) {
 		static char buf[64 * 1024];
 		ssize_t len = tap_.async_read_some(asio::buffer(buf), yield);
-		cout << "tap_reader: read: " << len << " B" << endl;
+		cout << "tap: read: " << len << " B" << endl;
 		shared_ptr<tap_frame_t> frame;
 		try {
 			frame = make_shared<tap_frame_t>(buf, len);
@@ -59,12 +58,10 @@ void icmp_net::write_to_tap(const raw_frame_t &frame, yield_context yield) {
 	ssize_t data_len = asio::buffer_size(frame.buffer());
 	if (data_len) {
 		ssize_t written = tap_.async_write_some(frame.buffer(), yield);
-		cout << "raw_reader: tap: write: " << written << " of " << data_len << " B" << endl;
+		cout << "tap: write: " << written << " of " << data_len << " B" << endl;
 		if (written != data_len) {
-			cout << "raw_reader: tap: write: wrong number of bytes written" << endl;
+			cout << "tap: write: wrong number of bytes written" << endl;
 		}
-	} else {
-		cout << "got keepalive" << endl;
 	}
 }
 
@@ -72,24 +69,23 @@ void icmp_net::write_to_raw(asio::const_buffers_1 buf, icmp_net::raw_t::endpoint
 	ssize_t send_len = asio::buffer_size(buf);
 	ssize_t sent = raw_.async_send_to(buf, dst, MSG_DONTWAIT, yield);
 	if (send_len != sent) {
-		cout << "sent " << sent << " instead of " << send_len << endl;
+		cout << "raw: sent " << sent << " instead of " << send_len << endl;
 	} else {
-		cout << "sent " << sent << " to " << dst << endl;
+		cout << "raw: sent " << sent << " to " << dst << endl;
 	}
 }
 
 void icmp_net::raw_reader(yield_context yield) {
-	cout << "raw_reader: started" << endl;
 	for (;;) {
 		static char buf[64 * 1024];
 		ssize_t len = raw_.async_receive(asio::buffer(buf), yield);
-		cout << "raw_reader: read: " << len << " B" << endl;
+		cout << "raw: read: " << len << " B" << endl;
 
 		shared_ptr<raw_frame_t> frame;
 		try {
 			frame = make_shared<raw_frame_t>(buf, len);
 		} catch (const invalid_argument &exc) {
-			cout << "raw_reader: make_shared<raw_frame_t>: " << exc.what() << endl;
+			cout << "raw: make_shared<raw_frame_t>: " << exc.what() << endl;
 			continue;
 		}
 
@@ -99,7 +95,7 @@ void icmp_net::raw_reader(yield_context yield) {
 			connection_id cid = frame->cid();
 			bool new_conn = !conns_.count(cid);
 			if (new_conn) {
-				printf("raw_reader: new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
+				printf("raw: new connection to %s\n", inet_ntoa(*(in_addr *)&frame->reply->addr));
 				conns_.emplace(cid, make_shared<icmp_net_conn>(*this, cid, frame->orig_seq));
 			}
 			conns_[cid]->on_raw_frame(frame);

@@ -90,7 +90,7 @@ void icmp_net_conn_outbound::send_reply(std::shared_ptr<raw_frame_t> in_frame) {
 	}
 
 	cout
-		<< "replying id=" << reply.id
+		<< "outbound: replying id=" << reply.id
 		<< " seq=" << in_frame->orig_seq
 		<< " saddr=" << inet_ntoa(*(in_addr *)&reply.addr)
 		<< " queued=" << ((int)queued_)
