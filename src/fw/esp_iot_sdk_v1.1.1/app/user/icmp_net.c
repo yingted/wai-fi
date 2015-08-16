@@ -70,11 +70,11 @@ static err_t send_keepalive(struct netif *netif) {
     return ret;
 }
 
-void __real_etharp_tmr();
+void __real_tcp_tmr();
 ICACHE_FLASH_ATTR
-void __wrap_etharp_tmr() {
+void __wrap_tcp_tmr() {
     assert_heap();
-    __real_etharp_tmr();
+    __real_tcp_tmr();
     packet_reply_timeout();
     assert_heap();
 }
@@ -502,8 +502,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
             }
             ICMP_NET_CONFIG_LOCK(config);
             assert(ICMP_NET_CONFIG_QLEN(config) >= 0);
+            user_dprintf("receive window [%u, %u)", config->recv_i, config->send_i);
             if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
-                user_dprintf("receive window [%u, %u)", config->recv_i, config->send_i);
                 assert(p->ref >= 1);
                 assert(p->len < 2000);
                 assert(p->tot_len < 2000);

@@ -56,6 +56,7 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 		});
 		const static size_t max_replies = 100;
 		if (replies.size() > max_replies) {
+			cout << "outbound: overflowing " << (replies.size() - max_replies) << " packets" << endl;
 			replies = {replies.end() - max_replies, replies.end()};
 		}
 		queued_ = std::max<long>(0, std::min<long>(UCHAR_MAX, (long)outbound_.size() - (long)replies.size()));

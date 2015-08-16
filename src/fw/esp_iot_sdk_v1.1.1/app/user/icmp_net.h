@@ -10,8 +10,8 @@
 #define ICMP_NET_QSIZE 256U
 #define ICMP_NET_MAX_KEEPALIVE 8U
 #define ICMP_NET_MIN_KEEPALIVE 2U
-// TTL (3 means it survives 3 timeouts and dies on the 4th), in 5 s units
-#define ICMP_NET_TTL (155 / 5)
+// TTL (3 means it survives 3 timeouts and dies on the 4th), in 250 ms units
+#define ICMP_NET_TTL ((1000 /* ms */) / 250 - 1)
 
 struct icmp_net_config {
     struct ip_addr relay_ip;
@@ -36,7 +36,7 @@ struct icmp_net_config {
     uint8_t ttl[ICMP_NET_QSIZE];
 };
 
-#define ICMP_NET_CONFIG_QLEN(config) ((config)->send_i - (config)->recv_i)
+#define ICMP_NET_CONFIG_QLEN(config) ((uint16_t)((config)->send_i - (config)->recv_i))
 #define ICMP_NET_CONFIG_CAN_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_MAX_KEEPALIVE)
 #define ICMP_NET_CONFIG_MUST_KEEPALIVE(config) (ICMP_NET_CONFIG_QLEN(config) < ICMP_NET_MIN_KEEPALIVE)
 #define ICMP_NET_CONFIG_LOCK(config) USER_INTR_LOCK()

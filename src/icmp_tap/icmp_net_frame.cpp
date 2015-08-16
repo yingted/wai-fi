@@ -22,7 +22,7 @@ time_point_t icmp_net_frame::inbound_deadline() const {
 }
 
 time_point_t icmp_net_frame::outbound_deadline() const {
-	return reply->time + chrono::seconds(150);
+	return reply->time + chrono::seconds(25);
 }
 
 asio::const_buffers_1 icmp_net_frame::buffer() const {

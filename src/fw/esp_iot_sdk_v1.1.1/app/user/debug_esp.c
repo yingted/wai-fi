@@ -107,6 +107,14 @@ void debug_esp_install_exc_handler() {
     _xtos_set_exception_handler(29, exc_handler);
 }
 
+void __real_etharp_tmr();
+ICACHE_FLASH_ATTR
+void __wrap_etharp_tmr() {
+    assert_heap();
+    __real_etharp_tmr();
+    assert_heap();
+}
+
 u16_t
 __real_inet_chksum_pseudo(struct pbuf *p, 
        ip_addr_t *src, ip_addr_t *dest,
