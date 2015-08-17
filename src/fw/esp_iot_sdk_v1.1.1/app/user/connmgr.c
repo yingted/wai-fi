@@ -21,10 +21,27 @@ static struct ip_info linklocal_info = {
 };
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-bool connmgr_connected = false;
+bool connmgr_connected = true; // set to false in connmgr_init
 struct espconn conn;
 
 static bool filter_dest = false, filter_bssid = false;
+
+/**
+ * Update the connection watchdog.
+ * This function is always called within the lock.
+ */
+ICACHE_FLASH_ATTR
+static void connmgr_set_connected(bool new_connected) {
+    assert(connmgr_connected != new_connected);
+    connmgr_connected = new_connected;
+    os_timer_t watchdog;
+    if (new_connected) {
+        os_timer_setfn(&watchdog, system_restart, NULL);
+        os_timer_arm(&watchdog, 1000 * 60 * 5 /* minutes */, 0);
+    } else {
+        os_timer_disarm(&watchdog);
+    }
+}
 
 static void ssl_connect();
 ICACHE_FLASH_ATTR
@@ -37,7 +54,7 @@ static void schedule_reconnect() {
         user_dprintf("warning: disconnect: already disconnected");
         return;
     }
-    connmgr_connected = false;
+    connmgr_set_connected(false);
     connmgr_disconnect_cb();
 #ifdef DEBUG_ESP
     ssl_connect();
@@ -53,7 +70,7 @@ static void ssl_disconnect() {
     if (espconn_secure_disconnect(&conn) != ESPCONN_OK) {
         user_dprintf("disconnect: failed");
     }
-    connmgr_connected = false;
+    connmgr_set_connected(false);
     connmgr_disconnect_cb();
 }
 
@@ -83,6 +100,7 @@ static void espconn_disconnect_cb(void *arg) {
 ICACHE_FLASH_ATTR
 static void espconn_connect_cb(void *arg) {
     assert_heap();
+    connmgr_set_connected(true);
     struct espconn *conn = arg;
 
     espconn_set_opt(conn, ESPCONN_REUSEADDR);
@@ -139,7 +157,7 @@ static void ssl_connect() {
     if (rc) {
         user_dprintf("espconn_secure_connect: error %u", rc);
     } else {
-        connmgr_connected = true;
+        connmgr_set_connected(true);
     }
     assert_heap();
     user_dprintf("started connection: %d\x1b[33m", rc);
@@ -256,6 +274,7 @@ ICACHE_FLASH_ATTR
 void connmgr_init() {
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
+    connmgr_set_connected(false);
 
     wifi_station_set_auto_connect(0);
 
