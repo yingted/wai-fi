@@ -71,7 +71,7 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	}
 
 	reply = make_shared<icmp_reply>(ip->saddr, ntohs(icmp->un.echo.id), ntohs(icmp->un.echo.sequence));
-	printf("icmp_net_frame: id=%d seq=%d(%d) saddr=%s\n", reply->id, orig_seq, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
+	printf("icmp_net_frame: id=%d seq=%d(%d) from=%s\n", reply->id, orig_seq, reply->seq, inet_ntoa(*(in_addr *)&reply->addr));
 }
 
 connection_id icmp_net_frame::cid() const {

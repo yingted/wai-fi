@@ -327,9 +327,17 @@ static void packet_reply_timeout() {
                     assert(!retained_any);
                     drop_echo_reply(config);
                     // Look at the (updated) first packet not received.
-                    i = config->recv_i;
-                    // We want to skip the last packet. The for loop only checks
-                    // i + 1, not i.
+                    // Since we skipped a bunch of packets, we need to do a
+                    // range check for the 2 invariants (for i and timeout_ttl).
+                    // TODO use math
+                    while (++i != config->recv_i) {
+                        if (i == pending_i) {
+                            timeout_ttl = 0;
+                        }
+                    }
+                    // Now, i == config->recv_i, which is what we want.
+                    // We want to skip the last packet. The first for loop only
+                    // checks i + 1, not i.
                     if (i == config->send_i) {
                         break;
                     }
