@@ -2,3 +2,4 @@
 - switch to SCons
 - move certs to TarFile, to postgresql, add built elf (to a BINARY column)
 - FOTA, remote shell
+- handle mismatched certificate/private key error
