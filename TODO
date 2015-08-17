@@ -4,3 +4,5 @@
 - FOTA, remote shell
 - handle mismatched certificate/private key error
 - add roaming support?
+- TLS keepalive for server
+- restart if no connection for 5 minutes

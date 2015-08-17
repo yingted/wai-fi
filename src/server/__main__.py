@@ -40,7 +40,7 @@ def main():
 	# tell the server to trust them.
 	ctx.load_verify_locations(ca_cert_path)
 
-	reactor.listenSSL(55555, factory, ctx_factory)
+	reactor.listenSSL(55555, factory, ctx_factory, backlog=1024)
 	reactor.run()
 
 if __name__ == '__main__':
