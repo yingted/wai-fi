@@ -328,6 +328,11 @@ static void packet_reply_timeout() {
                     drop_echo_reply(config);
                     // Look at the (updated) first packet not received.
                     i = config->recv_i;
+                    // We want to skip the last packet. The for loop only checks
+                    // i + 1, not i.
+                    if (i == config->send_i) {
+                        break;
+                    }
                     continue;
                 }
 #ifndef NDEBUG
