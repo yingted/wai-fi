@@ -11,7 +11,7 @@ def import_esptool():
 	esptool_path = distutils.spawn.find_executable('esptool.py')
 	esptool = imp.load_source('esptool', esptool_path)
 
-def flash_port(port, baud=115200, release=False):
+def flash_port(port, baud=921600, release=False):
 	import_esptool()
 
 	print >> sys.stderr, 'Probing', port
