@@ -1,8 +1,9 @@
+- restart if no connection for 5 minutes
+- FOTA
+- TLS keepalive for server
 - server-side analysis, ui
 - switch to SCons
 - move certs to TarFile, to postgresql, add built elf (to a BINARY column)
-- FOTA, remote shell
+- remote shell
 - handle mismatched certificate/private key error
 - add roaming support?
-- TLS keepalive for server
-- restart if no connection for 5 minutes

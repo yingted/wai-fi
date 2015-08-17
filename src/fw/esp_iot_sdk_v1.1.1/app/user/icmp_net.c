@@ -163,6 +163,7 @@ err_buf:
         return ERR_BUF;
     }
 
+    unsigned short seqno;
     {
         assert((((size_t)p->payload) & 0x1) == 0);
         struct icmp_echo_hdr *iecho = (struct icmp_echo_hdr *)p->payload;
@@ -180,7 +181,7 @@ err_buf:
         int index = config->send_i % ICMP_NET_QSIZE;
         config->queue[index] = NULL;
         config->ttl[index] = ICMP_NET_TTL;
-        short seqno = config->send_i++;
+        seqno = config->send_i++;
         ICMP_NET_CONFIG_UNLOCK(config);
         hdr->hdr.device_id = htons(icmp_net_device_id);
         hdr->orig_seq = iecho->seqno = htons(seqno);
@@ -189,7 +190,7 @@ err_buf:
 
     {
         struct netif *slave = config->slave;
-        user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr) - sizeof(struct icmp_net_out_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
+        user_dprintf("writing %u from " IPSTR " to " IPSTR " seq=%u", p->len - sizeof(struct icmp_echo_hdr) - sizeof(struct icmp_net_out_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip), seqno);
         //USER_INTR_LOCK();
 #ifdef DEBUG_ESP
         int lmacIsActive();
@@ -300,7 +301,7 @@ static void packet_reply_timeout() {
 #ifndef NDEBUG
             bool retained_any = false;
 #endif
-            // TTL values are monotonically decreasing.
+            // TTL values are monotonically increasing.
             // If the next packet is timing out, drop this one.
             // This is because we have n+1 packets but only n TTL values.
             uint16_t pending_i = config->recv_i;
@@ -308,10 +309,14 @@ static void packet_reply_timeout() {
                 if (config->queue[i % ICMP_NET_QSIZE] != NULL) {
                     pending_i = i;
                 }
+                if ((uint16_t)(i + 1) != config->send_i) {
+                    assert(config->ttl[i % ICMP_NET_QSIZE] <= config->ttl[(i + 1) % ICMP_NET_QSIZE]);
+                }
             }
             // Everything after pending_i is NULL
+            // Start at first packet not received.
             uint16_t timeout_ttl = ICMP_NET_TTL - ICMP_NET_MAX_JITTER;
-            for (i = config->recv_i; (uint16_t)(i + 1) != config->send_i; ++i) {
+            for (i = config->recv_i; (uint16_t)(i + 1) != config->send_i;) {
                 if (i == pending_i) {
                     // i + 1 onwards all NULL, update the TTL
                     timeout_ttl = 0;
@@ -321,11 +326,15 @@ static void packet_reply_timeout() {
                     user_dprintf("timing out packet %u", i);
                     assert(!retained_any);
                     drop_echo_reply(config);
+                    // Look at the (updated) first packet not received.
+                    i = config->recv_i;
                     continue;
                 }
 #ifndef NDEBUG
                 retained_any = true;
 #endif
+                // Look at the next packet. It's not the one we're waiting for.
+                ++i;
             }
         }
 
@@ -463,6 +472,7 @@ void __wrap_sys_check_timeouts(void) {
     process_queued_pbufs();
 }
 
+// XXX steal raw_input to guarantee etharp, etc.
 static size_t icmp_input_entry_count = 0;
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
