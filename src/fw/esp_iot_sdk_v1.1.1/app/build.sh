@@ -1,12 +1,12 @@
 #!/bin/bash
-bash gen_misc.sh < <(
+exec bash gen_misc.sh < <(
 # STEP 1: choose boot version(0=boot_v1.1, 1=boot_v1.2+, 2=none)
 # enter(0/1/2, default 2):
 echo 1
 
 # STEP 2: choose bin generate(0=eagle.flash.bin+eagle.irom0text.bin, 1=user1.bin, 2=user2.bin)
 # enter (0/1/2, default 0):
-echo 1
+echo ${BUILD_USERBIN:-1}
 
 # STEP 3: choose spi speed(0=20MHz, 1=26.7MHz, 2=40MHz, 3=80MHz)
 # enter (0/1/2/3, default 2):
