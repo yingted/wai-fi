@@ -36,10 +36,10 @@ static void connmgr_set_connected(bool new_connected) {
     connmgr_connected = new_connected;
     os_timer_t watchdog;
     if (new_connected) {
+        os_timer_disarm(&watchdog);
+    } else {
         os_timer_setfn(&watchdog, system_restart, NULL);
         os_timer_arm(&watchdog, 1000 * 60 * 5 /* minutes */, 0);
-    } else {
-        os_timer_disarm(&watchdog);
     }
 }
 
