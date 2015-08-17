@@ -293,6 +293,12 @@ static void process_queued_pbufs() {
 
 ICACHE_FLASH_ATTR
 static void packet_reply_timeout() {
+    {
+        static uint32_t last_time;
+        uint32_t curr_time = system_get_time();
+        user_dprintf("delay=%d", curr_time - last_time);
+        last_time = curr_time;
+    }
     struct icmp_net_config *config;
     for (config = root; config; config = config->next) {
         ICMP_NET_CONFIG_LOCK(config);
@@ -323,7 +329,7 @@ static void packet_reply_timeout() {
                 }
                 unsigned char next_ttl = config->ttl[(i + 1) % ICMP_NET_QSIZE]--;
                 if (i == config->recv_i && next_ttl <= timeout_ttl) {
-                    user_dprintf("timing out packet %u", i);
+                    user_dprintf("timing out packet %u next_ttl=%u timeout_ttl=%u", i, next_ttl, timeout_ttl);
                     assert(!retained_any);
                     drop_echo_reply(config);
                     // Look at the (updated) first packet not received.
