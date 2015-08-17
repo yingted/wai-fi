@@ -318,7 +318,7 @@ static void packet_reply_timeout() {
                 }
                 unsigned char next_ttl = config->ttl[(i + 1) % ICMP_NET_QSIZE]--;
                 if (i == config->recv_i && next_ttl <= timeout_ttl) {
-                    user_dprintf("timing out packet %u", i);
+                    user_dprintf("timing out packet %u (%u <= %u)", i, next_ttl, timeout_ttl);
                     assert(!retained_any);
                     drop_echo_reply(config);
                     continue;
