@@ -189,7 +189,7 @@ err_buf:
 
     {
         struct netif *slave = config->slave;
-        user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
+        user_dprintf("writing %u from " IPSTR " to " IPSTR, p->len - sizeof(struct icmp_echo_hdr) - sizeof(struct icmp_net_out_hdr), IP2STR(&slave->ip_addr), IP2STR(&config->relay_ip));
         //USER_INTR_LOCK();
 #ifdef DEBUG_ESP
         int lmacIsActive();
