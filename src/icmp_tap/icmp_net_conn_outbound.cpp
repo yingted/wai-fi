@@ -94,6 +94,7 @@ void icmp_net_conn_outbound::send_reply(std::shared_ptr<raw_frame_t> in_frame) {
 		<< " seq=" << in_frame->orig_seq
 		<< " saddr=" << inet_ntoa(*(in_addr *)&reply.addr)
 		<< " queued=" << ((int)queued_)
+		<< " len=" << frame->size()
 		<< endl;
 
 	// XXX This depends on not doing IO between this and async_send_to
