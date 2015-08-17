@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
 	if (argc == 2) {
 		strncpy(dev, argv[1], IFNAMSIZ);
 	}
-	const ssize_t mtu = 1400 - 2; // for header
+	const ssize_t mtu = 1400 - 4; // for header
 
 	icmp_net net(dev, mtu);
 	net.run();

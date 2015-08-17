@@ -73,8 +73,8 @@ static err_t send_keepalive(struct netif *netif) {
 void __real_tcp_tmr();
 ICACHE_FLASH_ATTR
 void __wrap_tcp_tmr() {
-    __real_tcp_tmr();
     packet_reply_timeout();
+    __real_tcp_tmr();
 }
 
 /**

@@ -32,7 +32,7 @@ void ip_set_up(const char *dev, int mtu) {
 
 	{
 		string cmd;
-		cmd = "ip link set " + string(dev) + " mtu " + std::to_string(mtu - 14); // mac header
+		cmd = "ip link set " + string(dev) + " mtu " + std::to_string(mtu - 16); // mac header
 		std::system(cmd.c_str());
 		cmd = "ip link set dev " + string(dev) + " up";
 		std::system(cmd.c_str());
