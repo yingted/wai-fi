@@ -329,10 +329,13 @@ static void packet_reply_timeout() {
             }
         }
 
-        while (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
-            if (send_keepalive(config->netif)) {
-                user_dprintf("fetch queued: error");
-                break;
+        // TODO use a better way to check if the interface is active
+        if (config->slave != NULL) {
+            while (ICMP_NET_CONFIG_MUST_KEEPALIVE(config)) {
+                if (send_keepalive(config->netif)) {
+                    user_dprintf("fetch queued: error");
+                    break;
+                }
             }
         }
         ICMP_NET_CONFIG_UNLOCK(config);
@@ -423,25 +426,29 @@ static err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
 
 ICACHE_FLASH_ATTR
 void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
+    ICMP_NET_CONFIG_LOCK(config);
+    assert(slave->input == ethernet_input);
+    slave->input = my_ethernet_input;
+
     assert(config->netif != NULL);
     assert(slave != NULL);
     assert(config->slave == NULL);
     config->slave = slave;
-
-    assert(slave->input == ethernet_input);
-    slave->input = my_ethernet_input;
+    ICMP_NET_CONFIG_UNLOCK(config);
 }
 
 ICACHE_FLASH_ATTR
 void icmp_net_unenslave(struct icmp_net_config *config) {
+    ICMP_NET_CONFIG_LOCK(config);
     struct netif *slave = config->slave;
-
-    assert(slave->input = my_ethernet_input);
-    slave->input = ethernet_input;
 
     assert(config->netif != NULL);
     assert(slave != NULL);
     config->slave = NULL;
+
+    assert(slave->input = my_ethernet_input);
+    slave->input = ethernet_input;
+    ICMP_NET_CONFIG_UNLOCK(config);
 }
 
 void __real_sys_check_timeouts(void);
