@@ -1,5 +1,5 @@
 CC = g++
-CXXFLAGS = -std=c++11 -MMD -fwrapv -ggdb3 -Wall
+CXXFLAGS = -std=c++11 -MMD -fwrapv -ggdb3 -Wall -I../include
 LDFLAGS += -L/usr/local/lib -lboost_system -lboost_coroutine -lboost_signals -lboost_chrono -lboost_iostreams
 ifeq ($(DEBUG),1)
 	ALLFLAGS = -fsanitize=address

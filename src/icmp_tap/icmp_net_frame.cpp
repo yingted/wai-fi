@@ -9,6 +9,7 @@
 #include "inet_checksum.h"
 #include "icmp_reply.h"
 #include "icmp_net_frame.h"
+#include <icmp_net_defs.h>
 
 using std::string;
 using std::make_shared;
@@ -52,11 +53,11 @@ icmp_net_frame::icmp_net_frame(const char *buf_arg, int len) :
 	read(begin, ip);
 	begin = read(begin + ip->ihl * 4, icmp);
 	{
-		uint16_t *device_id_p, *orig_seq_p;
-		begin = read(begin, device_id_p);
-		device_id = ntohs(*device_id_p);
-		begin = read(begin, orig_seq_p);
-		orig_seq = ntohs(*orig_seq_p);
+		struct icmp_net_out_hdr *hdr;
+		static_assert(sizeof(*hdr) == 4, "Wrong header size");
+		begin = read(begin, hdr);
+		device_id = ntohs(hdr->hdr.device_id);
+		orig_seq = ntohs(hdr->orig_seq);
 	}
 	data_begin = begin;
 

@@ -12,6 +12,7 @@
 #include "icmp_net_conn.h"
 #include "interruptible_loop.h"
 #include "icmp_net_conn_outbound.h"
+#include <icmp_net_defs.h>
 
 using std::shared_ptr;
 using std::cout;
@@ -112,13 +113,11 @@ void icmp_net_conn_outbound::send_reply(std::shared_ptr<raw_frame_t> in_frame) {
 	}
 
 	{
-		struct {
-			uint16_t device_id;
-			unsigned char queued, pad_[1];
-		} hdr;
+		struct icmp_net_in_hdr hdr;
+		static_assert(sizeof(hdr) == 4, "Incorrect header size");
 		memset(&hdr, 0, sizeof(hdr));
+		hdr.hdr.device_id = htons(in_frame->device_id);
 		hdr.queued = queued_;
-		hdr.device_id = htons(in_frame->device_id);
 
 		memcpy(out, &hdr, sizeof(hdr));
 		out += sizeof(hdr);
