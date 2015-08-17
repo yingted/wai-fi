@@ -183,6 +183,7 @@ INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip/ipv4
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip/ipv6
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/extra_include
+INCLUDES += -I $(PDIR)../../../include
 
 
 PDIR := ../$(PDIR)

@@ -9,6 +9,7 @@
 #include <lwip/netif/etharp.h>
 #include <stddef.h>
 #include <debug_esp.h>
+#include <icmp_net_defs.h>
 
 // from user_interface.h:
 #define STATION_IF      0x00
@@ -33,20 +34,6 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p);
 static void process_queued_pbufs();
 static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p);
 static void packet_reply_timeout();
-
-struct icmp_net_shared_hdr {
-    uint16_t device_id;
-};
-
-struct icmp_net_out_hdr {
-    struct icmp_net_shared_hdr hdr;
-    uint16_t orig_seq;
-};
-
-struct icmp_net_in_hdr {
-    struct icmp_net_shared_hdr hdr;
-    unsigned char queued, pad_[1];
-};
 
 static inline unsigned long ccount() {
     register unsigned long ccount;

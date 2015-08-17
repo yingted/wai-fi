@@ -5,6 +5,7 @@
 #include <espconn.h>
 #include <gdb_stub.h>
 #include <lwip/netif.h>
+#include <waifi_rpc.h>
 
 #define LOGBUF_SIZE 1024
 #define MAX_LOGBUF 3
@@ -108,7 +109,14 @@ void connmgr_recv_cb(struct espconn *conn, char *buf, unsigned short len) {
     for (; len > 0; ++buf, --len) {
         os_printf("%c", *buf);
     }
-    // TODO
+    if (len > 0) {
+        switch (buf[0]) {
+            case WAIFI_RPC_system_upgrade_userbin_check:
+                break;
+            case WAIFI_RPC_spi_flash_write:
+                break;
+        }
+    }
 }
 
 ICACHE_FLASH_ATTR
