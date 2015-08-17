@@ -1,5 +1,5 @@
 #!/bin/bash
-
+bash gen_misc.sh < <(
 # STEP 1: choose boot version(0=boot_v1.1, 1=boot_v1.2+, 2=none)
 # enter(0/1/2, default 2):
 echo 1
@@ -25,3 +25,4 @@ echo 0
 echo 5
 #     6=4096KB(1024KB+1024KB)
 # enter (0/2/3/4/5/6, default 0):
+)
