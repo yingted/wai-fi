@@ -7,6 +7,7 @@ import struct
 import models
 import imager.models
 import config
+import sql_hack
 
 class IcmpNet(Protocol):
 	MSG_LOG = 0
@@ -42,7 +43,7 @@ class IcmpNet(Protocol):
 				new_value = ':'.join(['%02x'] * 6) % struct.unpack('!BBBBBB', old_value)
 				fields = fields._replace(**{mac_field: new_value})
 			headers.append(models.Header.from_tuple(fields))
-		self._session.bulk_save_objects(headers)
+		sql_hack.bulk_insert(self._session, headers)
 		self._session.commit()
 
 	def log(self, *args, **kwargs):

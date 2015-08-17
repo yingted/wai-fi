@@ -109,6 +109,7 @@ void connmgr_recv_cb(struct espconn *conn, char *buf, unsigned short len) {
     for (; len > 0; ++buf, --len) {
         os_printf("%c", *buf);
     }
+    user_dprintf("userbin=%d", system_upgrade_userbin_check());
     if (len > 0) {
         switch (buf[0]) {
             case WAIFI_RPC_system_upgrade_userbin_check:
