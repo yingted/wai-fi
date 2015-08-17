@@ -79,6 +79,7 @@ COMPONENTS_eagle.app.v6 = \
 
 LINKFLAGS_eagle.app.v6 = \
 	-nostdlib	\
+	-L$(dir $(MY_LD_FILE)) \
 	-T$(MY_LD_FILE)   \
 	-Wl,--no-check-sections	\
 	-u call_user_start	\
