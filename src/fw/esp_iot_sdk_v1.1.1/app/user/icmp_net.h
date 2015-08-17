@@ -10,10 +10,9 @@
 #define ICMP_NET_QSIZE 256U
 #define ICMP_NET_MAX_KEEPALIVE 8U
 #define ICMP_NET_MIN_KEEPALIVE 2U
-// TTL (3 means it survives 3 timeouts and dies on the 4th), in 167 ms units.
-// No clue why it's not 250 ms.
-#define ICMP_NET_MAX_JITTER ((1000 /* ms */) * 6 / 1000 - 1)
-#define ICMP_NET_TTL ((30 * 1000 /* ms */) * 6 / 1000 - 1)
+// TTL (3 means it survives 3 timeouts and dies on the 4th), in 250 ms units
+#define ICMP_NET_MAX_JITTER ((1000 /* ms */) / 250 - 1)
+#define ICMP_NET_TTL ((30 * 1000 /* ms */) / 250 - 1)
 
 struct icmp_net_config {
     struct ip_addr relay_ip;
