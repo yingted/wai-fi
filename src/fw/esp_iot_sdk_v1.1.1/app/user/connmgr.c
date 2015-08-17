@@ -42,7 +42,7 @@ static void schedule_reconnect() {
 #ifdef DEBUG_ESP
     ssl_connect();
 #else
-    sys_timeout(1000, ssl_connect, NULL);
+    sys_timeout(10000, ssl_connect, NULL);
 #endif
     USER_INTR_UNLOCK();
 }
