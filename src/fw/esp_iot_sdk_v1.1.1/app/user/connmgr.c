@@ -34,7 +34,7 @@ ICACHE_FLASH_ATTR
 static void connmgr_set_connected(bool new_connected) {
     assert(connmgr_connected != new_connected);
     connmgr_connected = new_connected;
-    os_timer_t watchdog;
+    static os_timer_t watchdog;
     if (new_connected) {
         os_timer_disarm(&watchdog);
     } else {
