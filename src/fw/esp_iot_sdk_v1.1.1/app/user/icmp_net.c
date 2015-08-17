@@ -420,6 +420,9 @@ static err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
     ICMP_NET_LWIP_ENTER();
     err_t ret = ethernet_input(p, netif);
     ICMP_NET_LWIP_EXIT();
+    if (ret != ERR_OK) {
+        user_dprintf("ethernet_input: returned error %d", ret);
+    }
     process_queued_pbufs();
     return ret;
 }

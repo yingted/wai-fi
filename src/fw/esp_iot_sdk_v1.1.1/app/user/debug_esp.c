@@ -337,9 +337,13 @@ err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
 #endif
     assert(count++ == 0);
     assert_heap();
-    __real_ip_input(p, inp);
+    err_t ret = __real_ip_input(p, inp);
     assert_heap();
     assert(--count == 0);
+    if (ret != ERR_OK) {
+        user_dprintf("ip_input: returned error %d", ret);
+    }
+    return ret;
 }
 
 ICACHE_FLASH_ATTR
