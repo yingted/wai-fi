@@ -293,12 +293,6 @@ static void process_queued_pbufs() {
 
 ICACHE_FLASH_ATTR
 static void packet_reply_timeout() {
-    {
-        static uint32_t last_time;
-        uint32_t curr_time = system_get_time();
-        user_dprintf("delay=%d", curr_time - last_time);
-        last_time = curr_time;
-    }
     struct icmp_net_config *config;
     for (config = root; config; config = config->next) {
         ICMP_NET_CONFIG_LOCK(config);
