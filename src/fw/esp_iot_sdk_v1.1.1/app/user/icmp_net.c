@@ -70,11 +70,11 @@ static err_t send_keepalive(struct netif *netif) {
     return ret;
 }
 
-void __real_tcp_tmr();
+void __real_dhcp_fine_tmr();
 ICACHE_FLASH_ATTR
-void __wrap_tcp_tmr() {
+void __wrap_dhcp_fine_tmr() {
     packet_reply_timeout();
-    __real_tcp_tmr();
+    __real_dhcp_fine_tmr();
 }
 
 /**

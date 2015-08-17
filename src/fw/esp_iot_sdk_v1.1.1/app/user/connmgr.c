@@ -32,7 +32,9 @@ static bool filter_dest = false, filter_bssid = false;
  */
 ICACHE_FLASH_ATTR
 static void connmgr_set_connected(bool new_connected) {
-    assert(connmgr_connected != new_connected);
+    if (connmgr_connected == new_connected) {
+        return;
+    }
     connmgr_connected = new_connected;
     static os_timer_t watchdog;
     if (new_connected) {
@@ -100,7 +102,9 @@ static void espconn_disconnect_cb(void *arg) {
 ICACHE_FLASH_ATTR
 static void espconn_connect_cb(void *arg) {
     assert_heap();
+    USER_INTR_LOCK();
     connmgr_set_connected(true);
+    USER_INTR_UNLOCK();
     struct espconn *conn = arg;
 
     espconn_set_opt(conn, ESPCONN_REUSEADDR);

@@ -155,7 +155,7 @@ WRAP := \
 	-Wl,-wrap,ssl_ctx_new \
 	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
-	-Wl,-wrap,tcp_tmr \
+	-Wl,-wrap,dhcp_fine_tmr \
 
 ifeq ($(DEBUG_ESP),1)
 	DEFINES += -DDEBUG_ESP
