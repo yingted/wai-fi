@@ -26,7 +26,7 @@ class IcmpNet(Protocol):
 				self._decode_log(decoder)
 			else:
 				log.err('invalid message type %d' % msg_type)
-				self.abortConnection()
+				self.transport.abortConnection()
 
 	def _decode_log(self, decoder):
 		msg_len, = decoder.read_struct('!h')
@@ -58,6 +58,7 @@ class IcmpNet(Protocol):
 		device_name = verify.get_device_name(conn.get_peer_certificate())
 		self._device_name = device_name
 		self.log('connected')
+		self.transport.write('Hello, World!\n')
 
 	def dataReceived(self, data):
 		self._decoder.write(data)

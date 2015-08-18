@@ -14,7 +14,7 @@ void gdb_stub_init();
  * Calling this allow the debugger to attach.
  */
 #define gdb_stub_break() __asm__ __volatile__("break 1, 1")
-#define gdb_stub_break_force() do { \
+#define gdb_stub_force_break() do { \
     size_t ps; \
     __asm__ __volatile__("\
         rsil %[ps], %[debuglevel]\n\
@@ -27,7 +27,7 @@ void gdb_stub_init();
 #else
 #define gdb_stub_init()
 #define gdb_stub_break()
-#define gdb_stub_break_force()
+#define gdb_stub_force_break()
 #endif
 
 #endif

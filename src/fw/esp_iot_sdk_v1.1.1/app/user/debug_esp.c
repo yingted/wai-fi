@@ -412,6 +412,6 @@ WRAP_ALLOC(Realloc(void *ptr, size_t size), Realloc(ptr, size), "realloc(%p, %d)
 ICACHE_FLASH_ATTR
 void debug_esp_fatal() {
     print_stack();
-    gdb_stub_break_force();
+    gdb_stub_force_break();
     system_restart();
 }
