@@ -356,9 +356,9 @@ EXP_FUNC SSL_CTX *STDCALL __wrap_ssl_ctx_new(uint32_t options, int num_sessions)
     return ret;
 }
 
-EXP_FUNC void STDCALL ICACHE_FLASH_ATTR __real_ssl_ctx_free(SSL_CTX *ssl_ctx);
+EXP_FUNC void STDCALL __real_ssl_ctx_free(SSL_CTX *ssl_ctx);
 ICACHE_FLASH_ATTR
-EXP_FUNC void STDCALL ICACHE_FLASH_ATTR __wrap_ssl_ctx_free(SSL_CTX *ssl_ctx) {
+EXP_FUNC void STDCALL __wrap_ssl_ctx_free(SSL_CTX *ssl_ctx) {
     if (
             ca_cert != NULL &&
             ssl_ctx->ca_cert_ctx &&
@@ -368,4 +368,19 @@ EXP_FUNC void STDCALL ICACHE_FLASH_ATTR __wrap_ssl_ctx_free(SSL_CTX *ssl_ctx) {
         ssl_ctx->ca_cert_ctx->cert[0] = NULL;
     }
     return __real_ssl_ctx_free(ssl_ctx);
+}
+
+EXP_FUNC int STDCALL __real_ssl_handshake_status(const SSL *ssl);
+ICACHE_FLASH_ATTR
+EXP_FUNC int STDCALL __wrap_ssl_handshake_status(/* const */ SSL *ssl) {
+    while (ssl->hs_status != SSL_OK) {
+        // Busy wait for SSL to finish.
+        int status = ssl_read(ssl, NULL);
+        if (status < SSL_OK) {
+            ssl->hs_status = status;
+            break;
+        }
+    }
+
+    return ssl->hs_status;
 }
