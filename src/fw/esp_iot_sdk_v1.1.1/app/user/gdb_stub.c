@@ -718,6 +718,7 @@ void gdb_stub_init() {
 __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
+    .type gdb_stub_DebugExceptionVector, @function\n\
     gdb_stub_DebugExceptionVector:\n\
         j gdb_stub_DebugExceptionVector_1\n\
 ");
@@ -760,6 +761,7 @@ void gdb_stub_DebugExceptionVector_1() {
 __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector\n\
+    .type gdb_stub_DebugExceptionVector, @function\n\
     gdb_stub_DebugExceptionVector:\n\
         waiti " STR(XCHAL_DEBUGLEVEL) "\n\
         j gdb_stub_DebugExceptionVector\n\
