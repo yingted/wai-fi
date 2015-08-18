@@ -6,3 +6,4 @@
 - remote shell
 - handle mismatched certificate/private key error
 - add roaming support?
+- rate limit tcp_fasttmr

@@ -21,10 +21,14 @@ static struct ip_info linklocal_info = {
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 bool connmgr_connected = true; // set to false in connmgr_init
-SSL_CTX *ssl_ctx = NULL;
-struct tcp_pcb *ssl_pcb = NULL;
+static SSL_CTX *ssl_ctx = NULL;
+static SSL *ssl = NULL;
+static struct tcp_pcb *ssl_pcb = NULL;
 
 static bool filter_dest = false, filter_bssid = false;
+
+static void ssl_connect();
+static void ssl_disconnect();
 
 // State management
 
@@ -162,7 +166,8 @@ void connmgr_init() {
 
     wifi_station_set_auto_connect(0);
 
-    ssl_ctx = ssl_ctx_new(0, SSL_DEFAULT_CLNT_SESS);
+    // XXX session caching
+    ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 0);
     err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
     assert(rc == SSL_OK);
     assert(ret->ca_cert_ctx);
@@ -220,7 +225,6 @@ void connmgr_stop() {
 
 // SSL client
 
-static void ssl_connect();
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
     debug_esp_assert_not_nmi();
@@ -244,53 +248,61 @@ static void schedule_reconnect() {
 ICACHE_FLASH_ATTR
 static void ssl_disconnect() {
     assert(connmgr_connected);
-    if (espconn_secure_disconnect(&conn) != ESPCONN_OK) {
-        user_dprintf("disconnect: failed");
-    }
+    assert(ssl != NULL);
+    ssl_free(ssl);
+    tcp_abort(ssl_pcb);
     connmgr_set_connected(false);
     connmgr_disconnect_cb();
 }
 
 ICACHE_FLASH_ATTR
-static void espconn_reconnect_cb(void *arg, sint8 err) {
+void ssl_pcb_err_cb(void *arg, err_t err) {
+    debug_esp_assert_not_nmi(); // should fail
     user_dprintf("reconnect due to %d\x1b[35m", err);
-
-#if 0 // for debugging
-    switch (err) {
-        case ESPCONN_CONN: // -11
-            // Connection timeout
-            system_restart(); // seems unrecoverable
-    }
-#endif
-
+    ssl_pcb = NULL;
+    connmgr_set_connected(false);
+    connmgr_disconnect_cb();
     schedule_reconnect();
 }
 
 ICACHE_FLASH_ATTR
-static void espconn_disconnect_cb(void *arg) {
-    debug_esp_assert_not_nmi(); // should fail
-    // Delay a bit, so we get out of the NMI
-    // XXX this opens a tiny gap where packets can be dropped
-    sys_timeout(0, schedule_reconnect, NULL);
+err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
+    assert(err == ERR_OK);
+    user_dprintf("tcp connected: err=%d", err);
+    ssl = SSLClient_new(ssl_ctx, ssl_pcb, NULL, 0);
+    return ERR_OK;
 }
 
 ICACHE_FLASH_ATTR
-static void espconn_connect_cb(void *arg) {
-    assert_heap();
+err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+    if (err != ERR_OK) {
+        user_dprintf("err=%d", err);
+        assert(false);
+    }
+
+#if 0
     USER_INTR_LOCK();
     connmgr_set_connected(true);
     USER_INTR_UNLOCK();
-    struct espconn *conn = arg;
 
     user_dprintf("connected\x1b[34m");
-    espconn_regist_disconcb(conn, espconn_disconnect_cb);
-    espconn_regist_recvcb(conn, (espconn_recv_callback)connmgr_recv_cb);
-    espconn_regist_sentcb(conn, (espconn_sent_callback)connmgr_sent_cb);
-
     filter_dest = filter_bssid = true;
     promisc_start();
+    connmgr_connect_cb(tpcb);
+#endif
+    return err;
+}
 
-    connmgr_connect_cb(arg);
+ICACHE_FLASH_ATTR
+err_t ssl_pcb_sent_cb(void *arg, struct tcp_pcb *tpcb, u16_t len) {
+    connmgr_sent_cb(tpcb, len);
+    return ERR_OK;
+}
+
+ICACHE_FLASH_ATTR
+err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
+    //XXX
+    return ERR_OK;
 }
 
 ICACHE_FLASH_ATTR
@@ -319,11 +331,12 @@ static void ssl_connect() {
         system_restart();
     }
 
-    tcp_err(ssl_pcb, ...);
-    tcp_recv(ssl_pcb, ...);
-    tcp_sent(ssl_pcb, ...);
+    tcp_err(ssl_pcb, ssl_pcb_err_cb);
+    tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
+    tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+    // tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
-    if (err_t rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_connect_connected)) {
+    if (err_t rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb)) {
         user_dprintf("tcp_connect: error %d", rc);
         assert(false);
         system_restart();

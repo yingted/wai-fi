@@ -2,7 +2,6 @@
 #include <user_interface.h>
 #include <debug_esp.h>
 #include <connmgr.h>
-#include <espconn.h>
 #include <gdb_stub.h>
 #include <lwip/netif.h>
 #include <waifi_rpc.h>
@@ -75,8 +74,13 @@ void try_send_log() {
                 assert(false);
         }
         can_send = false;
-        espconn_secure_sent(&conn, (char *)to_send->payload - logged_size, logged_size);
-        pbuf_free(to_send);
+        if (pbuf_header(to_send, logged_size)) {
+            assert(false);
+        }
+        pbuf_realloc(to_send, logged_size);
+        if (connmgr_write(&ssl_pcb, to_send) != ERR_OK) {
+            assert(false); // not implemented
+        }
     }
 }
 
@@ -90,19 +94,19 @@ void set_can_send() {
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_connect_cb(struct espconn *conn) {
+void connmgr_connect_cb(connmgr_conn_t *conn) {
     user_dprintf("%p", conn);
     set_can_send();
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_sent_cb(struct espconn *conn) {
+void connmgr_sent_cb(connmgr_conn_t *conn) {
     user_dprintf("%p", conn);
     set_can_send();
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_recv_cb(struct espconn *conn, char *buf, unsigned short len) {
+void connmgr_recv_cb(connmgr_conn_t *conn, char *buf, unsigned short len) {
     user_dprintf("%p", conn);
 
     os_printf("buf: ");
