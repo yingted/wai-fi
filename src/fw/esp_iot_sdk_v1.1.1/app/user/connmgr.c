@@ -7,7 +7,6 @@
 #include <lwip/ip4.h>
 #include <lwip/netif/etharp.h>
 #include <lwip/sockets.h>
-#include <espconn.h>
 #include <debug_esp.h>
 #include <default_ca_certificate.h>
 #include <connmgr.h>
@@ -22,9 +21,12 @@ static struct ip_info linklocal_info = {
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 bool connmgr_connected = true; // set to false in connmgr_init
-struct espconn conn;
+SSL_CTX *ssl_ctx = NULL;
+struct tcp_pcb *ssl_pcb = NULL;
 
 static bool filter_dest = false, filter_bssid = false;
+
+// State management
 
 /**
  * Update the connection watchdog.
@@ -43,130 +45,6 @@ static void connmgr_set_connected(bool new_connected) {
         os_timer_setfn(&watchdog, system_restart, NULL);
         os_timer_arm(&watchdog, 1000 * 60 * 5 /* minutes */, 0);
     }
-}
-
-static void ssl_connect();
-ICACHE_FLASH_ATTR
-static void schedule_reconnect() {
-    debug_esp_assert_not_nmi();
-    assert_heap();
-
-    USER_INTR_LOCK();
-    if (!connmgr_connected) {
-        user_dprintf("warning: disconnect: already disconnected");
-        return;
-    }
-    connmgr_set_connected(false);
-    connmgr_disconnect_cb();
-#ifdef DEBUG_ESP
-    ssl_connect();
-#else
-    sys_timeout(10000, ssl_connect, NULL);
-#endif
-    USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-static void ssl_disconnect() {
-    assert(connmgr_connected);
-    if (espconn_secure_disconnect(&conn) != ESPCONN_OK) {
-        user_dprintf("disconnect: failed");
-    }
-    connmgr_set_connected(false);
-    connmgr_disconnect_cb();
-}
-
-ICACHE_FLASH_ATTR
-static void espconn_reconnect_cb(void *arg, sint8 err) {
-    user_dprintf("reconnect due to %d\x1b[35m", err);
-
-#if 0 // for debugging
-    switch (err) {
-        case ESPCONN_CONN: // -11
-            // Connection timeout
-            system_restart(); // seems unrecoverable
-    }
-#endif
-
-    schedule_reconnect();
-}
-
-ICACHE_FLASH_ATTR
-static void espconn_disconnect_cb(void *arg) {
-    debug_esp_assert_not_nmi(); // should fail
-    // Delay a bit, so we get out of the NMI
-    // XXX this opens a tiny gap where packets can be dropped
-    sys_timeout(0, schedule_reconnect, NULL);
-}
-
-ICACHE_FLASH_ATTR
-static void espconn_connect_cb(void *arg) {
-    assert_heap();
-    USER_INTR_LOCK();
-    connmgr_set_connected(true);
-    USER_INTR_UNLOCK();
-    struct espconn *conn = arg;
-
-    espconn_set_opt(conn, ESPCONN_REUSEADDR);
-    espconn_set_opt(conn, ESPCONN_NODELAY);
-    espconn_set_opt(conn, ESPCONN_KEEPALIVE);
-    int keepalive_interval = 2 * 10; // 10 seconds
-    espconn_set_keepalive(conn, ESPCONN_KEEPIDLE, &keepalive_interval);
-    espconn_set_keepalive(conn, ESPCONN_KEEPINTVL, &keepalive_interval);
-    int keepalive_count = 3; // 3 * 10 s = 30 s
-    espconn_set_keepalive(conn, ESPCONN_KEEPCNT, &keepalive_count);
-
-    user_dprintf("connected\x1b[34m");
-    espconn_regist_disconcb(conn, espconn_disconnect_cb);
-    espconn_regist_recvcb(conn, (espconn_recv_callback)connmgr_recv_cb);
-    espconn_regist_sentcb(conn, (espconn_sent_callback)connmgr_sent_cb);
-
-    filter_dest = filter_bssid = true;
-    promisc_start();
-
-    connmgr_connect_cb(arg);
-}
-
-ICACHE_FLASH_ATTR
-static void ssl_connect() {
-    USER_INTR_LOCK();
-
-    if (connmgr_connected) {
-        user_dprintf("error: already connected");
-        USER_INTR_UNLOCK();
-        return;
-    }
-
-    os_memset(&conn, 0, sizeof(conn));
-    conn.type = ESPCONN_TCP;
-    conn.state = ESPCONN_NONE;
-    {
-        static esp_tcp tcp;
-        os_memset(&tcp, 0, sizeof(tcp));
-        tcp.remote_port = 55555;
-        os_memcpy(tcp.local_ip, &icmp_tap.ip_addr, sizeof(struct ip_addr));
-        os_memcpy(tcp.remote_ip, &icmp_tap.gw, sizeof(struct ip_addr));
-
-        conn.proto.tcp = &tcp;
-    }
-    assert_heap();
-    espconn_regist_connectcb(&conn, espconn_connect_cb);
-    espconn_regist_reconcb(&conn, espconn_reconnect_cb);
-    assert_heap();
-
-    user_dprintf("starting connection");
-    assert_heap();
-    assert(!connmgr_connected);
-    sint8 rc = espconn_secure_connect(&conn);
-    if (rc) {
-        user_dprintf("espconn_secure_connect: error %u", rc);
-    } else {
-        connmgr_set_connected(true);
-    }
-    assert_heap();
-    user_dprintf("started connection: %d\x1b[33m", rc);
-
-    USER_INTR_UNLOCK();
 }
 
 struct sta_input_pkt {
@@ -274,6 +152,8 @@ void wifi_handle_event_cb(System_Event_t *event) {
     assert_heap();
 }
 
+// Initialization
+
 ICACHE_FLASH_ATTR
 void connmgr_init() {
     user_dprintf("heap: %d", system_get_free_heap_size());
@@ -281,6 +161,13 @@ void connmgr_init() {
     connmgr_set_connected(false);
 
     wifi_station_set_auto_connect(0);
+
+    ssl_ctx = ssl_ctx_new(0, SSL_DEFAULT_CLNT_SESS);
+    err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
+    assert(rc == SSL_OK);
+    assert(ret->ca_cert_ctx);
+    assert(ret->ca_cert_ctx->cert[0] != NULL);
+    assert(ret->ca_cert_ctx->cert[1] == NULL);
 
     //icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
     icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
@@ -331,56 +218,120 @@ void connmgr_stop() {
     assert_heap();
 }
 
-static X509_CTX *ca_cert = NULL;
+// SSL client
 
-EXP_FUNC SSL_CTX *STDCALL __real_ssl_ctx_new(uint32_t options, int num_sessions);
+static void ssl_connect();
 ICACHE_FLASH_ATTR
-EXP_FUNC SSL_CTX *STDCALL __wrap_ssl_ctx_new(uint32_t options, int num_sessions) {
-    options &= ~(SSL_SERVER_VERIFY_LATER | SSL_DISPLAY_CERTS | SSL_NO_DEFAULT_KEY);
-    SSL_CTX *ret = __real_ssl_ctx_new(options, num_sessions);
-    if (ca_cert == NULL) {
-        int rc = add_cert_auth(ret, default_ca_certificate, default_ca_certificate_len);
-        assert(rc == SSL_OK);
-        assert(ret->ca_cert_ctx);
-        assert(ret->ca_cert_ctx->cert[0] != NULL);
-        ca_cert = ret->ca_cert_ctx->cert[0];
-        assert(ca_cert);
-    } else {
-        int rc = add_cert_auth(ret, default_ca_certificate, 0);
-        assert(rc == SSL_OK);
-        assert(ret->ca_cert_ctx);
-        assert(ret->ca_cert_ctx->cert[0] == NULL);
-        ret->ca_cert_ctx->cert[0] = ca_cert;
+static void schedule_reconnect() {
+    debug_esp_assert_not_nmi();
+    assert_heap();
+
+    USER_INTR_LOCK();
+    if (!connmgr_connected) {
+        user_dprintf("warning: disconnect: already disconnected");
+        return;
     }
-    assert(ret->ca_cert_ctx->cert[1] == NULL);
-    return ret;
+    connmgr_set_connected(false);
+    connmgr_disconnect_cb();
+#ifdef DEBUG_ESP
+    ssl_connect();
+#else
+    sys_timeout(10000, ssl_connect, NULL);
+#endif
+    USER_INTR_UNLOCK();
 }
 
-EXP_FUNC void STDCALL __real_ssl_ctx_free(SSL_CTX *ssl_ctx);
 ICACHE_FLASH_ATTR
-EXP_FUNC void STDCALL __wrap_ssl_ctx_free(SSL_CTX *ssl_ctx) {
-    if (
-            ca_cert != NULL &&
-            ssl_ctx->ca_cert_ctx &&
-            ssl_ctx->ca_cert_ctx->cert[0] == ca_cert
-        ) {
-        assert(ssl_ctx->ca_cert_ctx->cert[1] == NULL);
-        ssl_ctx->ca_cert_ctx->cert[0] = NULL;
+static void ssl_disconnect() {
+    assert(connmgr_connected);
+    if (espconn_secure_disconnect(&conn) != ESPCONN_OK) {
+        user_dprintf("disconnect: failed");
     }
-    return __real_ssl_ctx_free(ssl_ctx);
+    connmgr_set_connected(false);
+    connmgr_disconnect_cb();
 }
 
-EXP_FUNC int STDCALL __real_ssl_handshake_status(const SSL *ssl);
 ICACHE_FLASH_ATTR
-EXP_FUNC int STDCALL __wrap_ssl_handshake_status(/* const */ SSL *ssl) {
-    while (ssl->hs_status != SSL_OK) {
-        // Busy wait for SSL to finish.
-        int status = ssl_read(ssl, NULL);
-        if (status < SSL_OK) {
-            ssl->hs_status = status;
-            break;
-        }
+static void espconn_reconnect_cb(void *arg, sint8 err) {
+    user_dprintf("reconnect due to %d\x1b[35m", err);
+
+#if 0 // for debugging
+    switch (err) {
+        case ESPCONN_CONN: // -11
+            // Connection timeout
+            system_restart(); // seems unrecoverable
+    }
+#endif
+
+    schedule_reconnect();
+}
+
+ICACHE_FLASH_ATTR
+static void espconn_disconnect_cb(void *arg) {
+    debug_esp_assert_not_nmi(); // should fail
+    // Delay a bit, so we get out of the NMI
+    // XXX this opens a tiny gap where packets can be dropped
+    sys_timeout(0, schedule_reconnect, NULL);
+}
+
+ICACHE_FLASH_ATTR
+static void espconn_connect_cb(void *arg) {
+    assert_heap();
+    USER_INTR_LOCK();
+    connmgr_set_connected(true);
+    USER_INTR_UNLOCK();
+    struct espconn *conn = arg;
+
+    user_dprintf("connected\x1b[34m");
+    espconn_regist_disconcb(conn, espconn_disconnect_cb);
+    espconn_regist_recvcb(conn, (espconn_recv_callback)connmgr_recv_cb);
+    espconn_regist_sentcb(conn, (espconn_sent_callback)connmgr_sent_cb);
+
+    filter_dest = filter_bssid = true;
+    promisc_start();
+
+    connmgr_connect_cb(arg);
+}
+
+ICACHE_FLASH_ATTR
+static void ssl_connect() {
+    USER_INTR_LOCK();
+
+    if (connmgr_connected) {
+        user_dprintf("error: already connected");
+        USER_INTR_UNLOCK();
+        return;
     }
 
-    return ssl->hs_status;
+    assert(ssl_pcb == NULL);
+    ssl_pcb = tcp_new();
+    assert(ssl_pcb != NULL);
+    ip_set_option(ssl_pcb, SO_REUSEADDR);
+    tcp_nagle_disable(ssl_pcb);
+    ssl_pcb->so_options |= SOF_KEEPALIVE;
+    ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
+    ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
+    ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
+
+    if (err_t rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0)) {
+        user_dprintf("tcp_bind: error %d", rc);
+        assert(false);
+        system_restart();
+    }
+
+    tcp_err(ssl_pcb, ...);
+    tcp_recv(ssl_pcb, ...);
+    tcp_sent(ssl_pcb, ...);
+
+    if (err_t rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_connect_connected)) {
+        user_dprintf("tcp_connect: error %d", rc);
+        assert(false);
+        system_restart();
+    }
+
+    assert(!connmgr_connected);
+    connmgr_set_connected(true);
+    assert_heap();
+
+    USER_INTR_UNLOCK();
 }
