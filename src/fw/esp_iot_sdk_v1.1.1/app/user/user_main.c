@@ -78,7 +78,7 @@ void try_send_log() {
             assert(false);
         }
         pbuf_realloc(to_send, logged_size);
-        if (connmgr_write(&ssl_pcb, to_send) != ERR_OK) {
+        if (connmgr_send(to_send) != ERR_OK) {
             assert(false); // not implemented
         }
     }
@@ -94,21 +94,17 @@ void set_can_send() {
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_connect_cb(connmgr_conn_t *conn) {
-    user_dprintf("%p", conn);
+void connmgr_connect_cb() {
     set_can_send();
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_sent_cb(connmgr_conn_t *conn) {
-    user_dprintf("%p", conn);
+void connmgr_sent_cb() {
     set_can_send();
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_recv_cb(connmgr_conn_t *conn, char *buf, unsigned short len) {
-    user_dprintf("%p", conn);
-
+void connmgr_recv_cb(char *buf, unsigned short len) {
     os_printf("buf: ");
     for (; len > 0; ++buf, --len) {
         os_printf("%c", *buf);

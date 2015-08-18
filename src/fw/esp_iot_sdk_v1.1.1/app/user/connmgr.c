@@ -7,6 +7,7 @@
 #include <lwip/ip4.h>
 #include <lwip/netif/etharp.h>
 #include <lwip/sockets.h>
+#include <lwip/tcp.h>
 #include <debug_esp.h>
 #include <default_ca_certificate.h>
 #include <connmgr.h>
@@ -170,9 +171,9 @@ void connmgr_init() {
     ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 0);
     err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
     assert(rc == SSL_OK);
-    assert(ret->ca_cert_ctx);
-    assert(ret->ca_cert_ctx->cert[0] != NULL);
-    assert(ret->ca_cert_ctx->cert[1] == NULL);
+    assert(ssl_ctx->ca_cert_ctx);
+    assert(ssl_ctx->ca_cert_ctx->cert[0] != NULL);
+    assert(ssl_ctx->ca_cert_ctx->cert[1] == NULL);
 
     //icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
     icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
@@ -250,7 +251,9 @@ static void ssl_disconnect() {
     assert(connmgr_connected);
     assert(ssl != NULL);
     ssl_free(ssl);
-    tcp_abort(ssl_pcb);
+    if (ssl_pcb != NULL) {
+        tcp_abort(ssl_pcb);
+    }
     connmgr_set_connected(false);
     connmgr_disconnect_cb();
 }
@@ -260,8 +263,7 @@ void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi(); // should fail
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
-    connmgr_set_connected(false);
-    connmgr_disconnect_cb();
+    ssl_disconnect();
     schedule_reconnect();
 }
 
@@ -269,7 +271,16 @@ ICACHE_FLASH_ATTR
 err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     assert(err == ERR_OK);
     user_dprintf("tcp connected: err=%d", err);
+    // XXX fails
     ssl = SSLClient_new(ssl_ctx, ssl_pcb, NULL, 0);
+    return ERR_OK;
+}
+
+ICACHE_FLASH_ATTR
+err_t connmgr_send(struct pbuf *p) {
+    user_dprintf("send not implemented");
+    // XXX
+    pbuf_free(p);
     return ERR_OK;
 }
 
@@ -280,6 +291,8 @@ err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
         assert(false);
     }
 
+    user_dprintf("recv not implemented");
+    // XXX
 #if 0
     USER_INTR_LOCK();
     connmgr_set_connected(true);
@@ -291,12 +304,6 @@ err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
     connmgr_connect_cb(tpcb);
 #endif
     return err;
-}
-
-ICACHE_FLASH_ATTR
-err_t ssl_pcb_sent_cb(void *arg, struct tcp_pcb *tpcb, u16_t len) {
-    connmgr_sent_cb(tpcb, len);
-    return ERR_OK;
 }
 
 ICACHE_FLASH_ATTR
@@ -325,7 +332,8 @@ static void ssl_connect() {
     ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
     ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
 
-    if (err_t rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0)) {
+    err_t rc;
+    if (rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0)) {
         user_dprintf("tcp_bind: error %d", rc);
         assert(false);
         system_restart();
@@ -333,10 +341,10 @@ static void ssl_connect() {
 
     tcp_err(ssl_pcb, ssl_pcb_err_cb);
     tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
-    tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+    // tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
     // tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
-    if (err_t rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb)) {
+    if (rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb)) {
         user_dprintf("tcp_connect: error %d", rc);
         assert(false);
         system_restart();

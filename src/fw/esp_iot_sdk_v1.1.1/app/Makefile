@@ -153,11 +153,8 @@ WRAP := \
 	-Wl,-wrap,pvPortCalloc \
 	-Wl,-wrap,pvPortZalloc \
 	-Wl,-wrap,pvPortRealloc \
-	-Wl,-wrap,ssl_ctx_new \
-	-Wl,-wrap,ssl_ctx_free \
 	-Wl,-wrap,sta_input \
 	-Wl,-wrap,dhcp_fine_tmr \
-	-Wl,-wrap,ssl_handshake_status \
 
 ifeq ($(DEBUG_ESP),1)
 	DEFINES += -DDEBUG_ESP
