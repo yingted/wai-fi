@@ -93,7 +93,6 @@ LINKFLAGS_eagle.app.v6 = \
 	-llwip	\
 	-lwpa	\
 	-lmain	\
-	-lssl	\
 	../../3rdparty/axtls/_stage/libaxtls.a	\
 	$(DEP_LIBS_eagle.app.v6)					\
 	-Wl,--end-group
