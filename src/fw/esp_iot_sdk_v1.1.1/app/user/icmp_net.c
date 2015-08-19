@@ -245,8 +245,15 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     }
 }
 
+__attribute__((weak))
+ICACHE_FLASH_ATTR
+void icmp_process_queued_pbufs_callback() {
+    // Do nothing
+}
+
 ICACHE_FLASH_ATTR
 static void process_queued_pbufs() {
+    icmp_process_queued_pbufs_callback();
     //assert_heap();
     USER_INTR_LOCK();
     while (process_pbuf_q[0]) {

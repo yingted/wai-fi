@@ -1,3 +1,6 @@
 [submodule "src/fw/3rdparty/esp_iot_rtos_sdk"]
 	path = src/fw/3rdparty/esp_iot_rtos_sdk
 	url = https://github.com/espressif/esp_iot_rtos_sdk.git
+[submodule "src/fw/3rdparty/axtls"]
+	path = src/fw/3rdparty/axtls
+	url = git@github.com:yingted/axtls.git

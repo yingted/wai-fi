@@ -78,9 +78,7 @@ void try_send_log() {
             assert(false);
         }
         pbuf_realloc(to_send, logged_size);
-        if (connmgr_send(to_send) != ERR_OK) {
-            assert(false); // not implemented
-        }
+        connmgr_send(to_send->payload, to_send->len);
     }
 }
 

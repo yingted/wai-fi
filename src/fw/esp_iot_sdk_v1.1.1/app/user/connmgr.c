@@ -11,6 +11,8 @@
 #include <debug_esp.h>
 #include <default_ca_certificate.h>
 #include <connmgr.h>
+#define __XTENSA_WINDOWED_ABI__ 0
+#include <setjmp.h>
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
@@ -30,6 +32,8 @@ static bool filter_dest = false, filter_bssid = false;
 
 static void ssl_connect();
 static void ssl_disconnect();
+static void os_port_blocking_resume();
+static void os_port_blocking_call(void (*fn)(void *), void *arg);
 
 // State management
 
@@ -259,7 +263,7 @@ static void ssl_disconnect() {
 }
 
 ICACHE_FLASH_ATTR
-void ssl_pcb_err_cb(void *arg, err_t err) {
+static void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi(); // should fail
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
@@ -268,30 +272,103 @@ void ssl_pcb_err_cb(void *arg, err_t err) {
 }
 
 ICACHE_FLASH_ATTR
-err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
+static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     assert(err == ERR_OK);
     user_dprintf("tcp connected: err=%d", err);
-    // XXX fails
-    ssl = SSLClient_new(ssl_ctx, ssl_pcb, NULL, 0);
+    // XXX use session id
+    ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
     return ERR_OK;
 }
 
+struct connmgr_send_impl_arg {
+    const uint8_t *buf;
+    int len;
+};
+
 ICACHE_FLASH_ATTR
-err_t connmgr_send(struct pbuf *p) {
-    user_dprintf("send not implemented");
-    // XXX
-    pbuf_free(p);
-    return ERR_OK;
+static void connmgr_send_impl(void *void_arg) {
+    struct connmgr_send_impl_arg *arg = void_arg;
+    // This call always writes everything, as per the API
+    ssl_write(ssl, arg->buf, arg->len);
 }
 
 ICACHE_FLASH_ATTR
-err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+void connmgr_send(const uint8_t *buf, int len) {
+    struct connmgr_send_impl_arg arg = {
+        .buf = buf,
+        .len = len,
+    };
+    os_port_blocking_call(connmgr_send_impl, &arg);
+}
+
+static bool is_read_blocked = false;
+static struct {
+    uint8_t *buf;
+    size_t len;
+} ssl_pcb_recv_cb_arg;
+static struct pbuf *ssl_pcb_recv_buf = NULL;
+ICACHE_FLASH_ATTR
+static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+    if (p == NULL) {
+        user_dprintf("err=%d", err);
+        return ERR_OK;
+    }
     if (err != ERR_OK) {
         user_dprintf("err=%d", err);
         assert(false);
     }
 
-    user_dprintf("recv not implemented");
+    if (ssl_pcb_recv_buf == NULL) {
+        ssl_pcb_recv_buf = p;
+    } else {
+        pbuf_cat(ssl_pcb_recv_buf, p);
+    }
+    return err;
+}
+
+void icmp_process_queued_pbufs_callback() {
+    if (ssl_pcb_recv_buf == NULL) {
+        // No queued pbufs
+        return;
+    }
+
+    // Exhaust the coroutine
+    while (is_read_blocked) {
+        // Check that we can send it something
+#define READ_BUF ssl_pcb_recv_cb_arg.buf
+#define READ_LEN ssl_pcb_recv_cb_arg.len
+        for (;;) {
+            // Try to read read_len from the buffer.
+            u16_t read_len = ssl_pcb_recv_buf->len;
+            if (read_len > READ_LEN) {
+                // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
+                memcpy(READ_BUF, ssl_pcb_recv_buf->payload, READ_LEN);
+                break;
+            }
+            // Read >= 1 pbuf. Update pointers.
+            memcpy(READ_BUF, ssl_pcb_recv_buf->payload, read_len);
+            *(char **)&READ_BUF += read_len;
+            READ_LEN -= read_len;
+
+            // Free the pbuf.
+            struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
+            ssl_pcb_recv_buf = prev_pbuf->next;
+            if (ssl_pcb_recv_buf == NULL) {
+                goto short_read;
+            }
+            pbuf_ref(ssl_pcb_recv_buf);
+            pbuf_dechain(prev_pbuf);
+            pbuf_free(prev_pbuf);
+        }
+#undef READ_BUF
+#undef READ_LEN
+        os_port_blocking_resume();
+    }
+
+    assert(!is_read_blocked);
+    // Callback time. Read some data and such.
+    // We can't call any axTLS APIs until we unwind out of lwIP, since axTLS
+    // may block on some lwIP function.
     // XXX
 #if 0
     USER_INTR_LOCK();
@@ -303,13 +380,22 @@ err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
     promisc_start();
     connmgr_connect_cb(tpcb);
 #endif
-    return err;
+
+short_read:;
+}
+
+static bool is_write_blocked = false;
+ICACHE_FLASH_ATTR
+static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
+    if (is_write_blocked) {
+        os_port_blocking_resume();
+    }
+    return ERR_OK;
 }
 
 ICACHE_FLASH_ATTR
-err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
-    //XXX
-    return ERR_OK;
+static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
+    return ssl_pcb_poll_cb(arg, tpcb);
 }
 
 ICACHE_FLASH_ATTR
@@ -341,8 +427,8 @@ static void ssl_connect() {
 
     tcp_err(ssl_pcb, ssl_pcb_err_cb);
     tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
-    // tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
-    // tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
+    tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+    tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
     if (rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb)) {
         user_dprintf("tcp_connect: error %d", rc);
@@ -355,4 +441,92 @@ static void ssl_connect() {
     assert_heap();
 
     USER_INTR_UNLOCK();
+}
+
+// Coroutine implementation
+
+// Only supports one blocking call at once.
+static jmp_buf os_port_main_env, os_port_worker_env;
+static bool os_port_is_blocked = false;
+#ifndef NDEBUG
+static bool os_port_is_worker = false;
+#endif
+__attribute__((returns_twice))
+ICACHE_FLASH_ATTR
+static void os_port_blocking_call(void (*fn)(void *), void *arg) {
+    static char stack[1024];
+    assert(!os_port_is_blocked);
+    assert(!os_port_is_worker);
+    if (!setjmp(os_port_main_env)) {
+        os_port_is_blocked = false;
+#ifndef NDEBUG
+        os_port_is_worker = true;
+#endif
+        __asm__ __volatile__("mov a1, %0"::"r"(stack + sizeof(stack)));
+        (*fn)(arg);
+    } else {
+        assert(!os_port_is_blocked);
+#ifndef NDEBUG
+        os_port_is_worker = false;
+#endif
+    }
+}
+
+ICACHE_FLASH_ATTR
+static void os_port_blocking_yield() {
+    assert(!os_port_is_blocked);
+    assert(os_port_is_worker);
+    if (!setjmp(os_port_worker_env)) {
+        os_port_is_blocked = true;
+#ifndef NDEBUG
+        os_port_is_worker = false;
+#endif
+        longjmp(os_port_main_env, 1);
+    }
+}
+
+ICACHE_FLASH_ATTR
+static void os_port_blocking_resume() {
+    assert(os_port_is_blocked);
+    assert(!os_port_is_worker);
+    if (!setjmp(os_port_main_env)) {
+        os_port_is_blocked = false;
+#ifndef NDEBUG
+        os_port_is_worker = true;
+#endif
+        longjmp(os_port_worker_env, 1);
+    }
+}
+
+// Blocking socket implementation
+
+__attribute__((used))
+ICACHE_FLASH_ATTR
+ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
+    assert(len > 0);
+    ssl_pcb_recv_cb_arg.buf = (uint8_t *)buf;
+    ssl_pcb_recv_cb_arg.len = len;
+    os_port_blocking_yield();
+}
+
+__attribute__((used))
+ICACHE_FLASH_ATTR
+ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t len) {
+    struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
+    for (;;) {
+        err_t rc = tcp_write(tpcb, buf, len, 0);
+        switch (rc) {
+            case ERR_OK:
+                return len;
+            case ERR_MEM:
+                is_write_blocked = true;
+                os_port_blocking_yield();
+                is_write_blocked = false;
+                continue;
+            default:;
+                extern int os_port_impure_errno;
+                os_port_impure_errno = rc;
+                return -1;
+        }
+    }
 }
