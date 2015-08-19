@@ -13,6 +13,8 @@
 #include <connmgr.h>
 #define __XTENSA_WINDOWED_ABI__ 0
 #include <setjmp.h>
+#define setjmp __builtin_setjmp
+#define longjmp __builtin_longjmp
 
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
