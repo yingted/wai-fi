@@ -21,7 +21,9 @@
 
 #ifdef GDB_STUB
 
+__attribute__((used))
 void gdb_stub_DebugExceptionVector();
+__attribute__((used))
 void gdb_stub_DebugExceptionVector_1();
 static void gdb_send_stop_reply();
 
@@ -711,23 +713,18 @@ void gdb_stub_init() {
     ETS_UART_INTR_ATTACH(gdb_uart_intr_handler, NULL);
     WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
     ETS_UART_INTR_ENABLE();
-
-    // Try to get GCC to reference the symbols
-    __asm__ __volatile__("":"=r"(i));
-    if (i * i == 3) { // impossible due to quadratic reciprocity
-        gdb_stub_DebugExceptionVector(); // reference the symbol
-        gdb_stub_DebugExceptionVector_1(); // reference the symbol
-    }
 }
 
 __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector \n\
+    .type gdb_stub_DebugExceptionVector, @function\n\
     gdb_stub_DebugExceptionVector:\n\
         j gdb_stub_DebugExceptionVector_1\n\
 ");
 //__attribute__((naked)) // not supported
 __attribute__((section(".text")))
+__attribute__((used))
 void gdb_stub_DebugExceptionVector_1() {
     __asm__ __volatile__("addmi a1, a1, -0x100");
 #define REG_XTENSA_special 0
@@ -764,6 +761,7 @@ void gdb_stub_DebugExceptionVector_1() {
 __asm__("\
     .section .DebugExceptionVector.text\n\
     .global gdb_stub_DebugExceptionVector\n\
+    .type gdb_stub_DebugExceptionVector, @function\n\
     gdb_stub_DebugExceptionVector:\n\
         waiti " STR(XCHAL_DEBUGLEVEL) "\n\
         j gdb_stub_DebugExceptionVector\n\
