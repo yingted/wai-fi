@@ -38,7 +38,7 @@ endif # } PDIR
 APPDIR = .
 LDDIR = ../ld
 
-CCFLAGS += -MMD -flto -include ../include/user_config.h
+CCFLAGS += -MMD -include ../include/user_config.h
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG
@@ -61,7 +61,6 @@ TARGET_LDFLAGS =		\
 	-nostdlib		\
 	-Wl,-EL \
 	--longcalls \
-	-flto \
 	--text-section-literals
 
 ifeq ($(FLAVOR),debug)
@@ -174,7 +173,7 @@ endif
 
 LINKFLAGS_eagle.app.v6 += \
 	$(WRAP) \
-	-flto -fdata-sections -ffunction-sections -Wl,--gc-sections \
+	-fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip
