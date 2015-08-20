@@ -207,10 +207,10 @@ void connmgr_start() {
     wifi_set_event_handler_cb(wifi_handle_event_cb);
     wifi_set_opmode_current(STATION_MODE);
     {
-        struct station_config *config = (struct station_config *)os_zalloc(sizeof(struct station_config));
+        static struct station_config config; // 0-initialized
         const static char *ssid = "uw-wifi-setup-no-encryption";
-        os_memcpy(config->ssid, ssid, os_strlen(ssid));
-        wifi_station_set_config_current(config);
+        os_memcpy(config.ssid, ssid, os_strlen(ssid));
+        wifi_station_set_config_current(&config);
     }
     wifi_station_disconnect();
     wifi_station_connect();
