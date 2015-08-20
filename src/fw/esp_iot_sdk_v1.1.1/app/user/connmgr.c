@@ -329,7 +329,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 }
 
 ICACHE_FLASH_ATTR
-void icmp_process_queued_pbufs_callback() {
+void icmp_net_process_queued_pbufs_callback() {
     if (ssl_pcb_recv_buf == NULL) {
         // No queued pbufs
         return;
