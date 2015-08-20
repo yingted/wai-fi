@@ -201,6 +201,7 @@ void connmgr_init() {
     assert_heap();
 }
 
+ICACHE_FLASH_ATTR
 void connmgr_start() {
     wifi_set_opmode_current(NULL_MODE);
     wifi_set_event_handler_cb(wifi_handle_event_cb);
@@ -328,6 +329,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
     return err;
 }
 
+ICACHE_FLASH_ATTR
 void icmp_process_queued_pbufs_callback() {
     if (ssl_pcb_recv_buf == NULL) {
         // No queued pbufs

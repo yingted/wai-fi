@@ -174,7 +174,7 @@ endif
 
 LINKFLAGS_eagle.app.v6 += \
 	$(WRAP) \
-	-fdata-sections -ffunction-sections -Wl,--gc-sections \
+	-flto -fdata-sections -ffunction-sections -Wl,--gc-sections \
 
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include
 INCLUDES += -I $(PDIR)../../3rdparty/esp_iot_rtos_sdk/include/lwip
