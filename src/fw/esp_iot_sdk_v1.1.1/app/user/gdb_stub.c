@@ -21,9 +21,7 @@
 
 #ifdef GDB_STUB
 
-__attribute__((used))
 void gdb_stub_DebugExceptionVector();
-__attribute__((used))
 void gdb_stub_DebugExceptionVector_1();
 static void gdb_send_stop_reply();
 
@@ -713,6 +711,12 @@ void gdb_stub_init() {
     ETS_UART_INTR_ATTACH(gdb_uart_intr_handler, NULL);
     WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
     ETS_UART_INTR_ENABLE();
+
+    __asm__ __volatile__("":"=r"(i));
+    if (i * i == 3) { // mathematically impossible
+        gdb_stub_DebugExceptionVector();
+        gdb_stub_DebugExceptionVector_1();
+    }
 }
 
 __asm__("\
@@ -724,7 +728,6 @@ __asm__("\
 ");
 //__attribute__((naked)) // not supported
 __attribute__((section(".text")))
-__attribute__((used))
 void gdb_stub_DebugExceptionVector_1() {
     __asm__ __volatile__("addmi a1, a1, -0x100");
 #define REG_XTENSA_special 0
