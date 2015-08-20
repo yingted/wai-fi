@@ -287,7 +287,6 @@ struct connmgr_send_impl_arg {
     const uint8_t *buf;
     int len;
 };
-
 ICACHE_FLASH_ATTR
 static void connmgr_send_impl(void *void_arg) {
     struct connmgr_send_impl_arg *arg = void_arg;
@@ -373,8 +372,6 @@ void icmp_process_queued_pbufs_callback() {
     // Callback time. Read some data and such.
     // We can't call any axTLS APIs until we unwind out of lwIP, since axTLS
     // may block on some lwIP function.
-    // XXX
-#if 0
     USER_INTR_LOCK();
     connmgr_set_connected(true);
     USER_INTR_UNLOCK();
@@ -382,8 +379,7 @@ void icmp_process_queued_pbufs_callback() {
     user_dprintf("connected\x1b[34m");
     filter_dest = filter_bssid = true;
     promisc_start();
-    connmgr_connect_cb(tpcb);
-#endif
+    connmgr_connect_cb();
 
 short_read:;
 }
@@ -511,6 +507,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     ssl_pcb_recv_cb_arg.buf = (uint8_t *)buf;
     ssl_pcb_recv_cb_arg.len = len;
     os_port_blocking_yield();
+    return len;
 }
 
 __attribute__((used))
@@ -533,4 +530,5 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
                 return -1;
         }
     }
+    return len;
 }
