@@ -31,6 +31,9 @@ void user_init(void) {
     gdb_stub_break();
 #endif
     user_dprintf("Starting up...");
+#ifndef NDEBUG
+    ets_wdt_disable();
+#endif
 
     connmgr_init();
     connmgr_start();
