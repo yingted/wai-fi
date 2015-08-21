@@ -344,6 +344,7 @@ static struct {
 static struct pbuf *ssl_pcb_recv_buf = NULL;
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+    user_dprintf("%p", p);
     if (p == NULL) {
         user_dprintf("err=%d", err);
         return ERR_OK;
@@ -363,6 +364,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 
 ICACHE_FLASH_ATTR
 void icmp_net_process_queued_pbufs_callback() {
+    user_dprintf("");
     if (ssl_pcb == NULL) {
         // Pretend not to get network events.
         return;
@@ -389,6 +391,7 @@ void icmp_net_process_queued_pbufs_callback() {
     }
 
     for (;;) {
+        user_dprintf("resuming coroutine");
         // Exhaust the coroutine
         while (is_read_blocked) {
             // Check that we can send it something
@@ -449,6 +452,7 @@ void icmp_net_process_queued_pbufs_callback() {
 static bool is_write_blocked = false;
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
+    user_dprintf("");
     if (is_write_blocked) {
         os_port_blocking_resume();
     }
@@ -457,6 +461,7 @@ static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
 
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
+    user_dprintf("");
     return ssl_pcb_poll_cb(arg, tpcb);
 }
 

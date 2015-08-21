@@ -284,6 +284,7 @@ static void process_queued_pbufs() {
     }
     USER_INTR_UNLOCK();
     //assert_heap();
+    icmp_net_process_queued_pbufs_callback();
 }
 
 ICACHE_FLASH_ATTR

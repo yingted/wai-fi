@@ -1,3 +1,4 @@
+- convert connmgr to coroutine-on-reactor design
 - FOTA
 - TLS keepalive for server
 - server-side analysis, ui
@@ -6,4 +7,3 @@
 - remote shell
 - handle mismatched certificate/private key error
 - add roaming support?
-- convert connmgr to coroutine-on-reactor design
