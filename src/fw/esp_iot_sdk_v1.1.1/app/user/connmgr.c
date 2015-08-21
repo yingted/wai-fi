@@ -529,7 +529,7 @@ static void os_port_blocking_call(void (*fn)(void *), void *arg) {
         __asm__ __volatile__("\
             mov a1, %[sp]\n\
         "::[sp] "r"(sp));
-    } else {
+
         assert(!os_port_is_blocked);
 #ifndef NDEBUG
         os_port_is_worker = false;
@@ -542,6 +542,7 @@ ICACHE_FLASH_ATTR
 static void os_port_blocking_yield() {
     assert(!os_port_is_blocked);
     assert(os_port_is_worker);
+    user_dprintf("");
     if (!setjmp(os_port_worker_env)) {
         os_port_is_blocked = true;
 #ifndef NDEBUG
