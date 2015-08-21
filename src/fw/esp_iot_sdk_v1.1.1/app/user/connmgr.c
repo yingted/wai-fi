@@ -267,10 +267,16 @@ static void ssl_disconnect() {
         }
         connmgr_set_connected(false);
         connmgr_disconnect_cb();
-    } else if (os_port_is_blocked) {
+    }
+    if (os_port_is_blocked) {
         assert(!os_port_is_worker);
         os_port_is_interrupted = true;
         os_port_blocking_resume();
+    }
+    assert(ssl == NULL);
+    if (ssl_pcb) {
+        tcp_abort(ssl_pcb);
+        ssl_pcb = NULL;
     }
 
     assert(!connmgr_connected);
