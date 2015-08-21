@@ -1,5 +1,6 @@
 #include <user_config.h>
 #include <coro.h>
+#define __XTENSA_WINDOWED_ABI__ 0
 #include <setjmp.h>
 
 #define setjmp __builtin_setjmp

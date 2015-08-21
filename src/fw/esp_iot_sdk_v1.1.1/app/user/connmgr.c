@@ -14,11 +14,8 @@
 #include <promisc.h>
 #include <connmgr.h>
 #include <coro.h>
-#define __XTENSA_WINDOWED_ABI__ 0
-#include <setjmp.h>
-#define setjmp __builtin_setjmp
-#define longjmp __builtin_longjmp
 
+#if 0
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
 static struct ip_info linklocal_info = {
@@ -29,24 +26,130 @@ static struct ip_info linklocal_info = {
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 bool connmgr_connected = true; // set to false in connmgr_init
-static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
-static struct tcp_pcb *ssl_pcb = NULL;
-static bool ssl_should_connect = false;
+#endif
 
 static bool filter_dest = false, filter_bssid = false;
 
 static void ssl_connect();
 static void ssl_disconnect();
-static void os_port_blocking_resume();
-static void os_port_blocking_call(void (*fn)(void *), void *arg);
-static bool os_port_is_blocked = false, os_port_is_interrupted = false;
-#ifndef NDEBUG
-static bool os_port_is_worker = false;
-#endif
+static CORO_T(256) coro;
 extern int os_port_impure_errno;
 
+#define EVENT_CANCEL    0x00000001
+#define EVENT_RECV      0x00000002
+#define EVENT_SENT      0x00000004
+#define EVENT_START     0x00000008
+#define EVENT_STOP      0x00000010
+#define EVENT_ASSOCIATE 0x00000020
+#define EVENT_ANY    ((size_t)~0)
+#define EVENT_INTR (EVENT_CANCEL | EVENT_STOP)
+
+#define CONNMGR_IF(event) \
+    CORO_YIELD(coro, EVENT_INTR | EVENT_ ## event); \
+    _Static_assert(!(EVENT_INTR & EVENT_ ## event)); \
+    if (!(coro.ctrl.event & EVENT_INTR))
+
 // State management
+
+ICACHE_FLASH_ATTR
+static void connmgr_init_impl(void *arg) {
+    user_dprintf("heap: %d", system_get_free_heap_size());
+    assert_heap();
+    connmgr_set_connected(false);
+
+    wifi_station_set_auto_connect(0);
+
+    // XXX session caching
+    SSL_CTX *ssl_ctx = ssl_ctx_new(0, 0);
+    err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
+    assert(rc == SSL_OK);
+    assert(ssl_ctx->ca_cert_ctx);
+    assert(ssl_ctx->ca_cert_ctx->cert[0] != NULL);
+    assert(ssl_ctx->ca_cert_ctx->cert[1] == NULL);
+
+    //icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
+    icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
+
+    // Create the ICMP tap device and never delete it.
+    if (!netif_add(
+            &icmp_tap,
+            &linklocal_info.ip,
+            &linklocal_info.netmask,
+            &linklocal_info.gw,
+            &icmp_config,
+            icmp_net_init,
+            ethernet_input
+        )) {
+        user_dprintf("netif_add failed");
+    }
+
+    user_dprintf("done");
+    assert_heap();
+
+    for (;;) {
+        CORO_IF(START) {
+            wifi_set_opmode_current(NULL_MODE);
+            wifi_set_event_handler_cb(wifi_handle_event_cb);
+            wifi_set_opmode_current(STATION_MODE);
+            {
+                static struct station_config config; // 0-initialized
+                const static char *ssid = "uw-wifi-setup-no-encryption";
+                os_memcpy(config.ssid, ssid, os_strlen(ssid));
+                wifi_station_set_config_current(&config);
+            }
+            wifi_station_disconnect();
+            wifi_station_connect();
+            wifi_station_set_reconnect_policy(true);
+
+            user_dprintf("started\x1b[31m");
+
+            CORO_IF(ASSOCIATE) {
+                USER_INTR_LOCK();
+
+                struct tcp_pcb *ssl_pcb = tcp_new();
+                assert(ssl_pcb != NULL);
+                ip_set_option(ssl_pcb, SO_REUSEADDR);
+                tcp_nagle_disable(ssl_pcb);
+                ssl_pcb->so_options |= SOF_KEEPALIVE;
+                ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
+                ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
+                ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
+
+                err_t rc;
+                if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
+                    user_dprintf("tcp_bind: error %d", rc);
+                    assert(false);
+                    system_restart();
+                }
+
+                tcp_err(ssl_pcb, ssl_pcb_err_cb);
+                tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
+                tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+                tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
+
+                if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
+                    user_dprintf("tcp_connect: error %d", rc);
+                    assert(false);
+                    system_restart();
+                }
+
+                assert(!connmgr_connected);
+                assert_heap();
+                USER_INTR_UNLOCK();
+
+                ...
+
+                if (ssl_pcb != NULL) {
+                    tcp_abort(ssl_pcb);
+                    ssl_pcb = NULL;
+                }
+            }
+        } else {
+            assert(false);
+        }
+    }
+}
 
 /**
  * Update the connection watchdog.
@@ -54,6 +157,7 @@ extern int os_port_impure_errno;
  */
 ICACHE_FLASH_ATTR
 static void connmgr_set_connected(bool new_connected) {
+#if 0
     if (connmgr_connected == new_connected) {
         return;
     }
@@ -65,50 +169,12 @@ static void connmgr_set_connected(bool new_connected) {
         os_timer_setfn(&watchdog, system_restart, NULL);
         os_timer_arm(&watchdog, 1000 * 60 * 5 /* minutes */, 0);
     }
-}
-
-struct sta_input_pkt {
-    uint8_t pad_0_[4];
-    struct {
-        uint8_t pad_0_[4];
-        uint8_t *payload;
-    } *packet;
-    uint8_t pad_8_[20 - 8];
-    short header_len;
-    short body_len;
-    // byte 24
-};
-
-int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
-ICACHE_FLASH_ATTR
-int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
-    if (m->header_len >= 22) {
-        assert(nf == 0);
-        assert(m->packet->payload == ((uint8_t ***)m)[1][1]);
-        assert(m->header_len == (int)((short *)m)[10]);
-        assert(m->body_len == (int)((short *)m)[11]);
-        connmgr_packet_cb(m->packet->payload, m->header_len, m->body_len, rssi);
-
-        if (
-                (filter_dest && (
-                    memcmp(bcast_mac, m->packet->payload + 4, 6) &&
-                    memcmp(sta_mac, m->packet->payload + 4, 6)
-                )) ||
-                (filter_bssid && (
-                    memcmp(last_bssid, m->packet->payload + 10, 6) ||
-                    memcmp(last_bssid, m->packet->payload + 16, 6)
-                ))
-            ) {
-            ppRecycleRxPkt(m);
-            return ERR_OK;
-        }
-    }
-
-    return __real_sta_input(ni, m, rssi, nf);
+#endif
 }
 
 ICACHE_FLASH_ATTR
 void wifi_handle_event_cb(System_Event_t *event) {
+#if 0
     assert_heap();
     static struct netif *saved_default = NULL;
     switch (event->event) {
@@ -170,66 +236,24 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
     user_dprintf("done");
     assert_heap();
+#endif
 }
 
 // Initialization
 
 ICACHE_FLASH_ATTR
 void connmgr_init() {
-    user_dprintf("heap: %d", system_get_free_heap_size());
-    assert_heap();
-    connmgr_set_connected(false);
-
-    wifi_station_set_auto_connect(0);
-
-    // XXX session caching
-    ssl_ctx = ssl_ctx_new(0, 0);
-    err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
-    assert(rc == SSL_OK);
-    assert(ssl_ctx->ca_cert_ctx);
-    assert(ssl_ctx->ca_cert_ctx->cert[0] != NULL);
-    assert(ssl_ctx->ca_cert_ctx->cert[1] == NULL);
-
-    //icmp_config.relay_ip.addr = ipaddr_addr("54.191.1.223");
-    icmp_config.relay_ip.addr = ipaddr_addr("192.168.9.1");
-
-    // Create the ICMP tap device and never delete it.
-    if (!netif_add(
-            &icmp_tap,
-            &linklocal_info.ip,
-            &linklocal_info.netmask,
-            &linklocal_info.gw,
-            &icmp_config,
-            icmp_net_init,
-            ethernet_input
-        )) {
-        user_dprintf("netif_add failed");
-    }
-
-    user_dprintf("done");
-    assert_heap();
+    CORO_START(coro, connmgr_start_impl, NULL);
 }
 
 ICACHE_FLASH_ATTR
 void connmgr_start() {
-    wifi_set_opmode_current(NULL_MODE);
-    wifi_set_event_handler_cb(wifi_handle_event_cb);
-    wifi_set_opmode_current(STATION_MODE);
-    {
-        static struct station_config config; // 0-initialized
-        const static char *ssid = "uw-wifi-setup-no-encryption";
-        os_memcpy(config.ssid, ssid, os_strlen(ssid));
-        wifi_station_set_config_current(&config);
-    }
-    wifi_station_disconnect();
-    wifi_station_connect();
-    wifi_station_set_reconnect_policy(true);
-
-    user_dprintf("started\x1b[31m");
+    CORO_RESUME(coro, EVENT_START);
 }
 
 ICACHE_FLASH_ATTR
 void connmgr_stop() {
+#if 0
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
 
@@ -238,6 +262,7 @@ void connmgr_stop() {
 
     user_dprintf("stopped");
     assert_heap();
+#endif
 }
 
 // SSL client
@@ -245,6 +270,7 @@ void connmgr_stop() {
 ICACHE_FLASH_ATTR
 static void schedule_reconnect() {
     debug_esp_assert_not_nmi();
+#if 0
     assert_heap();
 
     USER_INTR_LOCK();
@@ -260,10 +286,12 @@ static void schedule_reconnect() {
     sys_timeout(10000, ssl_connect, NULL);
 #endif
     USER_INTR_UNLOCK();
+#endif
 }
 
 ICACHE_FLASH_ATTR
 static void ssl_disconnect() {
+#if 0
     assert(connmgr_connected || os_port_is_blocked);
     if (connmgr_connected) {
         assert(ssl != NULL);
@@ -290,54 +318,66 @@ static void ssl_disconnect() {
     assert(!os_port_is_blocked);
     assert(!os_port_is_worker);
     assert(!os_port_is_interrupted);
+#endif
 }
 
 ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi(); // should fail
+#if 0
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
     ssl_should_connect = false;
     ssl_disconnect();
     schedule_reconnect();
+#endif
 }
 
 ICACHE_FLASH_ATTR
 static void ssl_connect_impl(void *arg) {
+#if 0
     // XXX use session id
     ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+#endif
 }
 
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     assert(err == ERR_OK);
     user_dprintf("tcp connected: err=%d", err);
+#if 0
     ssl_should_connect = true;
+#endif
     return ERR_OK;
 }
 
+#if 0
 struct connmgr_send_impl_arg {
     const uint8_t *buf;
     int len;
 };
+#endif
 ICACHE_FLASH_ATTR
 static void connmgr_send_impl(void *void_arg) {
+#if 0
     struct connmgr_send_impl_arg *arg = void_arg;
     user_dprintf("%p", arg);
     // This call always writes everything, as per the API
     ssl_write(ssl, arg->buf, arg->len);
+#endif
 }
 
 ICACHE_FLASH_ATTR
 void connmgr_send(const uint8_t *buf, int len) {
+#if 0
     struct connmgr_send_impl_arg arg = {
         .buf = buf,
         .len = len,
     };
     os_port_blocking_call(connmgr_send_impl, &arg);
+#endif
 }
 
-static bool is_read_blocked = false;
 static struct {
     uint8_t *buf;
     size_t len;
@@ -345,6 +385,7 @@ static struct {
 static struct pbuf *ssl_pcb_recv_buf = NULL;
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+#if 0
     user_dprintf("%p", p);
     if (p == NULL) {
         user_dprintf("err=%d", err);
@@ -361,11 +402,13 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         pbuf_cat(ssl_pcb_recv_buf, p);
     }
     return err;
+#endif
 }
 
 ICACHE_FLASH_ATTR
 void icmp_net_process_queued_pbufs_callback() {
     user_dprintf("");
+#if 0
     if (ssl_pcb == NULL) {
         // Pretend not to get network events.
         return;
@@ -448,15 +491,17 @@ void icmp_net_process_queued_pbufs_callback() {
 
         break;
     }
+#endif
 }
 
-static bool is_write_blocked = false;
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
     user_dprintf("");
+#if 0
     if (is_write_blocked) {
         os_port_blocking_resume();
     }
+#endif
     return ERR_OK;
 }
 
@@ -466,115 +511,10 @@ static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
     return ssl_pcb_poll_cb(arg, tpcb);
 }
 
-ICACHE_FLASH_ATTR
-static void ssl_connect() {
-    USER_INTR_LOCK();
-
-    if (connmgr_connected) {
-        user_dprintf("error: already connected");
-        USER_INTR_UNLOCK();
-        return;
-    }
-
-    assert(ssl_pcb == NULL);
-    ssl_pcb = tcp_new();
-    assert(ssl_pcb != NULL);
-    ip_set_option(ssl_pcb, SO_REUSEADDR);
-    tcp_nagle_disable(ssl_pcb);
-    ssl_pcb->so_options |= SOF_KEEPALIVE;
-    ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
-    ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
-    ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
-
-    err_t rc;
-    if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
-        user_dprintf("tcp_bind: error %d", rc);
-        assert(false);
-        system_restart();
-    }
-
-    tcp_err(ssl_pcb, ssl_pcb_err_cb);
-    tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
-    tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
-    tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
-
-    if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
-        user_dprintf("tcp_connect: error %d", rc);
-        assert(false);
-        system_restart();
-    }
-
-    assert(!connmgr_connected);
-    assert_heap();
-    USER_INTR_UNLOCK();
-}
-
-// Coroutine implementation
-
-// Only supports one blocking call at once.
-static jmp_buf os_port_main_env, os_port_worker_env;
-__attribute__((returns_twice))
-ICACHE_FLASH_ATTR
-static void os_port_blocking_call(void (*fn)(void *), void *arg) {
-    static char stack[1024];
-    assert(!os_port_is_blocked);
-    assert(!os_port_is_worker);
-    user_dprintf("%p %p", fn, arg);
-    if (!setjmp(os_port_main_env)) {
-        os_port_is_blocked = false;
-#ifndef NDEBUG
-        os_port_is_worker = true;
-#endif
-        static void *volatile sp;
-        register void *stack_top = stack + sizeof(stack);
-        __asm__ __volatile__("\
-            mov %[sp], a1\n\
-            mov a1, %[stack_top]\n\
-        ":[sp] "=r"(sp):[stack_top] "r"(stack_top));
-        (*fn)(arg);
-        __asm__ __volatile__("\
-            mov a1, %[sp]\n\
-        "::[sp] "r"(sp));
-
-        assert(!os_port_is_blocked);
-#ifndef NDEBUG
-        os_port_is_worker = false;
-#endif
-        os_port_is_interrupted = false;
-    }
-}
-
-ICACHE_FLASH_ATTR
-static void os_port_blocking_yield() {
-    assert(!os_port_is_blocked);
-    assert(os_port_is_worker);
-    user_dprintf("");
-    if (!setjmp(os_port_worker_env)) {
-        os_port_is_blocked = true;
-#ifndef NDEBUG
-        os_port_is_worker = false;
-#endif
-        longjmp(os_port_main_env, 1);
-    }
-}
-
-ICACHE_FLASH_ATTR
-static void os_port_blocking_resume() {
-    assert(os_port_is_blocked);
-    assert(!os_port_is_worker);
-    if (!setjmp(os_port_main_env)) {
-        os_port_is_blocked = false;
-#ifndef NDEBUG
-        os_port_is_worker = true;
-#endif
-        longjmp(os_port_worker_env, 1);
-    }
-}
-
 // Blocking socket implementation
 
-#define CANCELLATION_POINT() \
-    if (os_port_is_interrupted) { \
+#define CONNMGR_TESTCANCEL() \
+    if (coro.ctrl.event == EVENT_CANCEL) { \
         os_port_impure_errno = EIO; \
         return -1; \
     }
@@ -582,20 +522,23 @@ static void os_port_blocking_resume() {
 __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
+#if 0
     assert(len > 0);
-    CANCELLATION_POINT();
+    CONNMGR_TESTCANCEL();
     ssl_pcb_recv_cb_arg.buf = (uint8_t *)buf;
     ssl_pcb_recv_cb_arg.len = len;
     os_port_blocking_yield();
-    CANCELLATION_POINT();
+    CONNMGR_TESTCANCEL();
     return len;
+#endif
 }
 
 __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t len) {
+#if 0
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
-    CANCELLATION_POINT();
+    CONNMGR_TESTCANCEL();
     for (;;) {
         err_t rc = tcp_write(tpcb, buf, len, 0);
         switch (rc) {
@@ -605,7 +548,7 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
                 is_write_blocked = true;
                 os_port_blocking_yield();
                 is_write_blocked = false;
-                CANCELLATION_POINT();
+                CONNMGR_TESTCANCEL();
                 continue;
             default:;
                 os_port_impure_errno = rc;
@@ -613,7 +556,10 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
         }
     }
     return len;
+#endif
 }
+
+// API hooks
 
 void __real_tcp_tmr(void);
 ICACHE_FLASH_ATTR
@@ -652,4 +598,44 @@ void __wrap_tcp_timer_needed(void) {
     //user_dprintf("");
     __real_tcp_timer_needed();
     assert(--enter_count == 0);
+}
+
+struct sta_input_pkt {
+    uint8_t pad_0_[4];
+    struct {
+        uint8_t pad_0_[4];
+        uint8_t *payload;
+    } *packet;
+    uint8_t pad_8_[20 - 8];
+    short header_len;
+    short body_len;
+    // byte 24
+};
+
+int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
+ICACHE_FLASH_ATTR
+int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
+    if (m->header_len >= 22) {
+        assert(nf == 0);
+        assert(m->packet->payload == ((uint8_t ***)m)[1][1]);
+        assert(m->header_len == (int)((short *)m)[10]);
+        assert(m->body_len == (int)((short *)m)[11]);
+        connmgr_packet_cb(m->packet->payload, m->header_len, m->body_len, rssi);
+
+        if (
+                (filter_dest && (
+                    memcmp(bcast_mac, m->packet->payload + 4, 6) &&
+                    memcmp(sta_mac, m->packet->payload + 4, 6)
+                )) ||
+                (filter_bssid && (
+                    memcmp(last_bssid, m->packet->payload + 10, 6) ||
+                    memcmp(last_bssid, m->packet->payload + 16, 6)
+                ))
+            ) {
+            ppRecycleRxPkt(m);
+            return ERR_OK;
+        }
+    }
+
+    return __real_sta_input(ni, m, rssi, nf);
 }
