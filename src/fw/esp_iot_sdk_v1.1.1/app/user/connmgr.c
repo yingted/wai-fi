@@ -300,15 +300,6 @@ ICACHE_FLASH_ATTR
 static void ssl_connect_impl(void *arg) {
     // XXX use session id
     ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
-
-    USER_INTR_LOCK();
-    connmgr_set_connected(true);
-    USER_INTR_UNLOCK();
-
-    user_dprintf("connected\x1b[34m");
-    filter_dest = filter_bssid = true;
-    promisc_start();
-    connmgr_connect_cb();
 }
 
 ICACHE_FLASH_ATTR
@@ -376,8 +367,12 @@ void icmp_net_process_queued_pbufs_callback() {
             // We're connecting
             return;
         }
-        // We aren't connecting, but should.
-        os_port_blocking_call(ssl_connect_impl, NULL);
+        if (ssl) {
+            // We aren't connecting, but should.
+            os_port_blocking_call(ssl_connect_impl, NULL);
+            assert(os_port_is_blocked);
+            assert(!os_port_is_worker);
+        }
         return;
     }
 
@@ -386,48 +381,62 @@ void icmp_net_process_queued_pbufs_callback() {
         return;
     }
 
-    // Exhaust the coroutine
-    while (is_read_blocked) {
-        // Check that we can send it something
+    for (;;) {
+        // Exhaust the coroutine
+        while (is_read_blocked) {
+            // Check that we can send it something
 #define READ_BUF ssl_pcb_recv_cb_arg.buf
 #define READ_LEN ssl_pcb_recv_cb_arg.len
-        for (;;) {
-            // Try to read read_len from the buffer.
-            u16_t read_len = ssl_pcb_recv_buf->len;
-            if (read_len > READ_LEN) {
-                // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
-                memcpy(READ_BUF, ssl_pcb_recv_buf->payload, READ_LEN);
-                break;
-            }
-            // Read >= 1 pbuf. Update pointers.
-            memcpy(READ_BUF, ssl_pcb_recv_buf->payload, read_len);
-            *(char **)&READ_BUF += read_len;
-            READ_LEN -= read_len;
+            for (;;) {
+                // Try to read read_len from the buffer.
+                u16_t read_len = ssl_pcb_recv_buf->len;
+                if (read_len > READ_LEN) {
+                    // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
+                    memcpy(READ_BUF, ssl_pcb_recv_buf->payload, READ_LEN);
+                    break;
+                }
+                // Read >= 1 pbuf. Update pointers.
+                memcpy(READ_BUF, ssl_pcb_recv_buf->payload, read_len);
+                *(char **)&READ_BUF += read_len;
+                READ_LEN -= read_len;
 
-            // Free the pbuf.
-            struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
-            ssl_pcb_recv_buf = prev_pbuf->next;
-            if (ssl_pcb_recv_buf == NULL) {
-                return;
+                // Free the pbuf.
+                struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
+                ssl_pcb_recv_buf = prev_pbuf->next;
+                if (ssl_pcb_recv_buf == NULL) {
+                    return;
+                }
+                pbuf_ref(ssl_pcb_recv_buf);
+                pbuf_dechain(prev_pbuf);
+                pbuf_free(prev_pbuf);
             }
-            pbuf_ref(ssl_pcb_recv_buf);
-            pbuf_dechain(prev_pbuf);
-            pbuf_free(prev_pbuf);
-        }
 #undef READ_BUF
 #undef READ_LEN
-        os_port_blocking_resume();
+            os_port_blocking_resume();
+        }
+
+        assert(!is_read_blocked);
+        assert(!os_port_is_worker);
+        assert(!os_port_is_blocked);
+        assert(!os_port_is_interrupted);
+
+        // Callback time. Read some data and such.
+        // We can't call any axTLS APIs until we unwind out of lwIP, since axTLS
+        // may block on some lwIP function.
+        if (!connmgr_connected) {
+            USER_INTR_LOCK();
+            connmgr_set_connected(true);
+            USER_INTR_UNLOCK();
+
+            user_dprintf("connected\x1b[34m");
+            filter_dest = filter_bssid = true;
+            promisc_start();
+            connmgr_connect_cb();
+            continue;
+        }
+
+        break;
     }
-
-    assert(!is_read_blocked);
-    assert(!os_port_is_worker);
-    assert(!os_port_is_blocked);
-    assert(!os_port_is_interrupted);
-
-    // Callback time. Read some data and such.
-    // We can't call any axTLS APIs until we unwind out of lwIP, since axTLS
-    // may block on some lwIP function.
-    // XXX
 }
 
 static bool is_write_blocked = false;
@@ -483,9 +492,7 @@ static void ssl_connect() {
     }
 
     assert(!connmgr_connected);
-    connmgr_set_connected(true);
     assert_heap();
-
     USER_INTR_UNLOCK();
 }
 
@@ -622,12 +629,13 @@ void __wrap_tcp_tmr(void) {
     __real_tcp_tmr();
 }
 
+// TODO remove after debugging "double timer"
 void __real_tcp_timer_needed(void);
 ICACHE_FLASH_ATTR
 void __wrap_tcp_timer_needed(void) {
     static size_t enter_count = 0;
     assert(enter_count++ == 0);
-    user_dprintf("");
+    //user_dprintf("");
     __real_tcp_timer_needed();
     assert(--enter_count == 0);
 }
