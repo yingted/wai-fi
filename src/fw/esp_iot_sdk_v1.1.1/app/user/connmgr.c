@@ -31,6 +31,7 @@ bool connmgr_connected = true; // set to false in connmgr_init
 static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
 static struct tcp_pcb *ssl_pcb = NULL;
+static bool ssl_should_connect = false;
 
 static bool filter_dest = false, filter_bssid = false;
 
@@ -137,7 +138,9 @@ void wifi_handle_event_cb(System_Event_t *event) {
             user_dprintf("disconnected");
 
             USER_INTR_LOCK();
-            ssl_disconnect();
+            if (ssl_pcb != NULL) { // ssl_connect starts off by setting ssl_pcb
+                ssl_disconnect();
+            }
             USER_INTR_UNLOCK();
 
             if (netif_default == &icmp_tap) {
@@ -279,6 +282,7 @@ static void ssl_disconnect() {
     if (ssl_pcb) {
         tcp_abort(ssl_pcb);
         ssl_pcb = NULL;
+        ssl_should_connect = false;
     }
 
     assert(!connmgr_connected);
@@ -292,6 +296,7 @@ static void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi(); // should fail
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
+    ssl_should_connect = false;
     ssl_disconnect();
     schedule_reconnect();
 }
@@ -306,6 +311,7 @@ ICACHE_FLASH_ATTR
 static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     assert(err == ERR_OK);
     user_dprintf("tcp connected: err=%d", err);
+    ssl_should_connect = true;
     return ERR_OK;
 }
 
@@ -367,7 +373,8 @@ void icmp_net_process_queued_pbufs_callback() {
             // We're connecting
             return;
         }
-        if (ssl) {
+        if (ssl_should_connect) {
+            ssl_should_connect = false;
             // We aren't connecting, but should.
             os_port_blocking_call(ssl_connect_impl, NULL);
             assert(os_port_is_blocked);
