@@ -18,10 +18,9 @@ struct coro_control {
     char stack[0];
 #ifndef NDEBUG
     enum {
-        CORO_BEFORE,
+        CORO_DEAD,
         CORO_YIELD,
         CORO_RESUME,
-        CORO_AFTER,
     } state;
 #define CORO_GOTO(ctrl, new_state) ((ctrl)->state = CORO_ ## new_state)
 #else

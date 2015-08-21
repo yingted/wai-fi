@@ -14,7 +14,7 @@
 __attribute__((returns_twice))
 ICACHE_FLASH_ATTR
 void coro_start_impl(struct coro_control *VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg) {
-    assert(coro->state == CORO_BEFORE || coro->state == CORO_AFTER);
+    assert(coro->state == CORO_DEAD);
     assert(!coro->event); // initialized to false
     if (!setjmp(coro->main)) {
         CORO_GOTO(coro, RESUME);
@@ -32,7 +32,7 @@ void coro_start_impl(struct coro_control *VOLATILE coro, size_t stacksize, void(
 
         assert(coro->state == CORO_RESUME);
         assert(!coro->event);
-        CORO_GOTO(coro, AFTER);
+        CORO_GOTO(coro, DEAD);
     } else {
         assert(coro->state == CORO_YIELD);
         assert(coro->event);
@@ -50,9 +50,11 @@ void coro_resume_impl(struct coro_control *coro, uint8_t what) {
     coro->event = what;
 
     if (!setjmp(coro->main)) {
-        longjmp(os_port_worker_env, 1);
+        CORO_GOTO(coro, RESUME);
+        longjmp(coro->worker, 1);
     }
 
+    assert(coro->state == CORO_YIELD);
     assert(coro->event);
 }
 
@@ -61,8 +63,10 @@ void coro_yield_impl(struct coro_control *coro, VOLATILE size_t mask) {
     coro->event = mask;
 
     if (!setjmp(coro->worker)) {
-        longjmp(os_port_main_env, 1);
+        CORO_GOTO(coro, YIELD);
+        longjmp(coro->main, 1);
     }
 
+    assert(coro->state == CORO_RESUME);
     assert(coro->event & mask);
 }
