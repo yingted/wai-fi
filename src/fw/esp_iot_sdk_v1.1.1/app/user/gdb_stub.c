@@ -1,6 +1,8 @@
 #include <user_config.h>
 #include <xtensa/xtruntime-frames.h>
 #include <xtensa/corebits.h>
+#include <xtensa/xtruntime.h>
+#include <espressif/esp_system.h>
 #include <espressif/esp8266/uart_register.h>
 #include <gdb_stub.h>
 #include <eagle_soc.h>
@@ -393,7 +395,7 @@ static void gdb_attach(int exccause, int debugcause) {
         esync\n\
         rsil %0, 15\n\
         esync\n\
-    ":"+r"(saved_ps));
+    ":"=r"(saved_ps));
 
     if (should_output_stopped) {
         gdb_write_reset();
@@ -503,7 +505,7 @@ retrans:
                 case 'z':
                 case 'Z': {
                     uint8_t type = gdb_read_int();
-                    size_t kind; // not used
+                    size_t kind = addr = 0; // silence gcc
                     if (1 <= type && type <= 4) {
                         addr = gdb_read_int();
                         kind = gdb_read_int();

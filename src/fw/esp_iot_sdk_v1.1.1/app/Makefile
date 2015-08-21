@@ -38,7 +38,7 @@ endif # } PDIR
 APPDIR = .
 LDDIR = ../ld
 
-CCFLAGS += -MMD -include ../include/user_config.h
+CCFLAGS += -Wall -Wno-comment -MMD -include ../include/user_config.h
 
 ifeq ($(FLAVOR),release)
 	DEFINES += -DNDEBUG

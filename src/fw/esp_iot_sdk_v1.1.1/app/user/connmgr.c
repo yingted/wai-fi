@@ -8,8 +8,10 @@
 #include <lwip/netif/etharp.h>
 #include <lwip/sockets.h>
 #include <lwip/tcp.h>
+#include <lwip/timers.h>
 #include <debug_esp.h>
 #include <default_ca_certificate.h>
+#include <promisc.h>
 #include <connmgr.h>
 #define __XTENSA_WINDOWED_ABI__ 0
 #include <setjmp.h>
@@ -86,14 +88,14 @@ int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
         connmgr_packet_cb(m->packet->payload, m->header_len, m->body_len, rssi);
 
         if (
-                filter_dest && (
+                (filter_dest && (
                     memcmp(bcast_mac, m->packet->payload + 4, 6) &&
                     memcmp(sta_mac, m->packet->payload + 4, 6)
-                ) ||
-                filter_bssid && (
+                )) ||
+                (filter_bssid && (
                     memcmp(last_bssid, m->packet->payload + 10, 6) ||
                     memcmp(last_bssid, m->packet->payload + 16, 6)
-                )
+                ))
             ) {
             ppRecycleRxPkt(m);
             return ERR_OK;
@@ -458,7 +460,7 @@ static void ssl_connect() {
     ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
 
     err_t rc;
-    if (rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0)) {
+    if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
         user_dprintf("tcp_bind: error %d", rc);
         assert(false);
         system_restart();
@@ -469,7 +471,7 @@ static void ssl_connect() {
     tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
     tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
-    if (rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb)) {
+    if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
         user_dprintf("tcp_connect: error %d", rc);
         assert(false);
         system_restart();
@@ -503,11 +505,11 @@ static void os_port_blocking_call(void (*fn)(void *), void *arg) {
         __asm__ __volatile__("\
             mov %[sp], a1\n\
             mov a1, %[stack_top]\n\
-        ":[sp]"=r"(sp):[stack_top]"r"(stack_top));
+        ":[sp] "=r"(sp):[stack_top] "r"(stack_top));
         (*fn)(arg);
         __asm__ __volatile__("\
             mov a1, %[sp]\n\
-        "::[sp]"r"(sp));
+        "::[sp] "r"(sp));
     } else {
         assert(!os_port_is_blocked);
 #ifndef NDEBUG

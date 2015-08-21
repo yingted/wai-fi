@@ -3,6 +3,9 @@
 
 ICACHE_FLASH_ATTR
 void promisc_start() {
+    void wDevDisableRx(void);
+    void wDevEnableRx(void);
+    void ets_delay_us(size_t arg);
     wDevDisableRx();
     //size_t flags = 0b11011110011111100111; // tx, no rx
     //size_t flags = 0b00000000011111100000; // broken

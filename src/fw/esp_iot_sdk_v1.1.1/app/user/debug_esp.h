@@ -4,7 +4,7 @@
 #include <xtensa/config/core-isa.h>
 
 #ifndef NDEBUG
-void print_stack();
+void print_stack(void);
 #define print_stack_once() do { \
     static bool printed = 0; \
     if (printed) \
@@ -18,9 +18,9 @@ void print_stack();
 
 #define assert_heap() assert_heap_(__FILE__, __LINE__)
 void assert_heap_(char *file, int line);
-void show_esf_buf();
-void mem_error();
-void debug_esp_install_exc_handler();
+void show_esf_buf(void);
+void mem_error(void);
+void debug_esp_install_exc_handler(void);
 
 #define pvPortMalloc __real_pvPortMalloc
 #define inet_chksum_pseudo __real_inet_chksum_pseudo
@@ -31,9 +31,9 @@ void debug_esp_install_exc_handler();
 #define mem_realloc __real_mem_realloc
 
 extern size_t intr_lock_count[XCHAL_NMILEVEL], intr_lock_count_sum;
-void debug_esp_user_intr_lock();
-void debug_esp_user_intr_unlock();
-void debug_esp_assert_not_nmi();
+void debug_esp_user_intr_lock(void);
+void debug_esp_user_intr_unlock(void);
+void debug_esp_assert_not_nmi(void);
 
 #else
 
@@ -45,6 +45,6 @@ void debug_esp_assert_not_nmi();
 
 #endif
 
-void debug_esp_fatal();
+void debug_esp_fatal(void);
 
 #endif

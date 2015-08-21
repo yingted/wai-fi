@@ -57,5 +57,13 @@ EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_
 #define ICACHE_FLASH_ATTR __attribute__((section(".irom0.text")))
 #define USER_DATA32_ATTR /*__attribute__((aligned(4))) ICACHE_RODATA_ATTR*/
 
+// Espressif APIs
+extern void ppRecycleRxPkt(void *);
+void ets_intr_lock(void);
+void ets_intr_unlock(void);
+size_t ets_wdt_get_mode();
+void ets_wdt_restore(size_t mode);
+void ets_wdt_disable();
+
 #endif
 

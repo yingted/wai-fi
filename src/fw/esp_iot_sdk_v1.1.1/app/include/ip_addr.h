@@ -9,6 +9,9 @@ struct ip_info {
     struct ip_addr gw;
 };
 
+// From espressif/esp_wifi.h:
+bool wifi_get_macaddr(uint8 if_index, uint8 *macaddr);
+
 // We're missing a bunch of definitions
 #define IP2STR(ipaddr) ip4_addr1_16(ipaddr), \
     ip4_addr2_16(ipaddr), \

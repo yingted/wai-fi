@@ -7,6 +7,7 @@
 #include <lwip/ip.h>
 #include <lwip/netif.h>
 #include <lwip/netif/etharp.h>
+#include <espressif/esp_system.h>
 #include <stddef.h>
 #include <xtensa/config/core-isa.h>
 

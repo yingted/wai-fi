@@ -7,6 +7,7 @@
 #include <lwip/ip.h>
 #include <lwip/netif.h>
 #include <lwip/netif/etharp.h>
+#include <lwip/inet_chksum.h>
 #include <stddef.h>
 #include <debug_esp.h>
 #include <icmp_net_defs.h>
@@ -75,7 +76,7 @@ static void drop_echo_reply(struct icmp_net_config *config) {
     assert(ICMP_NET_CONFIG_QLEN(config) <= ICMP_NET_QSIZE);
     assert_heap();
     struct pbuf *p;
-    while (p = config->queue[++config->recv_i % ICMP_NET_QSIZE]) {
+    while ((p = config->queue[++config->recv_i % ICMP_NET_QSIZE])) {
         if (ICMP_NET_CONFIG_QLEN(config) == 0) {
             // We've just dropped the last outstanding packet, so there's nothing left to process
             // A keepalive must be sent
