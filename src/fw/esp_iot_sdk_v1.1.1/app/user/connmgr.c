@@ -37,11 +37,14 @@ static CORO_T(256) coro;
 extern int os_port_impure_errno;
 
 #define EVENT_CANCEL    0x00000001
-#define EVENT_RECV      0x00000002
-#define EVENT_SENT      0x00000004
+#define EVENT_READ      0x00000002
+#define EVENT_WRITE     0x00000004
 #define EVENT_START     0x00000008
 #define EVENT_STOP      0x00000010
 #define EVENT_ASSOCIATE 0x00000020
+#define EVENT_CONNECT   0x00000040
+#define EVENT_POLL      0x00000080
+#define EVENT_RECV      0x00000100
 #define EVENT_ANY    ((size_t)~0)
 #define EVENT_INTR (EVENT_CANCEL | EVENT_STOP)
 
@@ -138,13 +141,23 @@ static void connmgr_init_impl(void *arg) {
                 assert_heap();
                 USER_INTR_UNLOCK();
 
-                ...
+                CORO_IF(CONNECT) {
+                }
 
                 if (ssl_pcb != NULL) {
                     tcp_abort(ssl_pcb);
                     ssl_pcb = NULL;
                 }
             }
+
+            user_dprintf("heap: %d", system_get_free_heap_size());
+            assert_heap();
+
+            wifi_set_opmode_current(NULL_MODE);
+            wifi_set_event_handler_cb(NULL);
+
+            user_dprintf("stopped");
+            assert_heap();
         } else {
             assert(false);
         }
@@ -253,16 +266,7 @@ void connmgr_start() {
 
 ICACHE_FLASH_ATTR
 void connmgr_stop() {
-#if 0
-    user_dprintf("heap: %d", system_get_free_heap_size());
-    assert_heap();
-
-    wifi_set_opmode_current(NULL_MODE);
-    wifi_set_event_handler_cb(NULL);
-
-    user_dprintf("stopped");
-    assert_heap();
-#endif
+    CORO_RESUME(coro, EVENT_STOP);
 }
 
 // SSL client
@@ -290,38 +294,6 @@ static void schedule_reconnect() {
 }
 
 ICACHE_FLASH_ATTR
-static void ssl_disconnect() {
-#if 0
-    assert(connmgr_connected || os_port_is_blocked);
-    if (connmgr_connected) {
-        assert(ssl != NULL);
-        ssl_free(ssl);
-        if (ssl_pcb != NULL) {
-            tcp_abort(ssl_pcb);
-        }
-        connmgr_set_connected(false);
-        connmgr_disconnect_cb();
-    }
-    if (os_port_is_blocked) {
-        assert(!os_port_is_worker);
-        os_port_is_interrupted = true;
-        os_port_blocking_resume();
-    }
-    assert(ssl == NULL);
-    if (ssl_pcb) {
-        tcp_abort(ssl_pcb);
-        ssl_pcb = NULL;
-        ssl_should_connect = false;
-    }
-
-    assert(!connmgr_connected);
-    assert(!os_port_is_blocked);
-    assert(!os_port_is_worker);
-    assert(!os_port_is_interrupted);
-#endif
-}
-
-ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi(); // should fail
 #if 0
@@ -343,11 +315,9 @@ static void ssl_connect_impl(void *arg) {
 
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
-    assert(err == ERR_OK);
     user_dprintf("tcp connected: err=%d", err);
-#if 0
-    ssl_should_connect = true;
-#endif
+    assert(err == ERR_OK);
+    CORO_RESUME(coro, EVENT_CONNECT);
     return ERR_OK;
 }
 
@@ -385,7 +355,6 @@ static struct {
 static struct pbuf *ssl_pcb_recv_buf = NULL;
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
-#if 0
     user_dprintf("%p", p);
     if (p == NULL) {
         user_dprintf("err=%d", err);
@@ -402,38 +371,16 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         pbuf_cat(ssl_pcb_recv_buf, p);
     }
     return err;
-#endif
 }
 
 ICACHE_FLASH_ATTR
 void icmp_net_process_queued_pbufs_callback() {
     user_dprintf("");
+    if (ssl_pcb_recv_buf != NULL) {
+        // We've received pbufs
+        CORO_RESUME(coro, EVENT_RECV);
+    }
 #if 0
-    if (ssl_pcb == NULL) {
-        // Pretend not to get network events.
-        return;
-    }
-
-    if (!connmgr_connected) {
-        if (os_port_is_blocked) {
-            // We're connecting
-            return;
-        }
-        if (ssl_should_connect) {
-            ssl_should_connect = false;
-            // We aren't connecting, but should.
-            os_port_blocking_call(ssl_connect_impl, NULL);
-            assert(os_port_is_blocked);
-            assert(!os_port_is_worker);
-        }
-        return;
-    }
-
-    if (ssl_pcb_recv_buf == NULL) {
-        // No queued pbufs
-        return;
-    }
-
     for (;;) {
         user_dprintf("resuming coroutine");
         // Exhaust the coroutine
@@ -497,11 +444,7 @@ void icmp_net_process_queued_pbufs_callback() {
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
     user_dprintf("");
-#if 0
-    if (is_write_blocked) {
-        os_port_blocking_resume();
-    }
-#endif
+    CORO_RESUME(coro, EVENT_POLL);
     return ERR_OK;
 }
 
@@ -612,6 +555,9 @@ struct sta_input_pkt {
     // byte 24
 };
 
+/**
+ * Capture all packets. Send them to connmgr_packet_cb.
+ */
 int __real_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf);
 ICACHE_FLASH_ATTR
 int __wrap_sta_input(void *ni, struct sta_input_pkt *m, int rssi, int nf) {
