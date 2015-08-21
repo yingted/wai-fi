@@ -154,6 +154,9 @@ WRAP := \
 	-Wl,-wrap,pvPortRealloc \
 	-Wl,-wrap,sta_input \
 	-Wl,-wrap,dhcp_fine_tmr \
+	-Wl,-wrap,tcp_tmr \
+	-Wl,-wrap,tcp_timer_needed \
+	-Wl,-wrap,sys_check_timeouts \
 
 ifeq ($(DEBUG_ESP),1)
 	DEFINES += -DDEBUG_ESP

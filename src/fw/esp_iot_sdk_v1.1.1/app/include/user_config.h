@@ -25,6 +25,8 @@
 // fix header conflict
 #include <ip_addr.h>
 #define LWIP_OPEN_SRC
+// Espressif-ness
+#define TCP_TMR_INTERVAL 125
 
 // I don't understand why this is necessary for ABI compatibility
 // Anyways, we're still not ABI-compatible with the latest SDK.

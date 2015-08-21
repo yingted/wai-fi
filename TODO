@@ -6,5 +6,4 @@
 - remote shell
 - handle mismatched certificate/private key error
 - add roaming support?
-- rate limit tcp_fasttmr
 - convert connmgr to coroutine-on-reactor design

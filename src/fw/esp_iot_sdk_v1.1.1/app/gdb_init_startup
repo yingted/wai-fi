@@ -1,5 +1,6 @@
 source gdb_init
 target remote /dev/ttyUSB0
+thb tcp_zero_window_probe
 c
 
 echo \033\133\060\155

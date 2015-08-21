@@ -593,3 +593,41 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
     }
     return len;
 }
+
+void __real_tcp_tmr(void);
+ICACHE_FLASH_ATTR
+void __wrap_tcp_tmr(void) {
+    // TODO investigate this
+#if 0
+    {
+        static size_t last_time, sys_last_time;
+        size_t time = system_get_time(), sys_time = NOW()/(TIMER_CLK_FREQ/1000);
+        user_dprintf("delay=%d, sys_delay=%d", time - last_time, sys_time - sys_last_time);
+        if (last_time != 0 && time - last_time < 124000) {
+            //gdb_stub_break();
+        }
+        //gdb_stub_break();
+        last_time = time;
+        sys_last_time = sys_time;
+    }
+#endif
+    static bool has_run = false;
+    static size_t last_time;
+    size_t time = system_get_time();
+    if ((time - last_time < (TCP_TMR_INTERVAL * 3 / 4) * 1000) && has_run) {
+        return;
+    }
+    last_time = time;
+    has_run = true;
+    __real_tcp_tmr();
+}
+
+void __real_tcp_timer_needed(void);
+ICACHE_FLASH_ATTR
+void __wrap_tcp_timer_needed(void) {
+    static size_t enter_count = 0;
+    assert(enter_count++ == 0);
+    user_dprintf("");
+    __real_tcp_timer_needed();
+    assert(--enter_count == 0);
+}
