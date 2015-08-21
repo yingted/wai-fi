@@ -36,6 +36,11 @@ static void ssl_connect();
 static void ssl_disconnect();
 static void os_port_blocking_resume();
 static void os_port_blocking_call(void (*fn)(void *), void *arg);
+static bool os_port_is_blocked = false, os_port_is_interrupted = false;
+#ifndef NDEBUG
+static bool os_port_is_worker = false;
+#endif
+extern int os_port_impure_errno;
 
 // State management
 
@@ -130,9 +135,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
             user_dprintf("disconnected");
 
             USER_INTR_LOCK();
-            if (connmgr_connected) {
-                ssl_disconnect();
-            }
+            ssl_disconnect();
             USER_INTR_UNLOCK();
 
             if (netif_default == &icmp_tap) {
@@ -174,7 +177,7 @@ void connmgr_init() {
     wifi_station_set_auto_connect(0);
 
     // XXX session caching
-    ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 0);
+    ssl_ctx = ssl_ctx_new(0, 0);
     err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
     assert(rc == SSL_OK);
     assert(ssl_ctx->ca_cert_ctx);
@@ -255,14 +258,25 @@ static void schedule_reconnect() {
 
 ICACHE_FLASH_ATTR
 static void ssl_disconnect() {
-    assert(connmgr_connected);
-    assert(ssl != NULL);
-    ssl_free(ssl);
-    if (ssl_pcb != NULL) {
-        tcp_abort(ssl_pcb);
+    assert(connmgr_connected || os_port_is_blocked);
+    if (connmgr_connected) {
+        assert(ssl != NULL);
+        ssl_free(ssl);
+        if (ssl_pcb != NULL) {
+            tcp_abort(ssl_pcb);
+        }
+        connmgr_set_connected(false);
+        connmgr_disconnect_cb();
+    } else if (os_port_is_blocked) {
+        assert(!os_port_is_worker);
+        os_port_is_interrupted = true;
+        os_port_blocking_resume();
     }
-    connmgr_set_connected(false);
-    connmgr_disconnect_cb();
+
+    assert(!connmgr_connected);
+    assert(!os_port_is_blocked);
+    assert(!os_port_is_worker);
+    assert(!os_port_is_interrupted);
 }
 
 ICACHE_FLASH_ATTR
@@ -275,11 +289,24 @@ static void ssl_pcb_err_cb(void *arg, err_t err) {
 }
 
 ICACHE_FLASH_ATTR
+static void ssl_connect_impl(void *arg) {
+    // XXX use session id
+    ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+
+    USER_INTR_LOCK();
+    connmgr_set_connected(true);
+    USER_INTR_UNLOCK();
+
+    user_dprintf("connected\x1b[34m");
+    filter_dest = filter_bssid = true;
+    promisc_start();
+    connmgr_connect_cb();
+}
+
+ICACHE_FLASH_ATTR
 static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     assert(err == ERR_OK);
     user_dprintf("tcp connected: err=%d", err);
-    // XXX use session id
-    ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
     return ERR_OK;
 }
 
@@ -290,6 +317,7 @@ struct connmgr_send_impl_arg {
 ICACHE_FLASH_ATTR
 static void connmgr_send_impl(void *void_arg) {
     struct connmgr_send_impl_arg *arg = void_arg;
+    user_dprintf("%p", arg);
     // This call always writes everything, as per the API
     ssl_write(ssl, arg->buf, arg->len);
 }
@@ -330,6 +358,16 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 
 ICACHE_FLASH_ATTR
 void icmp_net_process_queued_pbufs_callback() {
+    if (!connmgr_connected) {
+        if (os_port_is_blocked) {
+            // We're connecting
+            return;
+        }
+        // We aren't connecting, but should.
+        os_port_blocking_call(ssl_connect_impl, NULL);
+        return;
+    }
+
     if (ssl_pcb_recv_buf == NULL) {
         // No queued pbufs
         return;
@@ -357,7 +395,7 @@ void icmp_net_process_queued_pbufs_callback() {
             struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
             ssl_pcb_recv_buf = prev_pbuf->next;
             if (ssl_pcb_recv_buf == NULL) {
-                goto short_read;
+                return;
             }
             pbuf_ref(ssl_pcb_recv_buf);
             pbuf_dechain(prev_pbuf);
@@ -369,19 +407,14 @@ void icmp_net_process_queued_pbufs_callback() {
     }
 
     assert(!is_read_blocked);
+    assert(!os_port_is_worker);
+    assert(!os_port_is_blocked);
+    assert(!os_port_is_interrupted);
+
     // Callback time. Read some data and such.
     // We can't call any axTLS APIs until we unwind out of lwIP, since axTLS
     // may block on some lwIP function.
-    USER_INTR_LOCK();
-    connmgr_set_connected(true);
-    USER_INTR_UNLOCK();
-
-    user_dprintf("connected\x1b[34m");
-    filter_dest = filter_bssid = true;
-    promisc_start();
-    connmgr_connect_cb();
-
-short_read:;
+    // XXX
 }
 
 static bool is_write_blocked = false;
@@ -447,28 +480,34 @@ static void ssl_connect() {
 
 // Only supports one blocking call at once.
 static jmp_buf os_port_main_env, os_port_worker_env;
-static bool os_port_is_blocked = false;
-#ifndef NDEBUG
-static bool os_port_is_worker = false;
-#endif
 __attribute__((returns_twice))
 ICACHE_FLASH_ATTR
 static void os_port_blocking_call(void (*fn)(void *), void *arg) {
     static char stack[1024];
     assert(!os_port_is_blocked);
     assert(!os_port_is_worker);
+    user_dprintf("%p %p", fn, arg);
     if (!setjmp(os_port_main_env)) {
         os_port_is_blocked = false;
 #ifndef NDEBUG
         os_port_is_worker = true;
 #endif
-        __asm__ __volatile__("mov a1, %0"::"r"(stack + sizeof(stack)));
+        static void *volatile sp;
+        register void *stack_top = stack + sizeof(stack);
+        __asm__ __volatile__("\
+            mov %[sp], a1\n\
+            mov a1, %[stack_top]\n\
+        ":[sp]"=r"(sp):[stack_top]"r"(stack_top));
         (*fn)(arg);
+        __asm__ __volatile__("\
+            mov a1, %[sp]\n\
+        "::[sp]"r"(sp));
     } else {
         assert(!os_port_is_blocked);
 #ifndef NDEBUG
         os_port_is_worker = false;
 #endif
+        os_port_is_interrupted = false;
     }
 }
 
@@ -500,13 +539,21 @@ static void os_port_blocking_resume() {
 
 // Blocking socket implementation
 
+#define CANCELLATION_POINT() \
+    if (os_port_is_interrupted) { \
+        os_port_impure_errno = EIO; \
+        return -1; \
+    }
+
 __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     assert(len > 0);
+    CANCELLATION_POINT();
     ssl_pcb_recv_cb_arg.buf = (uint8_t *)buf;
     ssl_pcb_recv_cb_arg.len = len;
     os_port_blocking_yield();
+    CANCELLATION_POINT();
     return len;
 }
 
@@ -514,6 +561,7 @@ __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t len) {
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
+    CANCELLATION_POINT();
     for (;;) {
         err_t rc = tcp_write(tpcb, buf, len, 0);
         switch (rc) {
@@ -523,9 +571,9 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
                 is_write_blocked = true;
                 os_port_blocking_yield();
                 is_write_blocked = false;
+                CANCELLATION_POINT();
                 continue;
             default:;
-                extern int os_port_impure_errno;
                 os_port_impure_errno = rc;
                 return -1;
         }
