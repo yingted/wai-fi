@@ -42,18 +42,17 @@ extern int os_port_impure_errno;
 #define EVENT_WRITE        0x00000004 // client called connmgr_write
 #define EVENT_START        0x00000008 // client called connmgr_start
 #define EVENT_STOP         0x00000010 // client called connmgr_stop
-#define EVENT_ASSOCIATE    0x00000020 // AP sent associate
+#define EVENT_GOT_IP       0x00000020 // AP set DHCP ACK
 #define EVENT_CONNECT      0x00000040 // remote sent syn/ack
 #define EVENT_POLL         0x00000080 // connection idle or remote sent ack
 #define EVENT_RECV         0x00000100 // remote sent data
-#define EVENT_RECONNECT    0x00000200 // reconnect timer went off
-#define EVENT_TUNNEL       0x00000400 // AP sent DHCP ACK, netif set up
-#define EVENT_DISASSOCIATE 0x00000800 // AP sent disassociate
+#define EVENT_TIMER        0x00000200 // timer went off
+#define EVENT_DISASSOCIATE 0x00000400 // AP sent disassociate
 #define EVENT_ANY    ((size_t)~0)
 #define EVENT_INTR (EVENT_ABORT | EVENT_STOP | EVENT_DISASSOCIATE)
 #define EVENT_IO (EVENT_READ | EVENT_WRITE)
 
-#define CONNMGR_IF(event) \
+#define CORO_IF(event) \
     CORO_YIELD(coro, EVENT_ANY); \
     _Static_assert(!(EVENT_INTR & EVENT_ ## event)); \
     assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event)); \
@@ -70,9 +69,11 @@ static void connmgr_init_impl(void *arg) {
     wifi_station_set_auto_connect(0);
 
     // XXX session caching
-    SSL_CTX *ssl_ctx = ssl_ctx_new(0, 0);
-    err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
-    assert(rc == SSL_OK);
+    static SSL_CTX *ssl_ctx = ssl_ctx_new(0, 0);
+    {
+        err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
+        assert(rc == SSL_OK);
+    }
     assert(ssl_ctx->ca_cert_ctx);
     assert(ssl_ctx->ca_cert_ctx->cert[0] != NULL);
     assert(ssl_ctx->ca_cert_ctx->cert[1] == NULL);
@@ -98,6 +99,7 @@ static void connmgr_init_impl(void *arg) {
 
     for (;;) {
         CORO_IF(START) {
+connmgr_start_resume:;
             wifi_set_opmode_current(NULL_MODE);
             wifi_set_event_handler_cb(wifi_handle_event_cb);
             wifi_set_opmode_current(STATION_MODE);
@@ -113,14 +115,31 @@ static void connmgr_init_impl(void *arg) {
 
             user_dprintf("started\x1b[31m");
 
-            CORO_IF(ASSOCIATE) {
-                USER_INTR_LOCK();
+            CORO_IF(GOT_IP) {
+                assert_heap();
+                static struct netif *saved_default = NULL;
+                {
+                    assert(netif_default != &icmp_tap);
+                    icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
 
-                ...
+                    assert(saved_default == NULL);
+                    saved_default = netif_default;
+                    netif_default = &icmp_tap;
 
-                CORO_IF(TUNNEL) {
+                    err_t rc = dhcp_start(&icmp_tap);
+                    if (rc != ERR_OK) {
+                        user_dprintf("dhcp error: %d", rc);
+                    }
+                }
+
+                CORO_IF(GOT_IP) {
+                    assert(netif_default == &icmp_tap);
+                    user_dprintf("tunnel established");
+                    ssl_connect();
+
                     for (;;) {
-                        struct tcp_pcb *ssl_pcb = tcp_new();
+                        USER_INTR_LOCK();
+                        static struct tcp_pcb *ssl_pcb = tcp_new();
                         assert(ssl_pcb != NULL);
                         ip_set_option(ssl_pcb, SO_REUSEADDR);
                         tcp_nagle_disable(ssl_pcb);
@@ -152,7 +171,7 @@ static void connmgr_init_impl(void *arg) {
                         USER_INTR_UNLOCK();
 
                         CORO_IF(CONNECT) {
-                            SSL *ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+                            static SSL *ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
 
                             sys_untimeout(connmgr_restart, NULL);
                             user_dprintf("connected\x1b[34m");
@@ -179,14 +198,27 @@ static void connmgr_init_impl(void *arg) {
                             ssl_free(ssl);
                         }
 
-                        if (ssl_pcb != NULL) {
-                            tcp_abort(ssl_pcb);
-                            ssl_pcb = NULL;
-                        }
+                        assert(ssl_pcb != NULL);
+                        tcp_abort(ssl_pcb);
+                        ssl_pcb = NULL;
 
                         if (coro.ctrl.event == EVENT_ABORT) {
+                            continue;
+                        } else {
+                            break;
                         }
                     }
+                }
+
+                {
+                    assert(netif_default == &icmp_tap);
+
+                    dhcp_stop(&icmp_tap);
+                    netif_set_down(&icmp_tap);
+
+                    icmp_net_unenslave(&icmp_config);
+                    netif_default = saved_default;
+                    saved_default = NULL;
                 }
             }
 
@@ -196,6 +228,10 @@ static void connmgr_init_impl(void *arg) {
             wifi_set_opmode_current(NULL_MODE);
             wifi_set_event_handler_cb(NULL);
 
+            wifi_promiscuous_enable(0);
+            filter_bssid = false;
+            filter_dest = true;
+
             user_dprintf("stopped");
             assert_heap();
         } else {
@@ -203,20 +239,20 @@ static void connmgr_init_impl(void *arg) {
         }
 
         assert(conn.ctrl.event & EVENT_INTR);
-        if (conn.ctrl.event & EVENT_ABORT) {
+        if (conn.ctrl.event & EVENT_DISASSOCIATE) {
             // Cancellation is caused only by errors.
-            sys_timeout(10 /* seconds */ * 1000, connmgr_reconnect, NULL);
-            CORO_YIELD(conn, RECONNECT);
+            sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
+            CORO_IF(conn, TIMER) {
+                goto connmgr_start_resume;
+            } else {
+                sys_untimeout(connmgr_timer, NULL);
+            }
         }
     }
 }
 
 ICACHE_FLASH_ATTR
 void wifi_handle_event_cb(System_Event_t *event) {
-#if 0
-    assert_heap();
-    static struct netif *saved_default = NULL;
-#endif
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:
             user_dprintf("ip " IPSTR " mask " IPSTR " gw " IPSTR,
@@ -226,48 +262,14 @@ void wifi_handle_event_cb(System_Event_t *event) {
             assert_heap();
 
             debug_esp_assert_not_nmi();
-            CORO_RESUME(coro, EVENT_ASSOCIATE);
-#if 0
-            if (netif_default != &icmp_tap) {
-                icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
-
-                assert(saved_default == NULL);
-                saved_default = netif_default;
-                netif_default = &icmp_tap;
-
-                err_t rc = dhcp_start(&icmp_tap);
-                if (rc != ERR_OK) {
-                    user_dprintf("dhcp error: %d", rc);
-                }
-            } else {
-                user_dprintf("tunnel established");
-                ssl_connect();
-            }
-#endif
+            CORO_RESUME(coro, EVENT_GOT_IP);
             break;
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
             CORO_RESUME(coro, EVENT_DISASSOCIATE);
-#if 0
-            USER_INTR_LOCK();
-            if (ssl_pcb != NULL) { // ssl_connect starts off by setting ssl_pcb
-                ssl_disconnect();
-            }
-            USER_INTR_UNLOCK();
-
-            if (netif_default == &icmp_tap) {
-                dhcp_stop(&icmp_tap);
-                netif_set_down(&icmp_tap);
-
-                icmp_net_unenslave(&icmp_config);
-                netif_default = saved_default;
-                saved_default = NULL;
-            }
-            filter_bssid = false;
-            filter_dest = true;
-#endif
             break;
         case EVENT_STAMODE_CONNECTED:
+            // We handle this in GOT_IP anyways, so just grab the SSID.
             user_dprintf("connected\x1b[32m");
             os_memcpy(last_bssid, event->event_info.connected.bssid, sizeof(last_bssid));
             wifi_get_macaddr(STATION_IF, sta_mac);
@@ -453,7 +455,6 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
 __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t len) {
-#if 0
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
     CONNMGR_TESTCANCEL();
     for (;;) {
@@ -462,9 +463,8 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
             case ERR_OK:
                 return len;
             case ERR_MEM:
-                is_write_blocked = true;
-                os_port_blocking_yield();
-                is_write_blocked = false;
+                // We need to poll until we can write.
+                CORO_YIELD(coro, EVENT_POLL);
                 CONNMGR_TESTCANCEL();
                 continue;
             default:;
@@ -473,7 +473,6 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
         }
     }
     return len;
-#endif
 }
 
 // API hooks
