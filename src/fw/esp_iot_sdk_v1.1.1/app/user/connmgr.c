@@ -22,6 +22,10 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
+static struct {
+    const uint8_t *buf;
+    int len;
+} connmgr_write_arg;
 #if 0
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -33,19 +37,21 @@ static bool filter_dest = false, filter_bssid = false;
 static CORO_T(256) coro;
 extern int os_port_impure_errno;
 
-#define EVENT_CANCEL    0x00000001
-#define EVENT_READ      0x00000002
-#define EVENT_WRITE     0x00000004
-#define EVENT_START     0x00000008
-#define EVENT_STOP      0x00000010
-#define EVENT_ASSOCIATE 0x00000020
-#define EVENT_CONNECT   0x00000040
-#define EVENT_POLL      0x00000080
-#define EVENT_RECV      0x00000100
-#define EVENT_RECONNECT 0x00000200
-#define EVENT_TUNNEL    0x00000400
+#define EVENT_ABORT        0x00000001 // remote closed SSL connection
+#define EVENT_READ         0x00000002 // client called connmgr_read
+#define EVENT_WRITE        0x00000004 // client called connmgr_write
+#define EVENT_START        0x00000008 // client called connmgr_start
+#define EVENT_STOP         0x00000010 // client called connmgr_stop
+#define EVENT_ASSOCIATE    0x00000020 // AP sent associate
+#define EVENT_CONNECT      0x00000040 // remote sent syn/ack
+#define EVENT_POLL         0x00000080 // connection idle or remote sent ack
+#define EVENT_RECV         0x00000100 // remote sent data
+#define EVENT_RECONNECT    0x00000200 // reconnect timer went off
+#define EVENT_TUNNEL       0x00000400 // AP sent DHCP ACK, netif set up
+#define EVENT_DISASSOCIATE 0x00000800 // AP sent disassociate
 #define EVENT_ANY    ((size_t)~0)
-#define EVENT_INTR (EVENT_CANCEL | EVENT_STOP)
+#define EVENT_INTR (EVENT_ABORT | EVENT_STOP | EVENT_DISASSOCIATE)
+#define EVENT_IO (EVENT_READ | EVENT_WRITE)
 
 #define CONNMGR_IF(event) \
     CORO_YIELD(coro, EVENT_ANY); \
@@ -113,53 +119,73 @@ static void connmgr_init_impl(void *arg) {
                 ...
 
                 CORO_IF(TUNNEL) {
-                    struct tcp_pcb *ssl_pcb = tcp_new();
-                    assert(ssl_pcb != NULL);
-                    ip_set_option(ssl_pcb, SO_REUSEADDR);
-                    tcp_nagle_disable(ssl_pcb);
-                    ssl_pcb->so_options |= SOF_KEEPALIVE;
-                    ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
-                    ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
-                    ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
+                    for (;;) {
+                        struct tcp_pcb *ssl_pcb = tcp_new();
+                        assert(ssl_pcb != NULL);
+                        ip_set_option(ssl_pcb, SO_REUSEADDR);
+                        tcp_nagle_disable(ssl_pcb);
+                        ssl_pcb->so_options |= SOF_KEEPALIVE;
+                        ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
+                        ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
+                        ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
 
-                    err_t rc;
-                    if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
-                        user_dprintf("tcp_bind: error %d", rc);
-                        assert(false);
-                        system_restart();
-                    }
+                        err_t rc;
+                        if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
+                            user_dprintf("tcp_bind: error %d", rc);
+                            assert(false);
+                            system_restart();
+                        }
 
-                    tcp_err(ssl_pcb, ssl_pcb_err_cb);
-                    tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
-                    tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
-                    tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
+                        tcp_err(ssl_pcb, ssl_pcb_err_cb);
+                        tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
+                        tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+                        tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
-                    if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
-                        user_dprintf("tcp_connect: error %d", rc);
-                        assert(false);
-                        system_restart();
-                    }
+                        if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
+                            user_dprintf("tcp_connect: error %d", rc);
+                            assert(false);
+                            system_restart();
+                        }
 
-                    assert(!connmgr_connected);
-                    assert_heap();
-                    USER_INTR_UNLOCK();
+                        assert(!connmgr_connected);
+                        assert_heap();
+                        USER_INTR_UNLOCK();
 
-                    CORO_IF(CONNECT) {
-                        SSL *ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+                        CORO_IF(CONNECT) {
+                            SSL *ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
 
-                        sys_untimeout(connmgr_restart, NULL);
-                        user_dprintf("connected\x1b[34m");
-                        filter_dest = filter_bssid = true;
-                        promisc_start();
-                        connmgr_connect_cb();
+                            sys_untimeout(connmgr_restart, NULL);
+                            user_dprintf("connected\x1b[34m");
+                            filter_dest = filter_bssid = true;
+                            promisc_start();
+                            connmgr_connect_cb();
 
-                        sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
-                        ssl_free(ssl);
-                    }
+                            for (;;) {
+                                CORO_IF(IO) {
+                                    if (coro.ctrl.event == EVENT_WRITE) {
+                                        // This call always writes everything, as per the API
+                                        ssl_write(ssl, arg->buf, arg->len);
+                                    } else if (coro.ctrl.event == EVENT_READ) {
+                                        ...
+                                    } else {
+                                        assert(false);
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
 
-                    if (ssl_pcb != NULL) {
-                        tcp_abort(ssl_pcb);
-                        ssl_pcb = NULL;
+                            sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
+                            ssl_free(ssl);
+                        }
+
+                        if (ssl_pcb != NULL) {
+                            tcp_abort(ssl_pcb);
+                            ssl_pcb = NULL;
+                        }
+
+                        if (coro.ctrl.event == EVENT_ABORT) {
+                        }
                     }
                 }
             }
@@ -177,7 +203,7 @@ static void connmgr_init_impl(void *arg) {
         }
 
         assert(conn.ctrl.event & EVENT_INTR);
-        if (conn.ctrl.event & EVENT_CANCEL) {
+        if (conn.ctrl.event & EVENT_ABORT) {
             // Cancellation is caused only by errors.
             sys_timeout(10 /* seconds */ * 1000, connmgr_reconnect, NULL);
             CORO_YIELD(conn, RECONNECT);
@@ -190,6 +216,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
 #if 0
     assert_heap();
     static struct netif *saved_default = NULL;
+#endif
     switch (event->event) {
         case EVENT_STAMODE_GOT_IP:
             user_dprintf("ip " IPSTR " mask " IPSTR " gw " IPSTR,
@@ -198,6 +225,9 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.gw));
             assert_heap();
 
+            debug_esp_assert_not_nmi();
+            CORO_RESUME(coro, EVENT_ASSOCIATE);
+#if 0
             if (netif_default != &icmp_tap) {
                 icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
 
@@ -213,10 +243,12 @@ void wifi_handle_event_cb(System_Event_t *event) {
                 user_dprintf("tunnel established");
                 ssl_connect();
             }
+#endif
             break;
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
-
+            CORO_RESUME(coro, EVENT_DISASSOCIATE);
+#if 0
             USER_INTR_LOCK();
             if (ssl_pcb != NULL) { // ssl_connect starts off by setting ssl_pcb
                 ssl_disconnect();
@@ -233,6 +265,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
             }
             filter_bssid = false;
             filter_dest = true;
+#endif
             break;
         case EVENT_STAMODE_CONNECTED:
             user_dprintf("connected\x1b[32m");
@@ -249,7 +282,6 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
     user_dprintf("done");
     assert_heap();
-#endif
 }
 
 // Initialization
@@ -286,31 +318,12 @@ static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     return ERR_OK;
 }
 
-#if 0
-struct connmgr_send_impl_arg {
-    const uint8_t *buf;
-    int len;
-};
-#endif
 ICACHE_FLASH_ATTR
-static void connmgr_send_impl(void *void_arg) {
-#if 0
-    struct connmgr_send_impl_arg *arg = void_arg;
-    user_dprintf("%p", arg);
-    // This call always writes everything, as per the API
-    ssl_write(ssl, arg->buf, arg->len);
-#endif
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_send(const uint8_t *buf, int len) {
-#if 0
-    struct connmgr_send_impl_arg arg = {
-        .buf = buf,
-        .len = len,
-    };
-    os_port_blocking_call(connmgr_send_impl, &arg);
-#endif
+void connmgr_write(const uint8_t *buf, int len) {
+    user_dprintf("%p %d", buf, len);
+    connmgr_write_arg.buf = buf;
+    connmgr_write_arg.len = len;
+    CORO_RESUME(coro, EVENT_WRITE);
 }
 
 static struct {
@@ -418,7 +431,7 @@ static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
 // Blocking socket implementation
 
 #define CONNMGR_TESTCANCEL() \
-    if (coro.ctrl.event == EVENT_CANCEL) { \
+    if (coro.ctrl.event & EVENT_INTR) { \
         os_port_impure_errno = EIO; \
         return -1; \
     }
@@ -426,15 +439,15 @@ static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
 __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
-#if 0
     assert(len > 0);
     CONNMGR_TESTCANCEL();
     ssl_pcb_recv_cb_arg.buf = (uint8_t *)buf;
     ssl_pcb_recv_cb_arg.len = len;
+#if 0
     os_port_blocking_yield();
+#endif
     CONNMGR_TESTCANCEL();
     return len;
-#endif
 }
 
 __attribute__((used))

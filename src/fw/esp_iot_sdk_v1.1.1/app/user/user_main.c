@@ -82,7 +82,7 @@ void try_send_log() {
             assert(false);
         }
         pbuf_realloc(to_send, logged_size);
-        connmgr_send(to_send->payload, to_send->len);
+        connmgr_write(to_send->payload, to_send->len);
     }
 }
 
