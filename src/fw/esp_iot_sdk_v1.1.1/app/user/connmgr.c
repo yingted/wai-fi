@@ -54,7 +54,7 @@ static void connmgr_restart(void *arg);
 #define EVENT_GOT_IP       0x00000008 // AP set DHCP ACK
 #define EVENT_CONNECT      0x00000010 // remote sent syn/ack
 #define EVENT_POLL         0x00000020 // connection idle or remote sent ack
-#define EVENT_RECV         0x00000040 // remote sent data
+#define EVENT_IDLE         0x00000040 // idle (remote may have sent data)
 #define EVENT_TIMER        0x00000080 // timer went off
 #define EVENT_DISASSOCIATE 0x00000100 // AP sent disassociate
 #define EVENT_ANY ((size_t)~0)
@@ -345,7 +345,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         ssl_pcb_recv_buf = p;
     } else {
         pbuf_cat(ssl_pcb_recv_buf, p);
-        // We'll send EVENT_RECV in icmp_net_process_queued_pbufs_callback.
+        // We'll send EVENT_IDLE in icmp_net_process_queued_pbufs_callback.
         // That way we'll be out of lwIP.
     }
     return err;
@@ -367,10 +367,7 @@ static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
 ICACHE_FLASH_ATTR
 void icmp_net_process_queued_pbufs_callback() {
     user_dprintf("");
-    if (ssl_pcb_recv_buf != NULL) {
-        // We've received pbufs
-        CORO_RESUME(coro, EVENT_RECV);
-    }
+    CORO_RESUME(coro, EVENT_IDLE);
 }
 
 ICACHE_FLASH_ATTR
@@ -414,8 +411,8 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         // Free the pbuf.
         struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
         ssl_pcb_recv_buf = prev_pbuf->next;
-        if (ssl_pcb_recv_buf == NULL) {
-            CORO_YIELD(coro, EVENT_RECV);
+        while (ssl_pcb_recv_buf == NULL) {
+            CORO_YIELD(coro, EVENT_IDLE);
             CONNMGR_TESTCANCEL();
         }
         pbuf_ref(ssl_pcb_recv_buf);

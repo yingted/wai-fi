@@ -52,15 +52,15 @@ struct msg_header {
     };
 };
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
-static bool can_send = false;
 
 /**
  * Try to send logbuf_head.
  * Must have intr lock.
+ * Should called after the worker's IDLE (or any other blocking call). XXX
  */
 ICACHE_FLASH_ATTR
-void try_send_log() {
-    if (can_send && logbuf_head != logbuf_tail) {
+void try_send_log(SSL *ssl) {
+    if (logbuf_head != logbuf_tail) {
         struct pbuf *const to_send = logbuf_head;
         assert(to_send);
         pbuf_ref(logbuf_head = to_send->next);
@@ -77,32 +77,12 @@ void try_send_log() {
             default:
                 assert(false);
         }
-        can_send = false;
         if (pbuf_header(to_send, logged_size)) {
             assert(false);
         }
         pbuf_realloc(to_send, logged_size);
-        connmgr_write(to_send->payload, to_send->len);
+        ssl_write(ssl, to_send->payload, to_send->len);
     }
-}
-
-ICACHE_FLASH_ATTR
-void set_can_send() {
-    assert(can_send == false);
-    USER_INTR_LOCK();
-    can_send = true;
-    try_send_log();
-    USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_connect_cb() {
-    set_can_send();
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_sent_cb() {
-    set_can_send();
 }
 
 ICACHE_FLASH_ATTR
@@ -165,7 +145,6 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         logbuf_tail = new_tail;
         if (logbuf_head) {
             pbuf_cat(logbuf_head, logbuf_tail);
-            try_send_log();
         } else {
             logbuf_head = logbuf_tail;
         }
@@ -177,10 +156,4 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
 
 out:
     USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_disconnect_cb() {
-    user_dprintf("");
-    can_send = false;
 }
