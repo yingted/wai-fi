@@ -187,7 +187,30 @@ connmgr_start_resume:;
                             filter_dest = filter_bssid = true;
                             promisc_start();
 
-                            connmgr_worker(ssl);
+                            for (;;) {
+                                for (;;) {
+                                    static uint8_t *dst = NULL;
+                                    static int rc;
+                                    rc = ssl_read(ssl, &dst);
+                                    if (rc < SSL_OK) {
+                                        // Send ourselves an event
+                                        coro.ctrl.event = EVENT_ABORT;
+                                        goto abort_ssl;
+                                    }
+                                    if (dst == NULL) {
+                                        break; // No record
+                                    }
+                                    connmgr_record_cb(ssl, dst, rc); // could block
+                                }
+                                connmgr_idle_cb(ssl);
+
+                                CORO_IF(IDLE) {
+                                    continue;
+                                } else {
+                                    break;
+                                }
+                            }
+abort_ssl:;
 
                             sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
                             ssl_free(ssl);

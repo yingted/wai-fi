@@ -42,7 +42,7 @@ void user_init(void) {
 
 enum { MSG_LOG=0 };
 struct msg_header {
-    char type;
+    uint8_t type;
     char pad_;
     union {
         struct {
@@ -59,7 +59,7 @@ static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
  * Should called after the worker's IDLE (or any other blocking call). XXX
  */
 ICACHE_FLASH_ATTR
-void try_send_log(SSL *ssl) {
+void connmgr_idle_cb(SSL *ssl) {
     if (logbuf_head != logbuf_tail) {
         struct pbuf *const to_send = logbuf_head;
         assert(to_send);
@@ -82,23 +82,36 @@ void try_send_log(SSL *ssl) {
         }
         pbuf_realloc(to_send, logged_size);
         ssl_write(ssl, to_send->payload, to_send->len);
+        pbuf_free(to_send);
     }
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_recv_cb(char *buf, unsigned short len) {
-    os_printf("buf: ");
-    for (; len > 0; ++buf, --len) {
-        os_printf("%c", *buf);
-    }
+void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) { // can block
     user_dprintf("userbin=%d", system_upgrade_userbin_check());
-    if (len > 0) {
-        switch (buf[0]) {
-            case WAIFI_RPC_system_upgrade_userbin_check:
-                break;
-            case WAIFI_RPC_spi_flash_write:
-                break;
+
+    {
+        int i;
+        os_printf("buf: ");
+        for (i = 0; i != len; ++i) {
+            os_printf("%02x", buf[i]);
         }
+        os_printf("\n");
+    }
+
+    struct msg_header *hdr = (struct msg_header *)buf;
+    if (len < sizeof(*hdr)) {
+        return;
+    }
+
+    switch (hdr->type) {
+        case WAIFI_RPC_system_upgrade_userbin_check:
+            break;
+        case WAIFI_RPC_spi_flash_write:
+            break;
+        default:
+            user_dprintf("unknown type %d", hdr->type);
+            break;
     }
 }
 
