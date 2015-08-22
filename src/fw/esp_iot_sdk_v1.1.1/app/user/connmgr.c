@@ -22,19 +22,8 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
-static struct {
-    const uint8_t *buf;
-    int len;
-} connmgr_write_arg;
-static struct {
-    const uint8_t *buf;
-    int len;
-} connmgr_read_arg;
-#if 0
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-bool connmgr_connected = true; // set to false in connmgr_init
-#endif
 
 static bool filter_dest = false, filter_bssid = false;
 
@@ -42,8 +31,8 @@ static CORO_T(256) coro;
 extern int os_port_impure_errno;
 
 #define EVENT_ABORT        0x00000001 // remote closed SSL connection
-#define EVENT_READ         0x00000002 // client called connmgr_read
-#define EVENT_WRITE        0x00000004 // client called connmgr_write
+//#define EVENT_READ         0x00000002 // client called connmgr_read
+//#define EVENT_WRITE        0x00000004 // client called connmgr_write
 #define EVENT_START        0x00000008 // client called connmgr_start
 #define EVENT_STOP         0x00000010 // client called connmgr_stop
 #define EVENT_GOT_IP       0x00000020 // AP set DHCP ACK
@@ -53,7 +42,7 @@ extern int os_port_impure_errno;
 #define EVENT_TIMER        0x00000200 // timer went off
 #define EVENT_DISASSOCIATE 0x00000400 // AP sent disassociate
 #define EVENT_ANY    ((size_t)~0)
-#define EVENT_INTR (EVENT_ABORT | EVENT_STOP | EVENT_DISASSOCIATE)
+#define EVENT_INTR (EVENT_ABORT | EVENT_DISASSOCIATE | EVENT_STOP)
 #define EVENT_IO (EVENT_READ | EVENT_WRITE)
 
 #define CORO_IF(event) \
@@ -67,6 +56,11 @@ extern int os_port_impure_errno;
 ICACHE_FLASH_ATTR
 void connmgr_worker(SSL *ssl) {
     ...
+}
+
+ICACHE_FLASH_ATTR
+void connmgr_timer(void *arg) {
+    CORO_RESUME(coro, EVENT_TIMER);
 }
 
 ICACHE_FLASH_ATTR
@@ -189,7 +183,6 @@ connmgr_start_resume:;
                             user_dprintf("connected\x1b[34m");
                             filter_dest = filter_bssid = true;
                             promisc_start();
-                            connmgr_connect_cb();
 
                             connmgr_worker();
 
@@ -202,8 +195,15 @@ connmgr_start_resume:;
                         ssl_pcb = NULL;
 
                         if (coro.ctrl.event == EVENT_ABORT) {
-                            continue;
+                            // We've handled the ABORT. Wait 10 seconds.
+                            sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
+                            CORO_IF(conn, TIMER) {
+                                continue;
+                            } else {
+                                sys_untimeout(connmgr_timer, NULL);
+                            }
                         } else {
+                            // We haven't handled it.
                             break;
                         }
                     }
@@ -226,29 +226,51 @@ connmgr_start_resume:;
 
             wifi_set_opmode_current(NULL_MODE);
             wifi_set_event_handler_cb(NULL);
-
-            wifi_promiscuous_enable(0);
             filter_bssid = false;
             filter_dest = true;
+            user_dprintf("disassociated");
 
-            user_dprintf("stopped");
+            if (conn.ctrl.event & EVENT_DISASSOCIATE) {
+                // We've handled the dissassociation. Wait 10 seconds.
+                sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
+                CORO_IF(conn, TIMER) {
+                    goto connmgr_start_resume;
+                } else {
+                    sys_untimeout(connmgr_timer, NULL);
+                }
+            }
+
             assert_heap();
         } else {
             assert(false);
         }
 
-        assert(conn.ctrl.event & EVENT_INTR);
-        if (conn.ctrl.event & EVENT_DISASSOCIATE) {
-            // Cancellation is caused only by errors.
-            sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
-            CORO_IF(conn, TIMER) {
-                goto connmgr_start_resume;
-            } else {
-                sys_untimeout(connmgr_timer, NULL);
-            }
-        }
+        assert(conn.ctrl.event & EVENT_STOP);
+
+        // Only stop logging after connmgr_stop()
+        wifi_promiscuous_enable(0);
+        user_dprintf("stopped");
     }
 }
+
+// Async client APIs
+
+ICACHE_FLASH_ATTR
+void connmgr_init() {
+    CORO_START(coro, connmgr_start_impl, NULL);
+}
+
+ICACHE_FLASH_ATTR
+void connmgr_start() {
+    CORO_RESUME(coro, EVENT_START);
+}
+
+ICACHE_FLASH_ATTR
+void connmgr_stop() {
+    CORO_RESUME(coro, EVENT_STOP);
+}
+
+// Callbacks for library code
 
 ICACHE_FLASH_ATTR
 void wifi_handle_event_cb(System_Event_t *event) {
@@ -285,25 +307,6 @@ void wifi_handle_event_cb(System_Event_t *event) {
     assert_heap();
 }
 
-// Initialization
-
-ICACHE_FLASH_ATTR
-void connmgr_init() {
-    CORO_START(coro, connmgr_start_impl, NULL);
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_start() {
-    CORO_RESUME(coro, EVENT_START);
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_stop() {
-    CORO_RESUME(coro, EVENT_STOP);
-}
-
-// SSL client
-
 ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi();
@@ -317,24 +320,6 @@ static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     assert(err == ERR_OK);
     CORO_RESUME(coro, EVENT_CONNECT);
     return ERR_OK;
-}
-
-ICACHE_FLASH_ATTR
-err_t connmgr_write(const uint8_t *buf, int len) {
-    user_dprintf("%p %d", buf, len);
-    connmgr_write_arg.buf = buf;
-    connmgr_write_arg.len = len;
-    CORO_RESUME(coro, EVENT_WRITE);
-    return ...;
-}
-
-ICACHE_FLASH_ATTR
-err_t connmgr_read(uint8_t *buf, int len) {
-    user_dprintf("%p %d", buf, len);
-    connmgr_read_arg.buf = buf;
-    connmgr_read_arg.len = len;
-    CORO_RESUME(coro, EVENT_READ);
-    return ...;
 }
 
 static struct {
@@ -358,6 +343,8 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         ssl_pcb_recv_buf = p;
     } else {
         pbuf_cat(ssl_pcb_recv_buf, p);
+        // We'll send EVENT_RECV in icmp_net_process_queued_pbufs_callback.
+        // That way we'll be out of lwIP.
     }
     return err;
 }
@@ -369,61 +356,6 @@ void icmp_net_process_queued_pbufs_callback() {
         // We've received pbufs
         CORO_RESUME(coro, EVENT_RECV);
     }
-#if 0
-    for (;;) {
-        user_dprintf("resuming coroutine");
-        // Exhaust the coroutine
-        while (is_read_blocked) {
-            // Check that we can send it something
-#define READ_BUF ssl_pcb_recv_cb_arg.buf
-#define READ_LEN ssl_pcb_recv_cb_arg.len
-            for (;;) {
-                // Try to read read_len from the buffer.
-                u16_t read_len = ssl_pcb_recv_buf->len;
-                if (read_len > READ_LEN) {
-                    // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
-                    memcpy(READ_BUF, ssl_pcb_recv_buf->payload, READ_LEN);
-                    break;
-                }
-                // Read >= 1 pbuf. Update pointers.
-                memcpy(READ_BUF, ssl_pcb_recv_buf->payload, read_len);
-                *(char **)&READ_BUF += read_len;
-                READ_LEN -= read_len;
-
-                // Free the pbuf.
-                struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
-                ssl_pcb_recv_buf = prev_pbuf->next;
-                if (ssl_pcb_recv_buf == NULL) {
-                    return;
-                }
-                pbuf_ref(ssl_pcb_recv_buf);
-                pbuf_dechain(prev_pbuf);
-                pbuf_free(prev_pbuf);
-            }
-#undef READ_BUF
-#undef READ_LEN
-            os_port_blocking_resume();
-        }
-
-        assert(!is_read_blocked);
-        assert(!os_port_is_worker);
-        assert(!os_port_is_blocked);
-        assert(!os_port_is_interrupted);
-
-        // Callback time. Read some data and such.
-        // We can't call any axTLS APIs until we unwind out of lwIP, since axTLS
-        // may block on some lwIP function.
-        if (!connmgr_connected) {
-            USER_INTR_LOCK();
-            connmgr_set_connected(true);
-            USER_INTR_UNLOCK();
-
-            continue;
-        }
-
-        break;
-    }
-#endif
 }
 
 ICACHE_FLASH_ATTR
@@ -451,13 +383,34 @@ __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     assert(len > 0);
+    user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
-    ssl_pcb_recv_cb_arg.buf = (uint8_t *)buf;
-    ssl_pcb_recv_cb_arg.len = len;
-#if 0
-    os_port_blocking_yield();
-#endif
-    CONNMGR_TESTCANCEL();
+    // Read from the linked list.
+    for (;;) {
+        // Try to read read_len from the buffer.
+        u16_t read_len = ssl_pcb_recv_buf->len;
+        if (read_len > READ_LEN) {
+            // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
+            memcpy(READ_BUF, ssl_pcb_recv_buf->payload, READ_LEN);
+            break;
+        }
+        // Read >= 1 pbuf. Update pointers.
+        memcpy(READ_BUF, ssl_pcb_recv_buf->payload, read_len);
+        *(char **)&READ_BUF += read_len;
+        READ_LEN -= read_len;
+
+        // Free the pbuf.
+        struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
+        ssl_pcb_recv_buf = prev_pbuf->next;
+        if (ssl_pcb_recv_buf == NULL) {
+            CORO_YIELD(coro, EVENT_RECV);
+            CONNMGR_TESTCANCEL();
+        }
+        pbuf_ref(ssl_pcb_recv_buf);
+        pbuf_dechain(prev_pbuf);
+        pbuf_free(prev_pbuf);
+    }
+
     return len;
 }
 
@@ -465,6 +418,7 @@ __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t len) {
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
+    user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
     for (;;) {
         err_t rc = tcp_write(tpcb, buf, len, 0);

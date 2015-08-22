@@ -6,11 +6,7 @@
 void connmgr_init(void);
 void connmgr_start(void);
 void connmgr_stop(void);
-typedef SSL connmgr_conn_t;
-extern void connmgr_connect_cb(void);
 extern void connmgr_worker(SSL *ssl);
 extern void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int rssi);
-extern void connmgr_disconnect_cb(void);
-extern bool connmgr_connected;
 
 #endif
