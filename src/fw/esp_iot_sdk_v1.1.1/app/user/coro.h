@@ -41,7 +41,7 @@ void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask);
 #define CORO_T(stackwords) \
     struct { \
         struct coro_control ctrl; \
-        char stack[(stackwords)*sizeof(size_t)]; \
+        size_t stack[stackwords]; \
     }
 
 #define CORO_START(coro, func, arg) \
