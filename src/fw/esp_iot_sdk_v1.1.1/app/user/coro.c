@@ -33,7 +33,7 @@ void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, 
 }
 
 ICACHE_FLASH_ATTR
-void coro_resume_impl(struct coro_control *coro, size_t what) {
+void coro_resume_impl(struct coro_control *CORO_VOLATILE coro, size_t what) {
     assert(coro->event);
     assert(what);
     assert((what & -what) == what);
@@ -52,7 +52,7 @@ void coro_resume_impl(struct coro_control *coro, size_t what) {
 }
 
 ICACHE_FLASH_ATTR
-void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask) {
+void coro_yield_impl(struct coro_control *CORO_VOLATILE coro, CORO_VOLATILE size_t mask) {
     assert(mask);
     coro->event = mask;
 
