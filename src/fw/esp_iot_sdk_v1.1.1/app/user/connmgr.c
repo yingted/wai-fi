@@ -26,6 +26,10 @@ static struct {
     const uint8_t *buf;
     int len;
 } connmgr_write_arg;
+static struct {
+    const uint8_t *buf;
+    int len;
+} connmgr_read_arg;
 #if 0
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -61,6 +65,11 @@ extern int os_port_impure_errno;
 // State management
 
 ICACHE_FLASH_ATTR
+void connmgr_worker(SSL *ssl) {
+    ...
+}
+
+ICACHE_FLASH_ATTR
 static void connmgr_init_impl(void *arg) {
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
@@ -69,7 +78,8 @@ static void connmgr_init_impl(void *arg) {
     wifi_station_set_auto_connect(0);
 
     // XXX session caching
-    static SSL_CTX *ssl_ctx = ssl_ctx_new(0, 0);
+    static SSL_CTX *ssl_ctx;
+    ssl_ctx = ssl_ctx_new(0, 0);
     {
         err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
         assert(rc == SSL_OK);
@@ -105,7 +115,7 @@ connmgr_start_resume:;
             wifi_set_opmode_current(STATION_MODE);
             {
                 static struct station_config config; // 0-initialized
-                const static char *ssid = "uw-wifi-setup-no-encryption";
+                const static char *const ssid = "uw-wifi-setup-no-encryption";
                 os_memcpy(config.ssid, ssid, os_strlen(ssid));
                 wifi_station_set_config_current(&config);
             }
@@ -139,7 +149,8 @@ connmgr_start_resume:;
 
                     for (;;) {
                         USER_INTR_LOCK();
-                        static struct tcp_pcb *ssl_pcb = tcp_new();
+                        static struct tcp_pcb *ssl_pcb;
+                        ssl_pcb = tcp_new();
                         assert(ssl_pcb != NULL);
                         ip_set_option(ssl_pcb, SO_REUSEADDR);
                         tcp_nagle_disable(ssl_pcb);
@@ -171,7 +182,8 @@ connmgr_start_resume:;
                         USER_INTR_UNLOCK();
 
                         CORO_IF(CONNECT) {
-                            static SSL *ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+                            static SSL *ssl;
+                            ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
 
                             sys_untimeout(connmgr_restart, NULL);
                             user_dprintf("connected\x1b[34m");
@@ -179,20 +191,7 @@ connmgr_start_resume:;
                             promisc_start();
                             connmgr_connect_cb();
 
-                            for (;;) {
-                                CORO_IF(IO) {
-                                    if (coro.ctrl.event == EVENT_WRITE) {
-                                        // This call always writes everything, as per the API
-                                        ssl_write(ssl, arg->buf, arg->len);
-                                    } else if (coro.ctrl.event == EVENT_READ) {
-                                        ...
-                                    } else {
-                                        assert(false);
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
+                            connmgr_worker();
 
                             sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
                             ssl_free(ssl);
@@ -321,11 +320,21 @@ static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_write(const uint8_t *buf, int len) {
+err_t connmgr_write(const uint8_t *buf, int len) {
     user_dprintf("%p %d", buf, len);
     connmgr_write_arg.buf = buf;
     connmgr_write_arg.len = len;
     CORO_RESUME(coro, EVENT_WRITE);
+    return ...;
+}
+
+ICACHE_FLASH_ATTR
+err_t connmgr_read(uint8_t *buf, int len) {
+    user_dprintf("%p %d", buf, len);
+    connmgr_read_arg.buf = buf;
+    connmgr_read_arg.len = len;
+    CORO_RESUME(coro, EVENT_READ);
+    return ...;
 }
 
 static struct {
