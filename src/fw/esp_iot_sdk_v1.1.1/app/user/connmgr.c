@@ -31,24 +31,21 @@ static CORO_T(256) coro;
 extern int os_port_impure_errno;
 
 #define EVENT_ABORT        0x00000001 // remote closed SSL connection
-//#define EVENT_READ         0x00000002 // client called connmgr_read
-//#define EVENT_WRITE        0x00000004 // client called connmgr_write
-#define EVENT_START        0x00000008 // client called connmgr_start
-#define EVENT_STOP         0x00000010 // client called connmgr_stop
-#define EVENT_GOT_IP       0x00000020 // AP set DHCP ACK
-#define EVENT_CONNECT      0x00000040 // remote sent syn/ack
-#define EVENT_POLL         0x00000080 // connection idle or remote sent ack
-#define EVENT_RECV         0x00000100 // remote sent data
-#define EVENT_TIMER        0x00000200 // timer went off
-#define EVENT_DISASSOCIATE 0x00000400 // AP sent disassociate
-#define EVENT_ANY    ((size_t)~0)
+#define EVENT_START        0x00000002 // client called connmgr_start
+#define EVENT_STOP         0x00000004 // client called connmgr_stop
+#define EVENT_GOT_IP       0x00000008 // AP set DHCP ACK
+#define EVENT_CONNECT      0x00000010 // remote sent syn/ack
+#define EVENT_POLL         0x00000020 // connection idle or remote sent ack
+#define EVENT_RECV         0x00000040 // remote sent data
+#define EVENT_TIMER        0x00000080 // timer went off
+#define EVENT_DISASSOCIATE 0x00000100 // AP sent disassociate
+#define EVENT_ANY ((size_t)~0)
 #define EVENT_INTR (EVENT_ABORT | EVENT_DISASSOCIATE | EVENT_STOP)
-#define EVENT_IO (EVENT_READ | EVENT_WRITE)
 
 #define CORO_IF(event) \
     CORO_YIELD(coro, EVENT_ANY); \
     _Static_assert(!(EVENT_INTR & EVENT_ ## event)); \
-    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event)); \
+    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event | EVENT_POLL)); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management
@@ -311,7 +308,7 @@ ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     debug_esp_assert_not_nmi();
     user_dprintf("reconnect due to %d\x1b[35m", err);
-    CORO_RESUME(coro, EVENT_INTR);
+    CORO_RESUME(coro, EVENT_ABORT);
 }
 
 ICACHE_FLASH_ATTR
