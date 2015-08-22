@@ -1,20 +1,12 @@
 #include <user_config.h>
 #include <coro.h>
-#define __XTENSA_WINDOWED_ABI__ 0
-#include <setjmp.h>
 
 #define setjmp __builtin_setjmp
 #define longjmp __builtin_longjmp
 
-#ifndef NDEBUG
-#define VOLATILE volatile
-#else
-#define VOLATILE
-#endif
-
 __attribute__((returns_twice))
 ICACHE_FLASH_ATTR
-void coro_start_impl(struct coro_control *VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg) {
+void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg) {
     assert(coro->state == CORO_DEAD);
     assert(!coro->event); // initialized to false
     if (!setjmp(coro->main)) {
@@ -41,7 +33,7 @@ void coro_start_impl(struct coro_control *VOLATILE coro, size_t stacksize, void(
 }
 
 ICACHE_FLASH_ATTR
-void coro_resume_impl(struct coro_control *coro, uint8_t what) {
+void coro_resume_impl(struct coro_control *coro, size_t what) {
     assert(coro->event);
     assert(what);
     assert((what & -what) == what);
@@ -60,7 +52,7 @@ void coro_resume_impl(struct coro_control *coro, uint8_t what) {
 }
 
 ICACHE_FLASH_ATTR
-void coro_yield_impl(struct coro_control *coro, VOLATILE size_t mask) {
+void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask) {
     coro->event = mask;
 
     if (!setjmp(coro->worker)) {

@@ -15,6 +15,7 @@
 #include <connmgr.h>
 #include <coro.h>
 
+// Network config. May need to be exported later.
 static struct netif icmp_tap;
 static struct icmp_net_config icmp_config;
 static struct ip_info linklocal_info = {
@@ -22,13 +23,30 @@ static struct ip_info linklocal_info = {
     .netmask = { IPADDR_ANY },
     .gw = { IPADDR_ANY },
 };
+
+// Stuff we can't pass via coro.
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+static struct ip_addr ap_gw_addr;
 
+// Receive buffer
+static struct pbuf *ssl_pcb_recv_buf = NULL;
+
+// MAC filter flags
 static bool filter_dest = false, filter_bssid = false;
 
+// Coroutine stack
 static CORO_T(256) coro;
+// Coroutine decls
 extern int os_port_impure_errno;
+void wifi_handle_event_cb(System_Event_t *event);
+static void ssl_pcb_err_cb(void *arg, err_t err);
+static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err);
+static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
+static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb);
+static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len);
+static void connmgr_timer(void *arg);
+static void connmgr_restart(void *arg);
 
 #define EVENT_ABORT        0x00000001 // remote closed SSL connection
 #define EVENT_START        0x00000002 // client called connmgr_start
@@ -42,23 +60,13 @@ extern int os_port_impure_errno;
 #define EVENT_ANY ((size_t)~0)
 #define EVENT_INTR (EVENT_ABORT | EVENT_DISASSOCIATE | EVENT_STOP)
 
-#define CORO_IF(event) \
+#define CORO_IF(event_name) \
     CORO_YIELD(coro, EVENT_ANY); \
-    _Static_assert(!(EVENT_INTR & EVENT_ ## event)); \
-    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event | EVENT_POLL)); \
+    _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
+    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_POLL)); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management
-
-ICACHE_FLASH_ATTR
-void connmgr_worker(SSL *ssl) {
-    ...
-}
-
-ICACHE_FLASH_ATTR
-void connmgr_timer(void *arg) {
-    CORO_RESUME(coro, EVENT_TIMER);
-}
 
 ICACHE_FLASH_ATTR
 static void connmgr_init_impl(void *arg) {
@@ -121,7 +129,7 @@ connmgr_start_resume:;
                 static struct netif *saved_default = NULL;
                 {
                     assert(netif_default != &icmp_tap);
-                    icmp_net_enslave(&icmp_config, ip_route(&event->event_info.got_ip.gw));
+                    icmp_net_enslave(&icmp_config, ip_route(&ap_gw_addr));
 
                     assert(saved_default == NULL);
                     saved_default = netif_default;
@@ -136,7 +144,6 @@ connmgr_start_resume:;
                 CORO_IF(GOT_IP) {
                     assert(netif_default == &icmp_tap);
                     user_dprintf("tunnel established");
-                    ssl_connect();
 
                     for (;;) {
                         USER_INTR_LOCK();
@@ -168,7 +175,6 @@ connmgr_start_resume:;
                             system_restart();
                         }
 
-                        assert(!connmgr_connected);
                         assert_heap();
                         USER_INTR_UNLOCK();
 
@@ -181,7 +187,7 @@ connmgr_start_resume:;
                             filter_dest = filter_bssid = true;
                             promisc_start();
 
-                            connmgr_worker();
+                            connmgr_worker(ssl);
 
                             sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
                             ssl_free(ssl);
@@ -194,7 +200,7 @@ connmgr_start_resume:;
                         if (coro.ctrl.event == EVENT_ABORT) {
                             // We've handled the ABORT. Wait 10 seconds.
                             sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
-                            CORO_IF(conn, TIMER) {
+                            CORO_IF(TIMER) {
                                 continue;
                             } else {
                                 sys_untimeout(connmgr_timer, NULL);
@@ -227,10 +233,10 @@ connmgr_start_resume:;
             filter_dest = true;
             user_dprintf("disassociated");
 
-            if (conn.ctrl.event & EVENT_DISASSOCIATE) {
+            if (coro.ctrl.event & EVENT_DISASSOCIATE) {
                 // We've handled the dissassociation. Wait 10 seconds.
                 sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
-                CORO_IF(conn, TIMER) {
+                CORO_IF(TIMER) {
                     goto connmgr_start_resume;
                 } else {
                     sys_untimeout(connmgr_timer, NULL);
@@ -242,7 +248,7 @@ connmgr_start_resume:;
             assert(false);
         }
 
-        assert(conn.ctrl.event & EVENT_STOP);
+        assert(coro.ctrl.event & EVENT_STOP);
 
         // Only stop logging after connmgr_stop()
         wifi_promiscuous_enable(0);
@@ -254,7 +260,7 @@ connmgr_start_resume:;
 
 ICACHE_FLASH_ATTR
 void connmgr_init() {
-    CORO_START(coro, connmgr_start_impl, NULL);
+    CORO_START(coro, connmgr_init_impl, NULL);
 }
 
 ICACHE_FLASH_ATTR
@@ -277,6 +283,10 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.ip),
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
+            if (false) {
+                ap_gw_addr = event->event_info.got_ip.gw;
+            }
+            os_memcpy(&ap_gw_addr, &event->event_info.got_ip.gw, sizeof(ap_gw_addr));
             assert_heap();
 
             debug_esp_assert_not_nmi();
@@ -319,11 +329,6 @@ static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     return ERR_OK;
 }
 
-static struct {
-    uint8_t *buf;
-    size_t len;
-} ssl_pcb_recv_cb_arg;
-static struct pbuf *ssl_pcb_recv_buf = NULL;
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
     user_dprintf("%p", p);
@@ -347,15 +352,6 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 }
 
 ICACHE_FLASH_ATTR
-void icmp_net_process_queued_pbufs_callback() {
-    user_dprintf("");
-    if (ssl_pcb_recv_buf != NULL) {
-        // We've received pbufs
-        CORO_RESUME(coro, EVENT_RECV);
-    }
-}
-
-ICACHE_FLASH_ATTR
 static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
     user_dprintf("");
     CORO_RESUME(coro, EVENT_POLL);
@@ -366,6 +362,25 @@ ICACHE_FLASH_ATTR
 static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
     user_dprintf("");
     return ssl_pcb_poll_cb(arg, tpcb);
+}
+
+ICACHE_FLASH_ATTR
+void icmp_net_process_queued_pbufs_callback() {
+    user_dprintf("");
+    if (ssl_pcb_recv_buf != NULL) {
+        // We've received pbufs
+        CORO_RESUME(coro, EVENT_RECV);
+    }
+}
+
+ICACHE_FLASH_ATTR
+static void connmgr_timer(void *arg) {
+    CORO_RESUME(coro, EVENT_TIMER);
+}
+
+ICACHE_FLASH_ATTR
+static void connmgr_restart(void *arg) {
+    system_restart();
 }
 
 // Blocking socket implementation
@@ -386,15 +401,15 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     for (;;) {
         // Try to read read_len from the buffer.
         u16_t read_len = ssl_pcb_recv_buf->len;
-        if (read_len > READ_LEN) {
+        if (read_len > len) {
             // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
-            memcpy(READ_BUF, ssl_pcb_recv_buf->payload, READ_LEN);
+            memcpy(buf, ssl_pcb_recv_buf->payload, len);
             break;
         }
         // Read >= 1 pbuf. Update pointers.
-        memcpy(READ_BUF, ssl_pcb_recv_buf->payload, read_len);
-        *(char **)&READ_BUF += read_len;
-        READ_LEN -= read_len;
+        memcpy(buf, ssl_pcb_recv_buf->payload, read_len);
+        *(char **)&buf += read_len;
+        len -= read_len;
 
         // Free the pbuf.
         struct pbuf *prev_pbuf = ssl_pcb_recv_buf;

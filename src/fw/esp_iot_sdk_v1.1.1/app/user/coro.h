@@ -1,6 +1,7 @@
 #ifndef __CORO_H__
 #define __CORO_H__
 
+#define __XTENSA_WINDOWED_ABI__ 0
 #include <setjmp.h>
 
 struct coro_control {
@@ -28,6 +29,15 @@ struct coro_control {
 #endif
 };
 
+#ifndef NDEBUG
+#define CORO_VOLATILE volatile
+#else
+#define CORO_VOLATILE
+#endif
+void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg);
+void coro_resume_impl(struct coro_control *coro, size_t what);
+void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask);
+
 #define CORO_T(stackwords) \
     struct { \
         struct coro_control ctrl; \
@@ -37,9 +47,9 @@ struct coro_control {
 #define CORO_START(coro, func, arg) \
     coro_start_impl(&(coro).ctrl, sizeof((coro).stack), (func), (arg))
 
-#define CORO_YIELD_OR_(coro, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50, a51, a52, a53, a54, a55, a56, a57, a58, a59, a60, a61, a62, a63, a64, a65, a66, a67, a68, a69, a70, a71, a72, a73, a74, a75, a76, a77, a78, a79, a80, a81, a82, a83, a84, a85, a86, a87, a88, a89, a90, a91, a92, a93, a94, a95, a96, a97, a98, a99, a100, a101, a102, a103, a104, a105, a106, a107, a108, a109, a110, a111, a112, a113, a114, a115, a116, a117, a118, a119, a120, a121, a122, a123, a124, a125) ((a0) | (a1) | (a2) | (a3) | (a4) | (a5) | (a6) | (a7) | (a8) | (a9) | (a10) | (a11) | (a12) | (a13) | (a14) | (a15) | (a16) | (a17) | (a18) | (a19) | (a20) | (a21) | (a22) | (a23) | (a24) | (a25) | (a26) | (a27) | (a28) | (a29) | (a30) | (a31) | (a32) | (a33) | (a34) | (a35) | (a36) | (a37) | (a38) | (a39) | (a40) | (a41) | (a42) | (a43) | (a44) | (a45) | (a46) | (a47) | (a48) | (a49) | (a50) | (a51) | (a52) | (a53) | (a54) | (a55) | (a56) | (a57) | (a58) | (a59) | (a60) | (a61) | (a62))
+#define CORO_YIELD_OR_(coro, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50, a51, a52, a53, a54, a55, a56, a57, a58, a59, a60, a61, a62, ...) ((a0) | (a1) | (a2) | (a3) | (a4) | (a5) | (a6) | (a7) | (a8) | (a9) | (a10) | (a11) | (a12) | (a13) | (a14) | (a15) | (a16) | (a17) | (a18) | (a19) | (a20) | (a21) | (a22) | (a23) | (a24) | (a25) | (a26) | (a27) | (a28) | (a29) | (a30) | (a31) | (a32) | (a33) | (a34) | (a35) | (a36) | (a37) | (a38) | (a39) | (a40) | (a41) | (a42) | (a43) | (a44) | (a45) | (a46) | (a47) | (a48) | (a49) | (a50) | (a51) | (a52) | (a53) | (a54) | (a55) | (a56) | (a57) | (a58) | (a59) | (a60) | (a61) | (a62))
 #define CORO_YIELD(coro, ...) \
-    coro_yield_impl(&(coro).ctrl, CORO_YIELD_OR_(##__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    coro_yield_impl(&(coro).ctrl, CORO_YIELD_OR_(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 
 #define CORO_RESUME(coro, what_val) \
     coro_resume_impl(&(coro).ctrl, what_val)
