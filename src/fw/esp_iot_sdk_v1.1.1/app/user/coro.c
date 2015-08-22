@@ -53,6 +53,7 @@ void coro_resume_impl(struct coro_control *coro, size_t what) {
 
 ICACHE_FLASH_ATTR
 void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask) {
+    assert(mask);
     coro->event = mask;
 
     if (!setjmp(coro->worker)) {
