@@ -11,6 +11,8 @@
 #else
 #define user_dprintf(fmt, ...) os_printf("%s:%d %s: " fmt "\n", __FILE__, __LINE__, __func__, ## __VA_ARGS__)
 
+#include <debug_esp.h>
+
 #define assert(arg) do { \
     if (!(arg)) { \
         user_dprintf("assertion failed: %s", #arg); \
@@ -18,9 +20,6 @@
     } \
 } while (0)
 #endif
-
-#include "gdb_stub.h"
-#include "debug_esp.h"
 
 // fix header conflict
 #include <ip_addr.h>

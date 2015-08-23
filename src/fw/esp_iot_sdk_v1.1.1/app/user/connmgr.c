@@ -62,13 +62,16 @@ static void connmgr_restart(void *arg);
 #define EVENT_IGNORE (EVENT_POLL | EVENT_IDLE) // events that can be ignored
 
 #define CORO_IF(event_name) \
-    user_dprintf("CORO_IF(" # event_name ") ..."); \
+    user_dprintf("CORO_IF(" # event_name ") <yield>"); \
     do { \
         CORO_YIELD(coro, EVENT_ANY); \
         _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
         assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
     } while (!(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name))); \
-    user_dprintf("CORO_IF(" # event_name ") <resumed>"); \
+    if (!(coro.ctrl.event & EVENT_INTR)) \
+        user_dprintf("CORO_IF(" # event_name ") <resume>"); \
+    else \
+        user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management

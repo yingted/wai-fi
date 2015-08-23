@@ -1,7 +1,7 @@
 #ifndef __DEBUG_ESP_H__
 #define __DEBUG_ESP_H__
 
-#include <xtensa/config/core-isa.h>
+#include <xtensa/config/core.h>
 #include <freertos/FreeRTOS.h>
 
 #ifndef NDEBUG
