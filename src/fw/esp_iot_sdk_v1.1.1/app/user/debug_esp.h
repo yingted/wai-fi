@@ -2,6 +2,7 @@
 #define __DEBUG_ESP_H__
 
 #include <xtensa/config/core-isa.h>
+#include <freertos/FreeRTOS.h>
 
 #ifndef NDEBUG
 void print_stack(void);
@@ -33,7 +34,7 @@ void debug_esp_install_exc_handler(void);
 extern size_t intr_lock_count[XCHAL_NMILEVEL], intr_lock_count_sum;
 void debug_esp_user_intr_lock(void);
 void debug_esp_user_intr_unlock(void);
-void debug_esp_assert_not_nmi(void);
+void debug_esp_assert_interruptible(void);
 
 #else
 
@@ -41,7 +42,7 @@ void debug_esp_assert_not_nmi(void);
 #define show_esf_buf()
 #define mem_error()
 #define debug_esp_install_exc_handler()
-#define debug_esp_assert_not_nmi()
+#define debug_esp_assert_interruptible()
 
 #endif
 

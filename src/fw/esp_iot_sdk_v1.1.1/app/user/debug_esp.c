@@ -356,8 +356,11 @@ static size_t debug_esp_get_intlevel() {
 }
 
 ICACHE_FLASH_ATTR
-void debug_esp_assert_not_nmi() {
+void debug_esp_assert_interruptible() {
     assert(debug_esp_get_intlevel() != XCHAL_NMILEVEL);
+    size_t intenable;
+    __asm__ __volatile__("rsr %0, intenable":"=r"(intenable));
+    assert(!(0x00000421 & ~intenable));
 }
 
 /**

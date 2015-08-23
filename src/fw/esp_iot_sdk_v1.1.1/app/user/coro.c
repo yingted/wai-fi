@@ -1,4 +1,5 @@
 #include <user_config.h>
+#include <debug_esp.h>
 #include <coro.h>
 
 #define setjmp __builtin_setjmp
@@ -7,6 +8,7 @@
 __attribute__((returns_twice))
 ICACHE_FLASH_ATTR
 void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg) {
+    debug_esp_assert_interruptible();
     assert(coro->state == CORO_DEAD);
     assert(!coro->event); // initialized to false
     user_dprintf("");
@@ -37,10 +39,10 @@ void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, 
 
 ICACHE_FLASH_ATTR
 void coro_resume_impl(struct coro_control *coro, size_t what) {
+    debug_esp_assert_interruptible();
     assert(coro->event);
     assert(what);
     assert((what & -what) == what);
-    user_dprintf("event=%p what=%p", coro->event, what);
     if (!(what & coro->event)) {
         return;
     }
@@ -54,9 +56,9 @@ void coro_resume_impl(struct coro_control *coro, size_t what) {
 
 ICACHE_FLASH_ATTR
 void coro_yield_impl(struct coro_control *coro, size_t mask) {
+    debug_esp_assert_interruptible();
     assert(mask);
     coro->event = mask;
-    user_dprintf("mask=%p", mask);
 
     if (!setjmp(coro->worker)) {
         CORO_GOTO(coro, YIELD);

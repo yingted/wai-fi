@@ -62,12 +62,13 @@ static void connmgr_restart(void *arg);
 #define EVENT_IGNORE (EVENT_POLL | EVENT_IDLE) // events that can be ignored
 
 #define CORO_IF(event_name) \
-    user_dprintf("CORO_IF(" # event_name ")"); \
+    user_dprintf("CORO_IF(" # event_name ") ..."); \
     do { \
         CORO_YIELD(coro, EVENT_ANY); \
         _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
         assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
     } while (!(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name))); \
+    user_dprintf("CORO_IF(" # event_name ") <resumed>"); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management
@@ -144,6 +145,8 @@ connmgr_start_resume:;
                         user_dprintf("dhcp error: %d", rc);
                     }
                 }
+
+                user_dprintf("establishing tunnel");
 
                 CORO_IF(GOT_IP) {
                     assert(netif_default == &icmp_tap);
@@ -316,7 +319,6 @@ void wifi_handle_event_cb(System_Event_t *event) {
             os_memcpy(&ap_gw_addr, &event->event_info.got_ip.gw, sizeof(ap_gw_addr));
             assert_heap();
 
-            debug_esp_assert_not_nmi();
             CORO_RESUME(coro, EVENT_GOT_IP);
             break;
         case EVENT_STAMODE_DISCONNECTED:
@@ -343,7 +345,6 @@ void wifi_handle_event_cb(System_Event_t *event) {
 
 ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
-    debug_esp_assert_not_nmi();
     user_dprintf("reconnect due to %d\x1b[35m", err);
     CORO_RESUME(coro, EVENT_ABORT);
 }
@@ -393,7 +394,6 @@ static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len) {
 
 ICACHE_FLASH_ATTR
 void icmp_net_process_queued_pbufs_callback() {
-    user_dprintf("");
     CORO_RESUME(coro, EVENT_IDLE);
 }
 
