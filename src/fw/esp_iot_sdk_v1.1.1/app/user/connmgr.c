@@ -428,7 +428,13 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
     // Read from the linked list.
-    for (;;) {
+    while (len > 0) {
+        // Wait for a packet.
+        while (ssl_pcb_recv_buf == NULL) {
+            CORO_YIELD(coro, EVENT_IDLE);
+            CONNMGR_TESTCANCEL();
+        }
+
         // Try to read read_len from the buffer.
         u16_t read_len = ssl_pcb_recv_buf->len;
         if (read_len > len) {
@@ -444,10 +450,6 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         // Free the pbuf.
         struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
         ssl_pcb_recv_buf = prev_pbuf->next;
-        while (ssl_pcb_recv_buf == NULL) {
-            CORO_YIELD(coro, EVENT_IDLE);
-            CONNMGR_TESTCANCEL();
-        }
         pbuf_ref(ssl_pcb_recv_buf);
         pbuf_dechain(prev_pbuf);
         pbuf_free(prev_pbuf);
