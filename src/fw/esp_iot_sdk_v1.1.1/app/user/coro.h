@@ -16,8 +16,9 @@ struct coro_control {
      * 3. Not blocked: 0
      */
     size_t event;
-    char stack[0];
 #ifndef NDEBUG
+    // Check state transitions (start(), yield(), resume(), ..., return)
+    // Added benefit of checking for stack corruption
     enum {
         CORO_DEAD,
         CORO_YIELD,
@@ -27,6 +28,9 @@ struct coro_control {
 #else
 #define CORO_GOTO(...)
 #endif
+    // Must be the last entry
+    __attribute__((aligned(4)))
+    char stack[0];
 };
 
 #ifndef NDEBUG

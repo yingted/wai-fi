@@ -17,13 +17,15 @@ void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, 
         CORO_GOTO(coro, RESUME);
 
         register void *stack_top = coro->stack + stacksize;
-        // Tell GCC we need to read from sp so it doesn't overlap it with stack_top
+        // Save sp
         __asm__ __volatile__("mov %[sp], a1":[sp] "=r"(sp));
+        // Do the call using the new stack
         __asm__ __volatile__("\
             mov a1, %[stack_top]\n\
             mov a2, %[arg]\n\
             callx0 %[func]\n\
         "::[stack_top] "r"(stack_top), [func] "r"(func), [arg] "r"(arg):"a2", "memory");
+        // Reload sp
         __asm__ __volatile__("mov a1, %[sp]"::[sp] "r"(sp));
 
         assert(coro->state == CORO_RESUME);
@@ -38,11 +40,11 @@ void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, 
 }
 
 ICACHE_FLASH_ATTR
-void coro_resume_impl(struct coro_control *coro, size_t what) {
+void coro_resume_impl(struct coro_control *CORO_VOLATILE coro, size_t what) {
     debug_esp_assert_interruptible();
     assert(coro->event);
     assert(what);
-    assert(coro->state == CORO_YIELD);
+    assert(coro->state == CORO_YIELD); // possible stack corruption
     assert((what & -what) == what);
     if (!(what & coro->event)) {
         return;
@@ -53,17 +55,21 @@ void coro_resume_impl(struct coro_control *coro, size_t what) {
         CORO_GOTO(coro, RESUME);
         longjmp(coro->worker, 1);
     }
+
+    assert(coro->state == CORO_YIELD);
 }
 
 ICACHE_FLASH_ATTR
-void coro_yield_impl(struct coro_control *coro, size_t mask) {
+void coro_yield_impl(struct coro_control *CORO_VOLATILE coro, size_t mask) {
     debug_esp_assert_interruptible();
     assert(mask);
-    assert(coro->state == CORO_RESUME);
+    assert(coro->state == CORO_RESUME); // possible stack corruption
     coro->event = mask;
 
     if (!setjmp(coro->worker)) {
         CORO_GOTO(coro, YIELD);
         longjmp(coro->main, 1);
     }
+
+    assert(coro->state == CORO_RESUME);
 }

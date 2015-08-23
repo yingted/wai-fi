@@ -36,7 +36,7 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 static bool filter_dest = false, filter_bssid = false;
 
 // Coroutine stack
-static CORO_T(256) coro;
+static CORO_T(1024) coro;
 // Coroutine decls
 extern int os_port_impure_errno;
 void wifi_handle_event_cb(System_Event_t *event);
@@ -72,6 +72,7 @@ static void connmgr_restart(void *arg);
         user_dprintf("CORO_IF(" # event_name ") <resume>"); \
     else \
         user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
+    assert(coro.ctrl.state == CORO_RESUME); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management
