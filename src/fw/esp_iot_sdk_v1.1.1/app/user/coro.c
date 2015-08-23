@@ -42,6 +42,7 @@ void coro_resume_impl(struct coro_control *coro, size_t what) {
     debug_esp_assert_interruptible();
     assert(coro->event);
     assert(what);
+    assert(coro->state == CORO_YIELD);
     assert((what & -what) == what);
     if (!(what & coro->event)) {
         return;
@@ -58,6 +59,7 @@ ICACHE_FLASH_ATTR
 void coro_yield_impl(struct coro_control *coro, size_t mask) {
     debug_esp_assert_interruptible();
     assert(mask);
+    assert(coro->state == CORO_RESUME);
     coro->event = mask;
 
     if (!setjmp(coro->worker)) {

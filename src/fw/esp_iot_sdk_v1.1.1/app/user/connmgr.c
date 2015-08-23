@@ -137,6 +137,7 @@ connmgr_start_resume:;
                 static struct netif *saved_default = NULL;
                 {
                     assert(netif_default != &icmp_tap);
+                    assert(ip_route(&ap_gw_addr) != NULL);
                     icmp_net_enslave(&icmp_config, ip_route(&ap_gw_addr));
 
                     assert(saved_default == NULL);
@@ -316,13 +317,14 @@ void wifi_handle_event_cb(System_Event_t *event) {
                       IP2STR(&event->event_info.got_ip.ip),
                       IP2STR(&event->event_info.got_ip.mask),
                       IP2STR(&event->event_info.got_ip.gw));
-            if (false) {
+            if (false) { // check types
                 ap_gw_addr = event->event_info.got_ip.gw;
             }
             os_memcpy(&ap_gw_addr, &event->event_info.got_ip.gw, sizeof(ap_gw_addr));
             assert_heap();
 
             CORO_RESUME(coro, EVENT_GOT_IP);
+            user_dprintf("got ip done");
             break;
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");

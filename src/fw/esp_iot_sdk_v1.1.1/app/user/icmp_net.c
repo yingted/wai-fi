@@ -448,11 +448,11 @@ static err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
 ICACHE_FLASH_ATTR
 void icmp_net_enslave(struct icmp_net_config *config, struct netif *slave) {
     ICMP_NET_CONFIG_LOCK(config);
+    assert(slave != NULL);
     assert(slave->input == ethernet_input);
     slave->input = my_ethernet_input;
 
     assert(config->netif != NULL);
-    assert(slave != NULL);
     assert(config->slave == NULL);
     config->slave = slave;
     ICMP_NET_CONFIG_UNLOCK(config);
