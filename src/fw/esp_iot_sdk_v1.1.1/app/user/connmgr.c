@@ -233,6 +233,7 @@ abort_ssl:;
                             ssl = NULL;
                         }
 
+                        user_dprintf("aborting ssl_pcb");
                         if (ssl_pcb != NULL) {
                             tcp_abort(ssl_pcb);
                             ssl_pcb = NULL;
