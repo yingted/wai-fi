@@ -10,6 +10,7 @@
 #include <espressif/esp_system.h>
 #include <stddef.h>
 #include <xtensa/config/core-isa.h>
+#include <gdb_stub.h>
 
 __attribute__((always_inline))
 static inline void print_stack_() {
