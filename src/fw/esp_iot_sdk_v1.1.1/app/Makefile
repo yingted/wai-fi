@@ -64,13 +64,14 @@ TARGET_LDFLAGS =		\
 	--text-section-literals
 
 ifeq ($(FLAVOR),debug)
-    TARGET_LDFLAGS += -ggdb3 -O0
-    CCFLAGS += -O0 -ggdb3
+    DEBUG_FLAGS = -ggdb3 -O0
+    TARGET_LDFLAGS += $(DEBUG_FLAGS)
+    CCFLAGS += $(DEBUG_FLAGS)
 endif
 
 ifeq ($(FLAVOR),release)
-    TARGET_LDFLAGS += -O2
-    CCFLAGS += -Os
+    TARGET_LDFLAGS += -Os
+    CCFLAGS += -O2
 endif
 
 COMPONENTS_eagle.app.v6 = \
