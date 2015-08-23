@@ -53,8 +53,8 @@ static void connmgr_restart(void *arg);
 #define EVENT_STOP         0x00000004 // client called connmgr_stop
 #define EVENT_GOT_IP       0x00000008 // AP set DHCP ACK
 #define EVENT_CONNECT      0x00000010 // remote sent syn/ack
-#define EVENT_POLL         0x00000020 // connection idle or remote sent ack
-#define EVENT_IDLE         0x00000040 // idle (remote may have sent data)
+#define EVENT_POLL         0x00000020 // connection idle (every 5 seconds after) or remote sent ack
+#define EVENT_IDLE         0x00000040 // connection just went idle (remote may have sent data)
 #define EVENT_TIMER        0x00000080 // timer went off
 #define EVENT_DISASSOCIATE 0x00000100 // AP sent disassociate
 #define EVENT_ANY ((size_t)~0)
@@ -63,7 +63,7 @@ static void connmgr_restart(void *arg);
 #define CORO_IF(event_name) \
     CORO_YIELD(coro, EVENT_ANY); \
     _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
-    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_POLL)); \
+    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_POLL | EVENT_IDLE)); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management
