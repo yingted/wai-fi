@@ -383,8 +383,8 @@ static void gdb_attach(int exccause, int debugcause) {
     WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
     outbuf_unbuffered = false;
 
-    bool has_breakpoint = false, has_watchpoint = false;
-    size_t breakpoint_addr;
+    static bool has_breakpoint = false, has_watchpoint = false;
+    static size_t breakpoint_addr, watchpoint_addr;
     size_t saved_ps;
     size_t saved_wdt_mode = ets_wdt_get_mode();
     ets_wdt_disable();
@@ -518,15 +518,18 @@ retrans:
                                     break;
                                 }
                                 SET_REG(ibreakenable, 0);
+                                has_breakpoint = false;
                                 break;
                             case 'Z':
                                 if (has_breakpoint) {
                                     if (addr == breakpoint_addr) {
                                         break;
                                     }
+                                    breakpoint_addr = addr;
                                     gdb_write_string("E00");
                                     break;
                                 }
+                                has_breakpoint = true;
                                 SET_REG(ibreaka0, addr);
                                 SET_REG(ibreakenable, 1);
                                 break;
@@ -541,15 +544,18 @@ retrans:
                                     break;
                                 }
                                 SET_REG(dbreakc0, 0);
+                                has_watchpoint = false;
                                 break;
                             case 'Z':
                                 if (has_watchpoint) {
-                                    if (addr == breakpoint_addr) {
+                                    if (addr == watchpoint_addr) {
                                         break;
                                     }
+                                    watchpoint_addr = addr;
                                     gdb_write_string("E03");
                                     break;
                                 }
+                                has_watchpoint = true;
                                 size_t dbreakc = 0;
                                 if (type != 2) { // write
                                     dbreakc |= XCHAL_DBREAKC_LOADBREAK_MASK;

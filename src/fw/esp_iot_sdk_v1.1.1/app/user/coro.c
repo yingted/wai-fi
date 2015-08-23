@@ -6,7 +6,7 @@
 
 __attribute__((returns_twice))
 ICACHE_FLASH_ATTR
-void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg) {
+void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, register void(*func)(void *), register void *arg) {
     assert(coro->state == CORO_DEAD);
     assert(!coro->event); // initialized to false
     user_dprintf("");
