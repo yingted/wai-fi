@@ -58,12 +58,16 @@ static void connmgr_restart(void *arg);
 #define EVENT_TIMER        0x00000080 // timer went off
 #define EVENT_DISASSOCIATE 0x00000100 // AP sent disassociate
 #define EVENT_ANY ((size_t)~0)
-#define EVENT_INTR (EVENT_ABORT | EVENT_DISASSOCIATE | EVENT_STOP)
+#define EVENT_INTR (EVENT_ABORT | EVENT_DISASSOCIATE | EVENT_STOP) // events that interrupt operations
+#define EVENT_IGNORE (EVENT_POLL | EVENT_IDLE) // events that can be ignored
 
 #define CORO_IF(event_name) \
-    CORO_YIELD(coro, EVENT_ANY); \
-    _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
-    assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_POLL | EVENT_IDLE)); \
+    user_dprintf("CORO_IF(" # event_name ")"); \
+    do { \
+        CORO_YIELD(coro, EVENT_ANY); \
+        _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
+        assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
+    } while (!(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name))); \
     if (!(coro.ctrl.event & EVENT_INTR))
 
 // State management
@@ -103,7 +107,7 @@ static void connmgr_init_impl(void *arg) {
         user_dprintf("netif_add failed");
     }
 
-    user_dprintf("done");
+    user_dprintf("startup finished");
     assert_heap();
 
     for (;;) {
