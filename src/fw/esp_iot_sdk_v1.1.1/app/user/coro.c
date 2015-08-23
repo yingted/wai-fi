@@ -57,6 +57,7 @@ void coro_resume_impl(struct coro_control *CORO_VOLATILE coro, size_t what) {
     }
 
     assert(coro->state == CORO_YIELD);
+    // coro->event holds the event mask from resume
 }
 
 ICACHE_FLASH_ATTR
@@ -72,4 +73,5 @@ void coro_yield_impl(struct coro_control *CORO_VOLATILE coro, size_t mask) {
     }
 
     assert(coro->state == CORO_RESUME);
+    // coro->event holds the event bit from resume
 }

@@ -28,6 +28,7 @@ static struct ip_info linklocal_info = {
 static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static struct ip_addr ap_gw_addr;
+static struct tcp_pcb *ssl_pcb = NULL;
 
 // Receive buffer
 static struct pbuf *ssl_pcb_recv_buf = NULL;
@@ -159,7 +160,7 @@ connmgr_start_resume:;
 
                     for (;;) {
                         USER_INTR_LOCK();
-                        static struct tcp_pcb *ssl_pcb;
+                        assert(ssl_pcb == NULL);
                         ssl_pcb = tcp_new();
                         assert(ssl_pcb != NULL);
                         ip_set_option(ssl_pcb, SO_REUSEADDR);
@@ -191,8 +192,10 @@ connmgr_start_resume:;
                         USER_INTR_UNLOCK();
 
                         CORO_IF(CONNECT) {
-                            static SSL *ssl;
+                            static SSL *ssl = NULL;
+                            assert(ssl == NULL);
                             ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+                            assert(ssl != NULL);
 
                             sys_untimeout(connmgr_restart, NULL);
                             user_dprintf("connected\x1b[34m");
@@ -225,12 +228,15 @@ connmgr_start_resume:;
 abort_ssl:;
 
                             sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
+                            assert(ssl != NULL);
                             ssl_free(ssl);
+                            ssl = NULL;
                         }
 
-                        assert(ssl_pcb != NULL);
-                        tcp_abort(ssl_pcb);
-                        ssl_pcb = NULL;
+                        if (ssl_pcb != NULL) {
+                            tcp_abort(ssl_pcb);
+                            ssl_pcb = NULL;
+                        }
 
                         if (coro.ctrl.event == EVENT_ABORT) {
                             // We've handled the ABORT. Wait 10 seconds.
@@ -352,7 +358,13 @@ void wifi_handle_event_cb(System_Event_t *event) {
 ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
-    CORO_RESUME(coro, EVENT_ABORT);
+    assert(ssl_pcb != NULL);
+    tcp_abort(ssl_pcb);
+    ssl_pcb = NULL;
+    // This should be race-free, since we're in lwIP
+    if (coro.ctrl.state == CORO_YIELD) { // XXX state is only available in debug
+        CORO_RESUME(coro, EVENT_ABORT);
+    }
 }
 
 ICACHE_FLASH_ATTR

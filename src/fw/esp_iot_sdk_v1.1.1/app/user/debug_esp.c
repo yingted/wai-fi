@@ -56,7 +56,8 @@ void assert_heap_(char *file, int line) {
         assert(false);
     }
     //show_esf_buf();
-    esf_buf_printf("ok\n");
+    //esf_buf_printf("ok\n");
+    esf_buf_printf("heap=%d\n", heap);
 }
 
 static bool is_mem_error = false;

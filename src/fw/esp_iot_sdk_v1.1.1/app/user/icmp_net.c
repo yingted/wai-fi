@@ -568,6 +568,7 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
                     } else {
                         // Copy to ram
                         struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+                        assert(q != NULL);
                         if (pbuf_copy(q, p)) {
                             assert(false);
                         }
