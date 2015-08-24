@@ -413,12 +413,18 @@ ICACHE_FLASH_ATTR
 static err_t ssl_pcb_connected_cb(void *arg, struct tcp_pcb *tpcb, err_t err) {
     user_dprintf("tcp connected: err=%d", err);
     assert(err == ERR_OK);
+    assert(tpcb != NULL);
+    assert(ssl_pcb != NULL);
+    assert(tpcb == ssl_pcb);
     CORO_RESUME(coro, EVENT_CONNECT);
-    return ERR_OK;
+    return ssl_pcb != tpcb ? ERR_ABRT : ERR_OK;
 }
 
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+    assert(tpcb != NULL);
+    assert(ssl_pcb != NULL);
+    assert(tpcb == ssl_pcb);
     user_dprintf("%p", p);
     if (p == NULL) {
         user_dprintf("err=%d", err);
@@ -439,14 +445,17 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         // That way we'll be out of lwIP.
     }
     USER_INTR_UNLOCK();
-    return err;
+    return ssl_pcb != tpcb ? ERR_ABRT : err;
 }
 
 ICACHE_FLASH_ATTR
 static err_t ssl_pcb_poll_cb(void *arg, struct tcp_pcb *tpcb) {
+    assert(tpcb != NULL);
+    assert(ssl_pcb != NULL);
+    assert(tpcb == ssl_pcb);
     user_dprintf("");
     CORO_RESUME(coro, EVENT_POLL);
-    return ERR_OK;
+    return ssl_pcb != tpcb ? ERR_ABRT : ERR_OK;
 }
 
 ICACHE_FLASH_ATTR
