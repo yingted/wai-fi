@@ -218,13 +218,13 @@ connmgr_start_resume:;
                             ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
                             assert(ssl != NULL);
 
-                            sys_untimeout(connmgr_restart, NULL);
-                            user_dprintf("connected\x1b[34m");
                             user_dprintf("handshake status: %d", ssl_handshake_status(ssl));
                             if (ssl_handshake_status(ssl) != SSL_OK) {
                                 user_dprintf("handshake failed");
                                 coro.ctrl.event = EVENT_ABORT;
                             } else {
+                                sys_untimeout(connmgr_restart, NULL);
+                                user_dprintf("connected\x1b[34m");
                                 filter_dest = filter_bssid = true;
                                 promisc_start();
 
@@ -266,10 +266,12 @@ abort_ssl:;
                         assert(coro.ctrl.state == CORO_RESUME);
                         if (ssl_pcb != NULL) {
                             tcp_abort(ssl_pcb);
+                            USER_INTR_LOCK();
                             if (ssl_pcb_recv_buf != NULL) {
                                 pbuf_free(ssl_pcb_recv_buf);
                                 ssl_pcb_recv_buf = NULL;
                             }
+                            USER_INTR_UNLOCK();
                         }
 
                         if (coro.ctrl.event == EVENT_ABORT) {
@@ -427,6 +429,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         assert(false);
     }
 
+    USER_INTR_LOCK();
     if (ssl_pcb_recv_buf == NULL) {
         ssl_pcb_recv_buf = p;
     } else {
@@ -434,6 +437,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
         // We'll send EVENT_IDLE in icmp_net_process_queued_pbufs_callback.
         // That way we'll be out of lwIP.
     }
+    USER_INTR_UNLOCK();
     return err;
 }
 
@@ -483,10 +487,14 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     // Read from the linked list.
     while (len > 0) {
         // Wait for a packet.
+        USER_INTR_LOCK();
         while (ssl_pcb_recv_buf == NULL) {
+            USER_INTR_UNLOCK();
             CORO_YIELD(coro, EVENT_IDLE);
             CONNMGR_TESTCANCEL();
+            USER_INTR_LOCK();
         }
+        assert(ssl_pcb_recv_buf->ref == 1);
 
         // Try to read read_len from the buffer.
         u16_t read_len = ssl_pcb_recv_buf->len;
@@ -494,6 +502,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
             // Read < 1 pbuf. Read was satisfied. Only update source pointers.
             memcpy(buf, ssl_pcb_recv_buf->payload, len);
             pbuf_header(ssl_pcb_recv_buf, -len); // always succeeds
+            USER_INTR_UNLOCK();
             break;
         }
         // Read >= 1 pbuf. Only update destination pointers.
@@ -507,6 +516,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         pbuf_ref(ssl_pcb_recv_buf);
         pbuf_dechain(prev_pbuf);
         pbuf_free(prev_pbuf);
+        USER_INTR_UNLOCK();
     }
 
     return ret;
