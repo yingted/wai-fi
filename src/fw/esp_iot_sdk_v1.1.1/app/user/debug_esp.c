@@ -333,8 +333,8 @@ ICACHE_FLASH_ATTR
 err_t __wrap_ip_input(struct pbuf *p, struct netif *inp) {
     user_dprintf("%p %p", p, inp);
     assert(p->ref >= 1);
-    assert(p->len < 2000);
-    assert(p->tot_len < 2000);
+    assert(p->len < 2500);
+    assert(p->tot_len < 2500);
 #ifndef NDEBUG
     static int count = 0;
 #endif

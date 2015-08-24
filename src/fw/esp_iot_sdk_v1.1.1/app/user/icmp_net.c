@@ -110,14 +110,14 @@ static err_t icmp_net_linkoutput(struct netif *netif, struct pbuf *p) {
 #endif
     if (p != NULL) {
         assert(p->ref >= 1);
-        assert(p->len < 2000);
-        assert(p->tot_len < 2000);
+        assert(p->len < 2500);
+        assert(p->tot_len < 2500);
     }
 
     struct icmp_net_out_hdr *hdr;
 copy:
     { // copy p
-        assert(p == NULL || p->tot_len < 2000);
+        assert(p == NULL || p->tot_len < 2500);
         struct pbuf *r = pbuf_alloc(PBUF_RAW, TOT_HLEN + (p == NULL ? 0 : p->tot_len), PBUF_RAM);
         if (!r) {
             user_dprintf("no memory");
@@ -220,8 +220,8 @@ static void process_pbuf(struct icmp_net_config *config, struct pbuf *p) {
     assert_heap();
     assert(config->slave);
     assert(p->ref >= 1);
-    assert(p->len < 2000);
-    assert(p->tot_len < 2000);
+    assert(p->len < 2500);
+    assert(p->tot_len < 2500);
     assert(ICMP_NET_CONFIG_QLEN(config) > 0);
     extern ip_addr_t current_iphdr_src;
 
@@ -363,7 +363,7 @@ static void packet_reply_timeout() {
 ICACHE_FLASH_ATTR
 static err_t icmp_net_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr) {
     assert_heap();
-    assert(p->tot_len < 2000);
+    assert(p->tot_len < 2500);
     err_t ret = etharp_output(netif, p, ipaddr);
     assert_heap();
     return ret;
@@ -432,8 +432,8 @@ static err_t my_ethernet_input(struct pbuf *p, struct netif *netif) {
     assert_heap();
     user_dprintf("%p %p", p, netif);
     assert(p->ref >= 1);
-    assert(p->len < 2000);
-    assert(p->tot_len < 2000);
+    assert(p->len < 2500);
+    assert(p->tot_len < 2500);
 #endif
     ICMP_NET_LWIP_ENTER();
     err_t ret = ethernet_input(p, netif);
@@ -489,8 +489,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
     assert(icmp_input_entry_count++ == 0);
     assert((((size_t)p->payload) & 0x1) == 0);
     assert(p->ref >= 1);
-    assert(p->len < 2000);
-    assert(p->tot_len < 2000);
+    assert(p->len < 2500);
+    assert(p->tot_len < 2500);
     assert_heap();
 
     struct ip_hdr *iphdr = p->payload;
@@ -556,8 +556,8 @@ void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
             user_dprintf("receive window [%u, %u)", config->recv_i, config->send_i);
             if (((unsigned)(seqno - config->recv_i)) < ((unsigned)(config->send_i - config->recv_i))) {
                 assert(p->ref >= 1);
-                assert(p->len < 2000);
-                assert(p->tot_len < 2000);
+                assert(p->len < 2500);
+                assert(p->tot_len < 2500);
                 if (config->recv_i == seqno) {
                     process_pbuf(config, p);
                 } else {
