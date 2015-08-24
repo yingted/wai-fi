@@ -37,7 +37,7 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 static bool filter_dest = false, filter_bssid = false;
 
 // Coroutine stack
-static CORO_T(1024) coro;
+static CORO_T(512) coro;
 static size_t coro_interrupt_later = 0;
 // Coroutine decls
 extern int os_port_impure_errno;
