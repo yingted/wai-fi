@@ -199,6 +199,7 @@ connmgr_start_resume:;
 
                             sys_untimeout(connmgr_restart, NULL);
                             user_dprintf("connected\x1b[34m");
+                            user_dprintf("handshake status: %d", ssl->hs_status);
                             filter_dest = filter_bssid = true;
                             promisc_start();
 
@@ -448,6 +449,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     assert(len > 0);
     user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
+    const ssize_t ret = len;
     // Read from the linked list.
     while (len > 0) {
         // Wait for a packet.
@@ -459,11 +461,12 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         // Try to read read_len from the buffer.
         u16_t read_len = ssl_pcb_recv_buf->len;
         if (read_len > len) {
-            // Read < 1 pbuf. Read was satisfied. Don't bother updating buffer pointers.
+            // Read < 1 pbuf. Read was satisfied. Only update source pointers.
             memcpy(buf, ssl_pcb_recv_buf->payload, len);
+            pbuf_header(ssl_pcb_recv_buf, -len); // always succeeds
             break;
         }
-        // Read >= 1 pbuf. Update pointers.
+        // Read >= 1 pbuf. Only update destination pointers.
         memcpy(buf, ssl_pcb_recv_buf->payload, read_len);
         *(char **)&buf += read_len;
         len -= read_len;
@@ -476,7 +479,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         pbuf_free(prev_pbuf);
     }
 
-    return len;
+    return ret;
 }
 
 __attribute__((used))
