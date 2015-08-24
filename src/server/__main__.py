@@ -24,7 +24,7 @@ def main():
 	ctx_factory = ssl.DefaultOpenSSLContextFactory(
 		ca_key_path,
 		ca_cert_path,
-		sslmethod=SSL.TLSv1_METHOD
+		sslmethod=SSL.TLSv1_1_METHOD
 	)
 
 	ctx = ctx_factory.getContext()
