@@ -29,6 +29,7 @@ static uint8 last_bssid[6], sta_mac[6];
 static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static struct ip_addr ap_gw_addr;
 static struct tcp_pcb *ssl_pcb = NULL;
+static SSL *ssl = NULL;
 
 // Receive buffer
 static struct pbuf *ssl_pcb_recv_buf = NULL;
@@ -213,7 +214,6 @@ connmgr_start_resume:;
                         USER_INTR_UNLOCK();
 
                         CORO_IF(CONNECT) {
-                            static SSL *ssl = NULL;
                             assert(ssl == NULL);
                             ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
                             assert(ssl != NULL);
@@ -425,6 +425,9 @@ ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
+    if (ssl != NULL) {
+        ssl->hs_status = SSL_ERROR_DEAD;
+    }
     // This should be race-free, since we're in lwIP
     // We can be called through tcp_abort() in connmgr_init_impl
     CORO_INTERRUPT(coro, EVENT_ABORT);
