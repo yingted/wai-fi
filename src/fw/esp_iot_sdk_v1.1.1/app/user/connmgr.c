@@ -92,6 +92,11 @@ static void connmgr_restart(void *arg);
     else \
         coro_interrupt_later = what;
 
+#define CORO_HANDLE_ALL(coro, what) \
+    assert(coro.ctrl.event == what); \
+    if (coro_interrupt_later == what) \
+        coro_interrupt_later = 0;
+
 // State management
 
 ICACHE_FLASH_ATTR
@@ -268,6 +273,7 @@ abort_ssl:;
                         }
 
                         if (coro.ctrl.event == EVENT_ABORT) {
+                            CORO_HANDLE_ALL(coro, EVENT_ABORT);
                             // We've handled the ABORT. Wait 10 seconds.
                             user_dprintf("reconnecting in 10 seconds");
                             sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
@@ -306,6 +312,7 @@ abort_ssl:;
             user_dprintf("disassociated");
 
             if (coro.ctrl.event == EVENT_DISASSOCIATE) {
+                CORO_HANDLE_ALL(coro, EVENT_DISASSOCIATE);
                 // We've handled the dissassociation. Wait 10 seconds.
                 user_dprintf("reassociating in 10 seconds");
                 sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
@@ -323,6 +330,7 @@ abort_ssl:;
         }
 
         assert(coro.ctrl.event == EVENT_STOP);
+        CORO_HANDLE_ALL(coro, EVENT_STOP);
 
         // Only stop logging after connmgr_stop()
         wifi_promiscuous_enable(0);
