@@ -221,10 +221,20 @@ connmgr_start_resume:;
                             user_dprintf("starting handshake");
                             {
                                 int status = SSL_OK;
+                                os_port_impure_errno = 0;
                                 while (ssl->hs_status != SSL_OK) {
                                     status = ssl_read(ssl, NULL);
                                     if (status < SSL_OK) {
                                         break;
+                                    }
+                                    if (status == SSL_OK && os_port_impure_errno == EAGAIN) {
+                                        CORO_IF(IDLE) {
+                                            continue;
+                                        } else {
+                                            // We got some sort of error.
+                                            status = SSL_ERROR_DEAD;
+                                            break;
+                                        }
                                     }
                                 }
                                 ssl->hs_status = status;
@@ -510,12 +520,10 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     while (len > 0) {
         // Wait for a packet.
         USER_INTR_LOCK();
-        // XXX EWOULDBLOCK
-        while (ssl_pcb_recv_buf == NULL) {
+        if (ssl_pcb_recv_buf == NULL) {
             USER_INTR_UNLOCK();
-            CORO_YIELD(coro, EVENT_IDLE);
-            CONNMGR_TESTCANCEL();
-            USER_INTR_LOCK();
+            os_port_impure_errno = EAGAIN;
+            return -1;
         }
         assert(ssl_pcb_recv_buf->ref == 1);
 
@@ -528,19 +536,22 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
             USER_INTR_UNLOCK();
             break;
         }
-        // Read >= 1 pbuf. Only update destination pointers.
-        memcpy(buf, ssl_pcb_recv_buf->payload, read_len);
-        *(char **)&buf += read_len;
-        len -= read_len;
 
-        // Free the pbuf.
+        // Pop off the first pbuf.
         struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
         ssl_pcb_recv_buf = prev_pbuf->next;
         pbuf_ref(ssl_pcb_recv_buf);
         pbuf_dechain(prev_pbuf);
-        pbuf_free(prev_pbuf);
         assert(ssl_pcb_recv_buf == NULL || ssl_pcb_recv_buf->ref == 1);
         USER_INTR_UNLOCK();
+
+        // Read >= 1 pbuf. Only update destination pointers.
+        memcpy(buf, prev_pbuf->payload, read_len);
+        *(char **)&buf += read_len;
+        len -= read_len;
+
+        // Free the pbuf.
+        pbuf_free(prev_pbuf);
     }
 
     return ret;
