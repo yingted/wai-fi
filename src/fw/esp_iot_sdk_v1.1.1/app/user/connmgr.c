@@ -38,6 +38,7 @@ static bool filter_dest = false, filter_bssid = false;
 
 // Coroutine stack
 static CORO_T(512) coro;
+static size_t coro_interrupt_later = 0;
 // Coroutine decls
 extern int os_port_impure_errno;
 void wifi_handle_event_cb(System_Event_t *event);
@@ -64,17 +65,32 @@ static void connmgr_restart(void *arg);
 
 #define CORO_IF(event_name) \
     user_dprintf("CORO_IF(" # event_name ") <yield>"); \
-    do { \
-        CORO_YIELD(coro, EVENT_ANY); \
-        _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
-        assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
-    } while (!(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name))); \
+    if (coro_interrupt_later) { \
+        coro.ctrl.event = coro_interrupt_later; \
+        coro_interrupt_later = 0; \
+    } else { \
+        do { \
+            CORO_YIELD(coro, EVENT_ANY); \
+            _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
+            assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
+        } while (!(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name))); \
+    } \
     if (!(coro.ctrl.event & EVENT_INTR)) \
         user_dprintf("CORO_IF(" # event_name ") <resume>"); \
     else \
         user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
     assert(coro.ctrl.state == CORO_RESUME); \
     if (!(coro.ctrl.event & EVENT_INTR))
+
+#define CORO_INTERRUPTED(coro) \
+    (coro ## _interrupt_later || (coro.ctrl.event & EVENT_INTR))
+
+#define CORO_INTERRUPT(coro, what) \
+    _Static_assert(what & EVENT_INTR, "Passed non-interrupt to CORO_INTERRUPT"); \
+    if (coro.ctrl.state == CORO_YIELD) \
+        CORO_RESUME(coro, what); \
+    else \
+        coro_interrupt_later = what;
 
 // State management
 
@@ -199,32 +215,37 @@ connmgr_start_resume:;
 
                             sys_untimeout(connmgr_restart, NULL);
                             user_dprintf("connected\x1b[34m");
-                            user_dprintf("handshake status: %d", ssl->hs_status);
-                            filter_dest = filter_bssid = true;
-                            promisc_start();
+                            user_dprintf("handshake status: %d", ssl_handshake_status(ssl));
+                            if (ssl_handshake_status(ssl) != SSL_OK) {
+                                user_dprintf("handshake failed");
+                                coro.ctrl.event = EVENT_ABORT;
+                            } else {
+                                filter_dest = filter_bssid = true;
+                                promisc_start();
 
-                            for (;;) {
                                 for (;;) {
-                                    static uint8_t *dst = NULL;
-                                    static int rc;
-                                    rc = ssl_read(ssl, &dst);
-                                    if (rc < SSL_OK) {
-                                        // Send ourselves an event
-                                        user_dprintf("ssl_read returned %d", rc);
-                                        coro.ctrl.event = EVENT_ABORT;
-                                        goto abort_ssl;
+                                    for (;;) {
+                                        static uint8_t *dst = NULL;
+                                        static int rc;
+                                        rc = ssl_read(ssl, &dst);
+                                        if (rc < SSL_OK) {
+                                            // Send ourselves an event
+                                            user_dprintf("ssl_read returned %d", rc);
+                                            coro.ctrl.event = EVENT_ABORT;
+                                            goto abort_ssl;
+                                        }
+                                        if (dst == NULL) {
+                                            break; // No record
+                                        }
+                                        connmgr_record_cb(ssl, dst, rc); // could block
                                     }
-                                    if (dst == NULL) {
-                                        break; // No record
-                                    }
-                                    connmgr_record_cb(ssl, dst, rc); // could block
-                                }
-                                connmgr_idle_cb(ssl);
+                                    connmgr_idle_cb(ssl);
 
-                                CORO_IF(IDLE) {
-                                    continue;
-                                } else {
-                                    break;
+                                    CORO_IF(IDLE) {
+                                        continue;
+                                    } else {
+                                        break;
+                                    }
                                 }
                             }
 abort_ssl:;
@@ -254,6 +275,7 @@ abort_ssl:;
                                 continue;
                             } else {
                                 sys_untimeout(connmgr_timer, NULL);
+                                break;
                             }
                         } else {
                             // We haven't handled it.
@@ -283,7 +305,7 @@ abort_ssl:;
             filter_dest = true;
             user_dprintf("disassociated");
 
-            if (coro.ctrl.event & EVENT_DISASSOCIATE) {
+            if (coro.ctrl.event == EVENT_DISASSOCIATE) {
                 // We've handled the dissassociation. Wait 10 seconds.
                 user_dprintf("reassociating in 10 seconds");
                 sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
@@ -291,6 +313,7 @@ abort_ssl:;
                     goto connmgr_start_resume;
                 } else {
                     sys_untimeout(connmgr_timer, NULL);
+                    break;
                 }
             }
 
@@ -299,11 +322,12 @@ abort_ssl:;
             assert(false);
         }
 
-        assert(coro.ctrl.event & EVENT_STOP);
+        assert(coro.ctrl.event == EVENT_STOP);
 
         // Only stop logging after connmgr_stop()
         wifi_promiscuous_enable(0);
         user_dprintf("stopped");
+        coro_interrupt_later = false;
     }
 }
 
@@ -321,7 +345,7 @@ void connmgr_start() {
 
 ICACHE_FLASH_ATTR
 void connmgr_stop() {
-    CORO_RESUME(coro, EVENT_STOP);
+    CORO_INTERRUPT(coro, EVENT_STOP);
 }
 
 // Callbacks for library code
@@ -345,7 +369,7 @@ void wifi_handle_event_cb(System_Event_t *event) {
             break;
         case EVENT_STAMODE_DISCONNECTED:
             user_dprintf("disconnected");
-            CORO_RESUME(coro, EVENT_DISASSOCIATE);
+            CORO_INTERRUPT(coro, EVENT_DISASSOCIATE);
             break;
         case EVENT_STAMODE_CONNECTED:
             // We handle this in GOT_IP anyways, so just grab the SSID.
@@ -371,9 +395,7 @@ static void ssl_pcb_err_cb(void *arg, err_t err) {
     ssl_pcb = NULL;
     // This should be race-free, since we're in lwIP
     // We can be called through tcp_abort() in connmgr_start_impl
-    if (coro.ctrl.state == CORO_YIELD) { // XXX state is only available in debug
-        CORO_RESUME(coro, EVENT_ABORT);
-    }
+    CORO_INTERRUPT(coro, EVENT_ABORT);
     user_dprintf("done");
 }
 
@@ -438,7 +460,7 @@ static void connmgr_restart(void *arg) {
 // Blocking socket implementation
 
 #define CONNMGR_TESTCANCEL() \
-    if (coro.ctrl.event & EVENT_INTR) { \
+    if (CORO_INTERRUPTED(coro)) { \
         os_port_impure_errno = EIO; \
         return -1; \
     }
