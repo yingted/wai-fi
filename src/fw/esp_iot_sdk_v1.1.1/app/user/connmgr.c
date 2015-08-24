@@ -168,9 +168,11 @@ connmgr_start_resume:;
                     saved_default = netif_default;
                     netif_default = &icmp_tap;
 
-                    err_t rc = dhcp_start(&icmp_tap);
-                    if (rc != ERR_OK) {
-                        user_dprintf("dhcp error: %d", rc);
+                    {
+                        err_t rc = dhcp_start(&icmp_tap);
+                        if (rc != ERR_OK) {
+                            user_dprintf("dhcp error: %d", rc);
+                        }
                     }
                 }
 
@@ -192,11 +194,13 @@ connmgr_start_resume:;
                         ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
                         ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
 
-                        err_t rc;
-                        if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
-                            user_dprintf("tcp_bind: error %d", rc);
-                            assert(false);
-                            system_restart();
+                        {
+                            err_t rc;
+                            if ((rc = tcp_bind(ssl_pcb, &icmp_tap.ip_addr, 0))) {
+                                user_dprintf("tcp_bind: error %d", rc);
+                                assert(false);
+                                system_restart();
+                            }
                         }
 
                         tcp_err(ssl_pcb, ssl_pcb_err_cb);
@@ -204,10 +208,13 @@ connmgr_start_resume:;
                         tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
                         tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
-                        if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
-                            user_dprintf("tcp_connect: error %d", rc);
-                            assert(false);
-                            system_restart();
+                        {
+                            err_t rc;
+                            if ((rc = tcp_connect(ssl_pcb, &icmp_tap.gw, 55555, ssl_pcb_connected_cb))) {
+                                user_dprintf("tcp_connect: error %d", rc);
+                                assert(false);
+                                system_restart();
+                            }
                         }
 
                         assert_heap();
@@ -252,8 +259,8 @@ connmgr_start_resume:;
 
                                 for (;;) {
                                     for (;;) {
-                                        static uint8_t *dst = NULL;
-                                        static int rc;
+                                        uint8_t *dst = NULL;
+                                        int rc;
                                         rc = ssl_read(ssl, &dst);
                                         if (rc < SSL_OK) {
                                             // Send ourselves an event
