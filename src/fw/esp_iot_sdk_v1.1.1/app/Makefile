@@ -16,7 +16,7 @@ TARGET = eagle
 #FLAVOR ?= release
 FLAVOR ?= debug
 # Assertions and stuff. Big performance penalty.
-DEBUG_ESP ?= 0
+DEBUG_ESP ?= 1
 # Allow debugging using gdb.sh and friends.
 GDB_STUB ?= 1
 # Code in a breakpoint at the start of user_init.

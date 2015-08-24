@@ -36,8 +36,8 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 // MAC filter flags
 static bool filter_dest = false, filter_bssid = false;
 
-// Coroutine stack
-static CORO_T(700) coro;
+// Coroutine stack XXX make it stackless
+static CORO_T(1024) coro;
 static size_t coro_interrupt_later = 0;
 // Coroutine decls
 extern int os_port_impure_errno;
@@ -215,7 +215,7 @@ connmgr_start_resume:;
                         CORO_IF(CONNECT) {
                             static SSL *ssl = NULL;
                             assert(ssl == NULL);
-                            ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
+                            ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0); // XXX connect in parts
                             assert(ssl != NULL);
 
                             user_dprintf("handshake status: %d", ssl_handshake_status(ssl));
