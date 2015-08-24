@@ -573,11 +573,6 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
                 user_dprintf("done");
                 return len;
             case ERR_MEM:
-                user_dprintf("polling for memory");
-                // We need to poll until we can write.
-                CORO_YIELD(coro, EVENT_POLL);
-                CONNMGR_TESTCANCEL();
-                continue;
             default:;
                 user_dprintf("write failed");
                 os_port_impure_errno = rc;
