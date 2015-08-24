@@ -101,7 +101,9 @@ static void connmgr_restart(void *arg);
 // State management
 
 ICACHE_FLASH_ATTR
-static void connmgr_init_impl(void *arg) {
+static void connmgr_init_impl() {
+    CORO_BEGIN();
+
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
     sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
@@ -368,13 +370,15 @@ abort_ssl:;
         user_dprintf("stopped");
         coro_interrupt_later = false;
     }
+
+    CORO_END();
 }
 
 // Async client APIs
 
 ICACHE_FLASH_ATTR
 void connmgr_init() {
-    CORO_START(coro, connmgr_init_impl, NULL);
+    CORO_START(coro, connmgr_init_impl);
 }
 
 ICACHE_FLASH_ATTR

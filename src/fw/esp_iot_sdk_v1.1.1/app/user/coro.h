@@ -1,14 +1,9 @@
 #ifndef __CORO_H__
 #define __CORO_H__
 
-#define __XTENSA_WINDOWED_ABI__ 0
-#include <setjmp.h>
+#include <debug_esp.h>
 
 struct coro_control {
-    /**
-     * Saved registers
-     */
-    jmp_buf main, worker;
     /**
      * Event(s), as a mask. 3 cases:
      * 1. Yielding for an event: any non-zero mask
@@ -33,14 +28,8 @@ struct coro_control {
     char stack[0];
 };
 
-#ifndef NDEBUG
-#define CORO_VOLATILE volatile
-#else
-#define CORO_VOLATILE
-#endif
-void coro_start_impl(struct coro_control *CORO_VOLATILE coro, size_t stacksize, void(*func)(void *), void *arg);
 void coro_resume_impl(struct coro_control *coro, size_t what);
-void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask);
+void coro_yield_impl(struct coro_control *coro, size_t mask);
 
 #define CORO_T(stackwords) \
     struct { \
@@ -48,14 +37,60 @@ void coro_yield_impl(struct coro_control *coro, CORO_VOLATILE size_t mask);
         size_t stack[stackwords]; \
     }
 
-#define CORO_START(coro, func, arg) \
-    coro_start_impl(&(coro).ctrl, sizeof((coro).stack), (func), (arg))
+typedef void *coro_label_t;
+
+#define CORO_LABEL_IMPL_LABEL(line, counter) coro_label_line_ ## line ## _counter_ ## counter
+
+#define CORO_LABEL_IMPL(line, counter) \
+    do { \
+        coro_label_next = &&CORO_LABEL_IMPL_LABEL(line, counter); \
+        return; \
+        CORO_LABEL_IMPL_LABEL(line, counter):; \
+    } while (0)
+
+#define CORO_LABEL() CORO_LABEL_IMPL(__LINE__, __COUNTER__)
+
+#define CORO_BEGIN() \
+    static coro_label_t coro_label_next = &&coro_label_ ## __LINE__ ## _begin; \
+    coro_label_ ## __LINE__ ## _begin: \
+    goto *coro_label_next;
+
+#define CORO_END() CORO_LABEL()
+
+#define CORO_START(coro, func) \
+    do { \
+        debug_esp_assert_interruptible(); \
+        assert((coro).ctrl.state == CORO_DEAD); \
+        assert((coro).ctrl.event == 0); \
+        user_dprintf("CORO_START(" #func ")"); \
+        (*func)(); \
+        assert((coro).ctrl.state == CORO_YIELD); \
+    } while (0)
 
 #define CORO_YIELD_OR_(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50, a51, a52, a53, a54, a55, a56, a57, a58, a59, a60, a61, a62, a63, ...) ((a0) | (a1) | (a2) | (a3) | (a4) | (a5) | (a6) | (a7) | (a8) | (a9) | (a10) | (a11) | (a12) | (a13) | (a14) | (a15) | (a16) | (a17) | (a18) | (a19) | (a20) | (a21) | (a22) | (a23) | (a24) | (a25) | (a26) | (a27) | (a28) | (a29) | (a30) | (a31) | (a32) | (a33) | (a34) | (a35) | (a36) | (a37) | (a38) | (a39) | (a40) | (a41) | (a42) | (a43) | (a44) | (a45) | (a46) | (a47) | (a48) | (a49) | (a50) | (a51) | (a52) | (a53) | (a54) | (a55) | (a56) | (a57) | (a58) | (a59) | (a60) | (a61) | (a62) | (a63))
 #define CORO_YIELD(coro, ...) \
-    coro_yield_impl(&(coro).ctrl, CORO_YIELD_OR_(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    do { \
+        debug_esp_assert_interruptible(); \
+        assert((coro).ctrl.state == CORO_RESUME); \
+        (coro).ctrl.event = CORO_YIELD_OR_(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); \
+        assert((coro).ctrl.event); \
+        CORO_LABEL(); \
+        assert((coro).ctrl.state == CORO_RESUME); \
+    } while (0)
 
 #define CORO_RESUME(coro, what_val) \
-    coro_resume_impl(&(coro).ctrl, what_val)
+    do { \
+        debug_esp_assert_interruptible(); \
+        assert((coro).ctrl.event); \
+        const size_t what = (what_val); \
+        assert(what); \
+        assert((coro).ctrl.state == CORO_YIELD); \
+        assert((what & -what) == what); \
+        if (what & (coro).ctrl.event) { \
+            (coro).ctrl.event = what; \
+            (*connmgr_init_impl)(); /* XXX */ \
+            assert((coro).ctrl.state == CORO_YIELD); \
+        } \
+    } while (0)
 
 #endif
