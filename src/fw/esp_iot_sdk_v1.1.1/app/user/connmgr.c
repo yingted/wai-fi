@@ -109,7 +109,7 @@ static void connmgr_init_impl(void *arg) {
 
     // XXX session caching
     static SSL_CTX *ssl_ctx;
-    ssl_ctx = ssl_ctx_new(0, 0);
+    ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 0);
     {
         err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
         assert(rc == SSL_OK);
@@ -215,8 +215,20 @@ connmgr_start_resume:;
                         CORO_IF(CONNECT) {
                             static SSL *ssl = NULL;
                             assert(ssl == NULL);
-                            ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0); // XXX connect in parts
+                            ssl = ssl_client_new(ssl_ctx, (int)ssl_pcb, NULL, 0);
                             assert(ssl != NULL);
+
+                            user_dprintf("starting handshake");
+                            {
+                                int status = SSL_OK;
+                                while (ssl->hs_status != SSL_OK) {
+                                    status = ssl_read(ssl, NULL);
+                                    if (status < SSL_OK) {
+                                        break;
+                                    }
+                                }
+                                ssl->hs_status = status;
+                            }
 
                             user_dprintf("handshake status: %d", ssl_handshake_status(ssl));
                             if (ssl_handshake_status(ssl) != SSL_OK) {
@@ -404,7 +416,7 @@ static void ssl_pcb_err_cb(void *arg, err_t err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
     // This should be race-free, since we're in lwIP
-    // We can be called through tcp_abort() in connmgr_start_impl
+    // We can be called through tcp_abort() in connmgr_init_impl
     CORO_INTERRUPT(coro, EVENT_ABORT);
     user_dprintf("done");
 }
@@ -498,6 +510,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     while (len > 0) {
         // Wait for a packet.
         USER_INTR_LOCK();
+        // XXX EWOULDBLOCK
         while (ssl_pcb_recv_buf == NULL) {
             USER_INTR_UNLOCK();
             CORO_YIELD(coro, EVENT_IDLE);
