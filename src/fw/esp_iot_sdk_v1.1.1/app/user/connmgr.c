@@ -37,7 +37,7 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 static bool filter_dest = false, filter_bssid = false;
 
 // Coroutine stack
-static CORO_T(400) coro;
+static CORO_T(512) coro;
 // Coroutine decls
 extern int os_port_impure_errno;
 void wifi_handle_event_cb(System_Event_t *event);
@@ -209,6 +209,7 @@ connmgr_start_resume:;
                                     rc = ssl_read(ssl, &dst);
                                     if (rc < SSL_OK) {
                                         // Send ourselves an event
+                                        user_dprintf("ssl_read returned %d", rc);
                                         coro.ctrl.event = EVENT_ABORT;
                                         goto abort_ssl;
                                     }
@@ -227,6 +228,7 @@ connmgr_start_resume:;
                             }
 abort_ssl:;
 
+                            user_dprintf("aborting ssl");
                             sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
                             assert(ssl != NULL);
                             ssl_free(ssl);
@@ -234,13 +236,18 @@ abort_ssl:;
                         }
 
                         user_dprintf("aborting ssl_pcb");
+                        assert(coro.ctrl.state == CORO_RESUME);
                         if (ssl_pcb != NULL) {
                             tcp_abort(ssl_pcb);
-                            ssl_pcb = NULL;
+                            if (ssl_pcb_recv_buf != NULL) {
+                                pbuf_free(ssl_pcb_recv_buf);
+                                ssl_pcb_recv_buf = NULL;
+                            }
                         }
 
                         if (coro.ctrl.event == EVENT_ABORT) {
                             // We've handled the ABORT. Wait 10 seconds.
+                            user_dprintf("reconnecting in 10 seconds");
                             sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
                             CORO_IF(TIMER) {
                                 continue;
@@ -277,6 +284,7 @@ abort_ssl:;
 
             if (coro.ctrl.event & EVENT_DISASSOCIATE) {
                 // We've handled the dissassociation. Wait 10 seconds.
+                user_dprintf("reassociating in 10 seconds");
                 sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
                 CORO_IF(TIMER) {
                     goto connmgr_start_resume;
@@ -359,13 +367,13 @@ void wifi_handle_event_cb(System_Event_t *event) {
 ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
-    assert(ssl_pcb != NULL);
-    tcp_abort(ssl_pcb);
     ssl_pcb = NULL;
+    assert(coro.ctrl.state == CORO_YIELD);
     // This should be race-free, since we're in lwIP
     if (coro.ctrl.state == CORO_YIELD) { // XXX state is only available in debug
         CORO_RESUME(coro, EVENT_ABORT);
     }
+    user_dprintf("done");
 }
 
 ICACHE_FLASH_ATTR
@@ -481,18 +489,20 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
         err_t rc = tcp_write(tpcb, buf, len, 0);
         switch (rc) {
             case ERR_OK:
+                user_dprintf("done");
                 return len;
             case ERR_MEM:
+                user_dprintf("polling for memory");
                 // We need to poll until we can write.
                 CORO_YIELD(coro, EVENT_POLL);
                 CONNMGR_TESTCANCEL();
                 continue;
             default:;
+                user_dprintf("write failed");
                 os_port_impure_errno = rc;
                 return -1;
         }
     }
-    return len;
 }
 
 // API hooks
