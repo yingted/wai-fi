@@ -38,7 +38,7 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 static bool filter_dest = false, filter_bssid = false;
 
 // Coroutine stack XXX make it stackless
-static CORO_T(1024) coro;
+static coro_t coro;
 static size_t coro_interrupt_later = 0;
 // Coroutine decls
 extern int os_port_impure_errno;
@@ -67,34 +67,34 @@ static void connmgr_restart(void *arg);
 #define CORO_IF(event_name) \
     user_dprintf("CORO_IF(" # event_name ") <yield>"); \
     if (coro_interrupt_later) { \
-        coro.ctrl.event = coro_interrupt_later; \
+        coro.event = coro_interrupt_later; \
         coro_interrupt_later = 0; \
     } else { \
         do { \
             CORO_YIELD(coro, EVENT_ANY); \
             _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
-            assert(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
-        } while (!(coro.ctrl.event & (EVENT_INTR | EVENT_ ## event_name))); \
+            assert(coro.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
+        } while (!(coro.event & (EVENT_INTR | EVENT_ ## event_name))); \
     } \
-    if (!(coro.ctrl.event & EVENT_INTR)) \
+    if (!(coro.event & EVENT_INTR)) \
         user_dprintf("CORO_IF(" # event_name ") <resume>"); \
     else \
         user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
-    assert(coro.ctrl.state == CORO_RESUME); \
-    if (!(coro.ctrl.event & EVENT_INTR))
+    assert(coro.state == CORO_RESUME); \
+    if (!(coro.event & EVENT_INTR))
 
 #define CORO_INTERRUPTED(coro) \
-    (coro ## _interrupt_later || (coro.ctrl.event & EVENT_INTR))
+    (coro ## _interrupt_later || (coro.event & EVENT_INTR))
 
 #define CORO_INTERRUPT(coro, what) \
     _Static_assert(what & EVENT_INTR, "Passed non-interrupt to CORO_INTERRUPT"); \
-    if (coro.ctrl.state == CORO_YIELD) \
+    if (coro.state == CORO_YIELD) \
         CORO_RESUME(coro, what); \
     else \
         coro_interrupt_later = what;
 
 #define CORO_HANDLE_ALL(coro, what) \
-    assert(coro.ctrl.event == what); \
+    assert(coro.event == what); \
     if (coro_interrupt_later == what) \
         coro_interrupt_later = 0;
 
@@ -252,7 +252,7 @@ connmgr_start_resume:;
                             user_dprintf("handshake status: %d", ssl_handshake_status(ssl));
                             if (ssl_handshake_status(ssl) != SSL_OK) {
                                 user_dprintf("handshake failed");
-                                coro.ctrl.event = EVENT_ABORT;
+                                coro.event = EVENT_ABORT;
                             } else {
                                 sys_untimeout(connmgr_restart, NULL);
                                 user_dprintf("connected\x1b[34m");
@@ -267,7 +267,7 @@ connmgr_start_resume:;
                                         if (rc < SSL_OK) {
                                             // Send ourselves an event
                                             user_dprintf("ssl_read returned %d", rc);
-                                            coro.ctrl.event = EVENT_ABORT;
+                                            coro.event = EVENT_ABORT;
                                             goto abort_ssl;
                                         }
                                         if (dst == NULL) {
@@ -294,7 +294,7 @@ abort_ssl:;
                         }
 
                         user_dprintf("aborting ssl_pcb");
-                        assert(coro.ctrl.state == CORO_RESUME);
+                        assert(coro.state == CORO_RESUME);
                         if (ssl_pcb != NULL) {
                             tcp_abort(ssl_pcb);
                             USER_INTR_LOCK();
@@ -305,7 +305,7 @@ abort_ssl:;
                             USER_INTR_UNLOCK();
                         }
 
-                        if (coro.ctrl.event == EVENT_ABORT) {
+                        if (coro.event == EVENT_ABORT) {
                             CORO_HANDLE_ALL(coro, EVENT_ABORT);
                             // We've handled the ABORT. Wait 10 seconds.
                             user_dprintf("reconnecting in 10 seconds");
@@ -344,7 +344,7 @@ abort_ssl:;
             filter_dest = true;
             user_dprintf("disassociated");
 
-            if (coro.ctrl.event == EVENT_DISASSOCIATE) {
+            if (coro.event == EVENT_DISASSOCIATE) {
                 CORO_HANDLE_ALL(coro, EVENT_DISASSOCIATE);
                 // We've handled the dissassociation. Wait 10 seconds.
                 user_dprintf("reassociating in 10 seconds");
@@ -362,7 +362,7 @@ abort_ssl:;
             assert(false);
         }
 
-        assert(coro.ctrl.event == EVENT_STOP);
+        assert(coro.event == EVENT_STOP);
         CORO_HANDLE_ALL(coro, EVENT_STOP);
 
         // Only stop logging after connmgr_stop()

@@ -19,7 +19,7 @@ struct coro_control {
         CORO_YIELD,
         CORO_RESUME,
     } state;
-#define CORO_GOTO(coro, new_state) ((coro).ctrl.state = CORO_ ## new_state)
+#define CORO_GOTO(coro, new_state) ((coro).state = CORO_ ## new_state)
 #else
 #define CORO_GOTO(...)
 #endif
@@ -28,11 +28,7 @@ struct coro_control {
     char stack[0];
 };
 
-#define CORO_T(stackwords) \
-    struct { \
-        struct coro_control ctrl; \
-        size_t stack[stackwords]; \
-    }
+typedef struct coro_control coro_t;
 
 typedef void *coro_label_t;
 
@@ -57,39 +53,39 @@ typedef void *coro_label_t;
 #define CORO_START(coro, func) \
     do { \
         debug_esp_assert_interruptible(); \
-        assert((coro).ctrl.state == CORO_DEAD); \
-        assert((coro).ctrl.event == 0); \
+        assert((coro).state == CORO_DEAD); \
+        assert((coro).event == 0); \
         CORO_GOTO((coro), RESUME); \
         user_dprintf("CORO_START(" #func ")"); \
         (func)(); \
-        assert((coro).ctrl.state == CORO_YIELD); \
+        assert((coro).state == CORO_YIELD); \
     } while (0)
 
 #define CORO_YIELD_OR_(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50, a51, a52, a53, a54, a55, a56, a57, a58, a59, a60, a61, a62, a63, ...) ((a0) | (a1) | (a2) | (a3) | (a4) | (a5) | (a6) | (a7) | (a8) | (a9) | (a10) | (a11) | (a12) | (a13) | (a14) | (a15) | (a16) | (a17) | (a18) | (a19) | (a20) | (a21) | (a22) | (a23) | (a24) | (a25) | (a26) | (a27) | (a28) | (a29) | (a30) | (a31) | (a32) | (a33) | (a34) | (a35) | (a36) | (a37) | (a38) | (a39) | (a40) | (a41) | (a42) | (a43) | (a44) | (a45) | (a46) | (a47) | (a48) | (a49) | (a50) | (a51) | (a52) | (a53) | (a54) | (a55) | (a56) | (a57) | (a58) | (a59) | (a60) | (a61) | (a62) | (a63))
 #define CORO_YIELD(coro, ...) \
     do { \
         debug_esp_assert_interruptible(); \
-        assert((coro).ctrl.state == CORO_RESUME); \
-        (coro).ctrl.event = CORO_YIELD_OR_(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); \
-        assert((coro).ctrl.event); \
+        assert((coro).state == CORO_RESUME); \
+        (coro).event = CORO_YIELD_OR_(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); \
+        assert((coro).event); \
         CORO_GOTO((coro), YIELD); \
         CORO_LABEL(); \
-        assert((coro).ctrl.state == CORO_RESUME); \
+        assert((coro).state == CORO_RESUME); \
     } while (0)
 
 #define CORO_RESUME(coro, what_val) \
     do { \
         debug_esp_assert_interruptible(); \
-        assert((coro).ctrl.event); \
+        assert((coro).event); \
         const size_t what = (what_val); \
         assert(what); \
-        assert((coro).ctrl.state == CORO_YIELD); \
+        assert((coro).state == CORO_YIELD); \
         assert((what & -what) == what); \
-        if (what & (coro).ctrl.event) { \
-            (coro).ctrl.event = what; \
+        if (what & (coro).event) { \
+            (coro).event = what; \
             CORO_GOTO((coro), RESUME); \
             (connmgr_init_impl)(); /* XXX */ \
-            assert((coro).ctrl.state == CORO_YIELD); \
+            assert((coro).state == CORO_YIELD); \
         } \
     } while (0)
 
