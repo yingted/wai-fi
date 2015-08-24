@@ -368,8 +368,8 @@ ICACHE_FLASH_ATTR
 static void ssl_pcb_err_cb(void *arg, err_t err) {
     user_dprintf("reconnect due to %d\x1b[35m", err);
     ssl_pcb = NULL;
-    assert(coro.ctrl.state == CORO_YIELD);
     // This should be race-free, since we're in lwIP
+    // We can be called through tcp_abort() in connmgr_start_impl
     if (coro.ctrl.state == CORO_YIELD) { // XXX state is only available in debug
         CORO_RESUME(coro, EVENT_ABORT);
     }
