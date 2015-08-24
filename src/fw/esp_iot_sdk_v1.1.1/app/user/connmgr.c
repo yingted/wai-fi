@@ -37,7 +37,7 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 static bool filter_dest = false, filter_bssid = false;
 
 // Coroutine stack
-static CORO_T(512) coro;
+static CORO_T(1024) coro;
 static size_t coro_interrupt_later = 0;
 // Coroutine decls
 extern int os_port_impure_errno;
@@ -430,6 +430,7 @@ static err_t ssl_pcb_recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
     }
 
     USER_INTR_LOCK();
+    assert(p->ref >= 1);
     if (ssl_pcb_recv_buf == NULL) {
         ssl_pcb_recv_buf = p;
     } else {
@@ -516,6 +517,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         pbuf_ref(ssl_pcb_recv_buf);
         pbuf_dechain(prev_pbuf);
         pbuf_free(prev_pbuf);
+        assert(ssl_pcb_recv_buf == NULL || ssl_pcb_recv_buf->ref == 1);
         USER_INTR_UNLOCK();
     }
 
