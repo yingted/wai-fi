@@ -19,7 +19,7 @@ struct coro_control {
         CORO_YIELD,
         CORO_RESUME,
     } state;
-#define CORO_GOTO(ctrl, new_state) ((ctrl)->state = CORO_ ## new_state)
+#define CORO_GOTO(coro, new_state) ((coro).ctrl.state = CORO_ ## new_state)
 #else
 #define CORO_GOTO(...)
 #endif
@@ -27,9 +27,6 @@ struct coro_control {
     __attribute__((aligned(4)))
     char stack[0];
 };
-
-void coro_resume_impl(struct coro_control *coro, size_t what);
-void coro_yield_impl(struct coro_control *coro, size_t mask);
 
 #define CORO_T(stackwords) \
     struct { \
@@ -52,8 +49,8 @@ typedef void *coro_label_t;
 
 #define CORO_BEGIN() \
     static coro_label_t coro_label_next = &&coro_label_ ## __LINE__ ## _begin; \
-    coro_label_ ## __LINE__ ## _begin: \
-    goto *coro_label_next;
+    goto *coro_label_next; \
+    coro_label_ ## __LINE__ ## _begin:
 
 #define CORO_END() CORO_LABEL()
 
@@ -62,8 +59,9 @@ typedef void *coro_label_t;
         debug_esp_assert_interruptible(); \
         assert((coro).ctrl.state == CORO_DEAD); \
         assert((coro).ctrl.event == 0); \
+        CORO_GOTO((coro), RESUME); \
         user_dprintf("CORO_START(" #func ")"); \
-        (*func)(); \
+        (func)(); \
         assert((coro).ctrl.state == CORO_YIELD); \
     } while (0)
 
@@ -74,6 +72,7 @@ typedef void *coro_label_t;
         assert((coro).ctrl.state == CORO_RESUME); \
         (coro).ctrl.event = CORO_YIELD_OR_(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); \
         assert((coro).ctrl.event); \
+        CORO_GOTO((coro), YIELD); \
         CORO_LABEL(); \
         assert((coro).ctrl.state == CORO_RESUME); \
     } while (0)
@@ -88,7 +87,8 @@ typedef void *coro_label_t;
         assert((what & -what) == what); \
         if (what & (coro).ctrl.event) { \
             (coro).ctrl.event = what; \
-            (*connmgr_init_impl)(); /* XXX */ \
+            CORO_GOTO((coro), RESUME); \
+            (connmgr_init_impl)(); /* XXX */ \
             assert((coro).ctrl.state == CORO_YIELD); \
         } \
     } while (0)
