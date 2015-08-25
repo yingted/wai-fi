@@ -65,7 +65,7 @@ static void connmgr_restart(void *arg);
 #define EVENT_IGNORE (EVENT_POLL | EVENT_IDLE) // events that can be ignored
 
 #define CORO_IF(event_name) \
-    user_dprintf("CORO_IF(" # event_name ") <yield>"); \
+    /*user_dprintf("CORO_IF(" # event_name ") <yield>")*/; \
     if (coro_interrupt_later) { \
         coro.event = coro_interrupt_later; \
         coro_interrupt_later = 0; \
@@ -77,9 +77,9 @@ static void connmgr_restart(void *arg);
         } while (!(coro.event & (EVENT_INTR | EVENT_ ## event_name))); \
     } \
     if (!(coro.event & EVENT_INTR)) \
-        user_dprintf("CORO_IF(" # event_name ") <resume>"); \
+        /*user_dprintf("CORO_IF(" # event_name ") <resume>")*/; \
     else \
-        user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
+        /*user_dprintf("CORO_IF(" # event_name ") <interrupt>")*/; \
     assert(coro.state == CORO_RESUME); \
     if (!(coro.event & EVENT_INTR))
 
