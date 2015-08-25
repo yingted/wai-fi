@@ -1,4 +1,7 @@
 file .output/eagle/debug/image/eagle.app.v6.out
+set remote hardware-breakpoint-limit 1
+set remote hardware-watchpoint-limit 1
+set remote hardware-watchpoint-length-limit 64
 set remote interrupt-sequence BREAK
 set remotelogfile gdb.log
 mem 0x00000000 0x3ffe8000 ro
