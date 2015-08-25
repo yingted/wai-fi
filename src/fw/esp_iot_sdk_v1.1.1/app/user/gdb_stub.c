@@ -77,21 +77,40 @@ static void real_putc1(char c) {
 ICACHE_FLASH_ATTR
 static char real_getc1() {
     for (;;) {
+        size_t saved_ps;
+        __asm__ __volatile__("\
+            esync\n\
+            rsil %0, 15\n\
+            esync\n\
+        ":"=r"(saved_ps));
+
+        SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
         size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
+        int ch = -1;
         // if (status & UART_FRM_ERR_INT_ST) ...
         if (status & (UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST)) {
             size_t queued = (READ_PERI_REG(UART_STATUS(GDB_UART)) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
             if (queued) {
-                char ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
-                return ch;
+                ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
             }
             WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
         }
         // if (status & UART_TXFIFO_EMPTY_INT_ST) ...
         // if (status & UART_RXFIFO_OVF_INT_ST) ...
+        CLEAR_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
+
+        __asm__ __volatile__("\
+            esync\n\
+            wsr.ps %0\n\
+            esync\n\
+        "::"r"(saved_ps));
+        if (ch != -1) {
+            return ch;
+        }
     }
 }
 
+bool _gdb_check_rx_full = false;
 ICACHE_FLASH_ATTR
 static void gdb_uart_intr_handler(void *arg) {
     size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
@@ -100,6 +119,17 @@ static void gdb_uart_intr_handler(void *arg) {
         // We got a break from GDB. Attach GDB.
         gdb_stub_break();
     } else {
+if (_gdb_check_rx_full && (status & 1)) {
+    size_t fifo_cnt = (((size_t)READ_PERI_REG(UART_STATUS(GDB_UART))) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
+    if (fifo_cnt) {
+        real_putc1('@');
+        while (fifo_cnt--) {
+            char ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
+            real_putc1(ch);
+        }
+        real_putc1('%');
+    }
+}
         // Discard these
         WRITE_PERI_REG(UART_INT_CLR(GDB_UART), status);
     }
@@ -171,8 +201,8 @@ static void gdb_write_flush() {
     real_putc1('#');
     gdb_write_byte(gdb_write_cksum);
 
-    //char ch = real_getc1();
-    //assert(ch == '+');
+    char ch = real_getc1();
+    assert(ch == '+');
 }
 
 static bool outbuf_unbuffered = false;
@@ -293,6 +323,7 @@ static void gdb_restore_state() {
     assert(regs.EPC_REG.valid);
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
     gdb_send_stop_reply();
+_gdb_check_rx_full = true;
     outbuf_unbuffered = false;
 
     // Restore special registers
@@ -383,7 +414,7 @@ static void gdb_attach(int exccause, int debugcause) {
 
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
-    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
+    CLEAR_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
     outbuf_unbuffered = true;
 
     static bool has_breakpoint = false, has_watchpoint = false;
@@ -631,7 +662,7 @@ cont:
         wsr.ps %0\n\
         esync\n\
     "::"r"(saved_ps));
-    WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
+    SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
     gdb_restore_state();
 }
 
@@ -715,6 +746,14 @@ void gdb_stub_init() {
     size_t i;
     for (i = 0; i != sizeof(exceptions); ++i) {
         _xtos_set_exception_handler(exceptions[i], gdb_stub_exception_handler_exc);
+    }
+
+    {
+        // Drain the rx fifo
+        size_t fifo_cnt = (((size_t)READ_PERI_REG(UART_STATUS(GDB_UART))) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
+        while (fifo_cnt--) {
+            READ_PERI_REG(UART_FIFO(GDB_UART));
+        }
     }
 
     // Enable Ctrl-C
