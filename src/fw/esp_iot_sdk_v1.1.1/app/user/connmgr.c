@@ -229,7 +229,8 @@ connmgr_start_resume:;
 
                             user_dprintf("starting handshake");
                             {
-                                int status = SSL_OK;
+                                static int status;
+                                status = SSL_OK;
                                 os_port_impure_errno = 0;
                                 while (ssl->hs_status != SSL_OK) {
                                     status = ssl_read(ssl, NULL);
@@ -262,8 +263,7 @@ connmgr_start_resume:;
                                 for (;;) {
                                     for (;;) {
                                         uint8_t *dst = NULL;
-                                        int rc;
-                                        rc = ssl_read(ssl, &dst);
+                                        int rc = ssl_read(ssl, &dst);
                                         if (rc < SSL_OK) {
                                             // Send ourselves an event
                                             user_dprintf("ssl_read returned %d", rc);
@@ -271,11 +271,15 @@ connmgr_start_resume:;
                                             goto abort_ssl;
                                         }
                                         if (dst == NULL) {
+                                            assert(rc == 0);
                                             break; // No record
                                         }
+                                        assert(rc > 0);
                                         connmgr_record_cb(ssl, dst, rc); // could block
                                     }
-                                    connmgr_idle_cb(ssl);
+                                    if (IS_SET_SSL_FLAG(SSL_NEED_RECORD)) {
+                                        connmgr_idle_cb(ssl);
+                                    }
 
                                     CORO_IF(IDLE) {
                                         continue;
@@ -536,8 +540,12 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         USER_INTR_LOCK();
         if (ssl_pcb_recv_buf == NULL) {
             USER_INTR_UNLOCK();
-            os_port_impure_errno = EAGAIN;
-            return -1;
+            if (ret == (ssize_t)len) {
+                os_port_impure_errno = EAGAIN;
+                return -1;
+            } else {
+                return ret - len;
+            }
         }
         assert(ssl_pcb_recv_buf->ref == 1);
 
@@ -577,18 +585,16 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
     user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
-    for (;;) {
-        err_t rc = tcp_write(tpcb, buf, len, 0);
-        switch (rc) {
-            case ERR_OK:
-                user_dprintf("done");
-                return len;
-            case ERR_MEM:
-            default:;
-                user_dprintf("write failed");
-                os_port_impure_errno = rc;
-                return -1;
-        }
+    err_t rc = tcp_write(tpcb, buf, len, 0);
+    switch (rc) {
+        case ERR_OK:
+            user_dprintf("done");
+            return len;
+        case ERR_MEM:
+        default:;
+            user_dprintf("write failed");
+            os_port_impure_errno = rc;
+            return -1;
     }
 }
 
