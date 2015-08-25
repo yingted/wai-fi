@@ -38,8 +38,10 @@ void icmp_net_conn::stop() {
 	alive_ = false;
 	inbound_.stop();
 	outbound_.stop();
-	// Let's extend its life a bit
+	// Let's extend its life a bit. Delete it later.
 	auto sp = icmp_net_.conns_[cid_];
-	icmp_net_.conns_.erase(cid_);
-	assert(sp.use_count() == 1);
+	icmp_net_.io_.post([=]() {
+		assert(sp.use_count() == 1);
+		icmp_net_.conns_.erase(cid_);
+	});
 }

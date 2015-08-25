@@ -98,6 +98,7 @@ void icmp_net::raw_reader(yield_context yield) {
 				conns_.emplace(cid, make_shared<icmp_net_conn>(*this, cid, frame->orig_seq));
 			}
 			conns_[cid]->on_raw_frame(frame);
+			// conns_[cid] might now be scheduled for deletion at the next yield
 		}
 	}
 }
