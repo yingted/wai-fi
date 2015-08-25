@@ -110,7 +110,6 @@ static char real_getc1() {
     }
 }
 
-bool _gdb_check_rx_full = false;
 ICACHE_FLASH_ATTR
 static void gdb_uart_intr_handler(void *arg) {
     size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
@@ -119,17 +118,6 @@ static void gdb_uart_intr_handler(void *arg) {
         // We got a break from GDB. Attach GDB.
         gdb_stub_break();
     } else {
-if (_gdb_check_rx_full && (status & 1)) {
-    size_t fifo_cnt = (((size_t)READ_PERI_REG(UART_STATUS(GDB_UART))) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
-    if (fifo_cnt) {
-        real_putc1('@');
-        while (fifo_cnt--) {
-            char ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
-            real_putc1(ch);
-        }
-        real_putc1('%');
-    }
-}
         // Discard these
         WRITE_PERI_REG(UART_INT_CLR(GDB_UART), status);
     }
@@ -323,7 +311,6 @@ static void gdb_restore_state() {
     assert(regs.EPC_REG.valid);
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
     gdb_send_stop_reply();
-_gdb_check_rx_full = true;
     outbuf_unbuffered = false;
 
     // Restore special registers
@@ -361,7 +348,7 @@ _gdb_check_rx_full = true;
     );
 #undef XTREG_ty2
 #pragma pop_macro("XTREG")
-    for (;;); // unreachable
+    __builtin_unreachable();
 }
 
 ICACHE_FLASH_ATTR

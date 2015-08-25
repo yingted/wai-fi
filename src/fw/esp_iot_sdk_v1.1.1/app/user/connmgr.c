@@ -382,6 +382,8 @@ abort_ssl:;
         coro_interrupt_later = false;
     }
 
+    assert(false);
+
     CORO_END();
 }
 

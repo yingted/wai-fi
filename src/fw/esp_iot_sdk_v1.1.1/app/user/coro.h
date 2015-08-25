@@ -23,9 +23,6 @@ struct coro_control {
 #else
 #define CORO_GOTO(...)
 #endif
-    // Must be the last entry
-    __attribute__((aligned(4)))
-    char stack[0];
 };
 
 typedef struct coro_control coro_t;
