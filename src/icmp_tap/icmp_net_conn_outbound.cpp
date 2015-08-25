@@ -55,7 +55,8 @@ void icmp_net_conn_outbound::main_loop(yield_context yield) {
 		std::sort(replies.begin(), replies.end(), [=](shared_ptr<icmp_net_frame> a, shared_ptr<icmp_net_frame> b) {
 			return ((int16_t)a->orig_seq - origin) < ((int16_t)b->orig_seq - origin);
 		});
-		const static size_t max_replies = 100;
+		const static size_t max_replies = ICMP_NET_QSIZE;
+		static_assert((ICMP_NET_QSIZE & -ICMP_NET_QSIZE) == ICMP_NET_QSIZE, "Invalid ICMP qsize");
 		if (replies.size() > max_replies) {
 			cout << "outbound: overflowing " << (replies.size() - max_replies) << " packets" << endl;
 			replies = {replies.end() - max_replies, replies.end()};

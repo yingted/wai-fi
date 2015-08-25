@@ -1,4 +1,5 @@
-- convert connmgr to coroutine-on-reactor design
+- fix icmp_tap bugs
+- tweak keepalive? or get rid of it?
 - FOTA
 - TLS keepalive for server
 - server-side analysis, ui

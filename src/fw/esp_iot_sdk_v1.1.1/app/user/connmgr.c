@@ -190,10 +190,12 @@ connmgr_start_resume:;
                         assert(ssl_pcb != NULL);
                         ip_set_option(ssl_pcb, SO_REUSEADDR);
                         tcp_nagle_disable(ssl_pcb);
+#if 0
                         ssl_pcb->so_options |= SOF_KEEPALIVE;
                         ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
                         ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
                         ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
+#endif
 
                         {
                             err_t rc;
@@ -584,7 +586,7 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
     user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
-    err_t rc = tcp_write(tpcb, buf, len, 0);
+    err_t rc = tcp_write(tpcb, buf, len, TCP_WRITE_FLAG_COPY);
     switch (rc) {
         case ERR_OK:
             user_dprintf("done");
