@@ -1,4 +1,3 @@
-- fix icmp_tap bugs
 - tweak keepalive? or get rid of it?
 - FOTA
 - TLS keepalive for server
