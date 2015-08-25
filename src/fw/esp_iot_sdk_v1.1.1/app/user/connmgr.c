@@ -278,8 +278,14 @@ connmgr_start_resume:;
                                         assert(rc > 0);
                                         connmgr_record_cb(ssl, dst, rc); // could block
                                     }
+
+                                    // Do any writes in connmgr_idle_cb
                                     if (IS_SET_SSL_FLAG(SSL_NEED_RECORD)) {
                                         connmgr_idle_cb(ssl);
+                                        if (!CORO_INTERRUPTED(coro)) {
+                                            assert(ssl_pcb != NULL);
+                                            tcp_output(ssl_pcb);
+                                        }
                                     }
 
                                     CORO_IF(IDLE) {
