@@ -170,6 +170,9 @@ static void gdb_write_flush() {
     gdb_write_string("");
     real_putc1('#');
     gdb_write_byte(gdb_write_cksum);
+
+    //char ch = real_getc1();
+    //assert(ch == '+');
 }
 
 static bool outbuf_unbuffered = false;
@@ -179,7 +182,7 @@ ICACHE_FLASH_ATTR
 static void gdb_putc1(char c) {
     outbuf[outbuf_tail++] = c;
     outbuf_tail %= sizeof(outbuf);
-    if (outbuf_unbuffered && (c == '\n' || (outbuf_tail - outbuf_head + sizeof(outbuf)) % sizeof(outbuf) * 2 >= sizeof(outbuf))) {
+    if (outbuf_unbuffered || c == '\n' || (outbuf_tail - outbuf_head + sizeof(outbuf)) % sizeof(outbuf) * 2 >= sizeof(outbuf)) {
         gdb_write_reset();
         gdb_send_stop_reply();
     }
@@ -290,7 +293,7 @@ static void gdb_restore_state() {
     assert(regs.EPC_REG.valid);
     assert(regs.CONCAT(eps, XCHAL_DEBUGLEVEL).valid);
     gdb_send_stop_reply();
-    outbuf_unbuffered = true;
+    outbuf_unbuffered = false;
 
     // Restore special registers
 #pragma push_macro("XTREG")
@@ -381,7 +384,7 @@ static void gdb_attach(int exccause, int debugcause) {
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     WRITE_PERI_REG(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
-    outbuf_unbuffered = false;
+    outbuf_unbuffered = true;
 
     static bool has_breakpoint = false, has_watchpoint = false;
     static size_t breakpoint_addr, watchpoint_addr;

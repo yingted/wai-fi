@@ -1,7 +1,7 @@
 source gdb_init
 target remote /dev/ttyUSB0
 # stack is around 0x3fffbf00 to 0x40000000
-watch *0x3fffbf00 mask 0xffffffc0
+watch *(char(*)[64])(0x3fffbf00 - 64)
 c
 
 echo \033\133\060\155
