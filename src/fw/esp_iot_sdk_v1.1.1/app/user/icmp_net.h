@@ -8,7 +8,7 @@
 #include <lwip/dhcp.h>
 
 // Must be a power of 2
-#define ICMP_NET_QSIZE 256U
+#define ICMP_NET_QSIZE 16U
 #define ICMP_NET_MAX_KEEPALIVE 8U
 #define ICMP_NET_MIN_KEEPALIVE 2U
 // TTL (3 means it survives 3 timeouts and dies on the 4th), in 500 ms units
