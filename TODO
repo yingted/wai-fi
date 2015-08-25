@@ -1,7 +1,7 @@
 - tweak keepalive? or get rid of it?
 - FOTA
-- TLS keepalive for server
 - server-side analysis, ui
+- fix crash in build_and_debug.sh
 - switch to SCons
 - move certs to TarFile, to postgresql, add built elf (to a BINARY column)
 - remote shell
