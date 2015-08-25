@@ -7,7 +7,7 @@
 #include <waifi_rpc.h>
 
 #define LOGBUF_SIZE 1024
-#define MAX_LOGBUF 3
+#define MAX_LOGBUF 2
 
 __attribute__((weak))
 ICACHE_FLASH_ATTR
