@@ -37,7 +37,6 @@ static struct pbuf *ssl_pcb_recv_buf = NULL;
 // MAC filter flags
 static bool filter_dest = false, filter_bssid = false;
 
-// Coroutine stack XXX make it stackless
 static coro_t coro;
 static size_t coro_interrupt_later = 0;
 // Coroutine decls
