@@ -1,0 +1,8 @@
+Memory layout
+[0x3ffe8000, 0x3fffc000) => dram0_0_seg
+[_heap_start, 0x3fffbf00) => heap
+[0x3fffbf00, ~0x40000000) => stack
+[0x40000000, 0x40100000) => espressif rom (vecbase is moved here at startup)
+[0x40100000, 0x40200000) => flash rom (32-bit aligned read only)
+[0x40200000, 0x40300000) => instruction ram
+[0x60000000, 0x70000000) => mmio?

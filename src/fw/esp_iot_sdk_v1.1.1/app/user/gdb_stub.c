@@ -77,33 +77,18 @@ static void real_putc1(char c) {
 ICACHE_FLASH_ATTR
 static char real_getc1() {
     for (;;) {
-        size_t saved_ps;
-        __asm__ __volatile__("\
-            esync\n\
-            rsil %0, 15\n\
-            esync\n\
-        ":"=r"(saved_ps));
-
-        SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
-        size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
+        size_t status = READ_PERI_REG(UART_INT_RAW(GDB_UART));
         int ch = -1;
-        // if (status & UART_FRM_ERR_INT_ST) ...
-        if (status & (UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST)) {
+        // if (status & UART_FRM_ERR_INT_RAW) ...
+        if (status & (UART_RXFIFO_FULL_INT_RAW | UART_RXFIFO_TOUT_INT_RAW)) {
             size_t queued = (READ_PERI_REG(UART_STATUS(GDB_UART)) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
             if (queued) {
                 ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
             }
-            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
+            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_RAW | UART_RXFIFO_TOUT_INT_RAW);
         }
-        // if (status & UART_TXFIFO_EMPTY_INT_ST) ...
-        // if (status & UART_RXFIFO_OVF_INT_ST) ...
-        CLEAR_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
-
-        __asm__ __volatile__("\
-            esync\n\
-            wsr.ps %0\n\
-            esync\n\
-        "::"r"(saved_ps));
+        // if (status & UART_TXFIFO_EMPTY_INT_RAW) ...
+        // if (status & UART_RXFIFO_OVF_INT_RAW) ...
         if (ch != -1) {
             return ch;
         }
@@ -271,6 +256,7 @@ static void gdb_download(size_t addr, size_t len) {
     }
     if (gdb_read_to_cksum()) {
         os_memcpy(addr, buf, len);
+        gdb_write_string("OK");
     }
 }
 
@@ -753,6 +739,7 @@ void gdb_stub_init() {
     if (i * i == 3) { // mathematically impossible
         gdb_stub_DebugExceptionVector();
         gdb_stub_DebugExceptionVector_1();
+        for (;;);
     }
 }
 
@@ -764,12 +751,14 @@ __asm__("\
         j gdb_stub_DebugExceptionVector_1\n\
 ");
 //__attribute__((naked)) // not supported
+__attribute__((optimize("omit-frame-pointer")))
+__attribute__((noreturn))
 __attribute__((section(".text")))
 void gdb_stub_DebugExceptionVector_1() {
     __asm__ __volatile__("addmi a1, a1, -0x100");
 #define REG_XTENSA_special 0
 #define REG_XTENSA_reg32(x, have) \
-    IF(have, __asm__("s32i " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
+    IF(have, __asm__ __volatile__("s32i " #x ", a1, %0\n"::"i"(offsetof(UserFrame, x)):"memory");,,x)
 #include <xtruntime-frames-uexc.h>
 #undef REG_XTENSA_reg32
 
@@ -796,6 +785,7 @@ void gdb_stub_DebugExceptionVector_1() {
         [intlevel_shift] "i"(XCHAL_PS_INTLEVEL_SHIFT),
         [intlevel_mask] "i"(XCHAL_PS_INTLEVEL_MASK)
     );
+    __builtin_unreachable();
 }
 #else
 __asm__("\
