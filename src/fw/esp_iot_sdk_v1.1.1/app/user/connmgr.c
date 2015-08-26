@@ -208,8 +208,10 @@ connmgr_start_resume:;
 
                         tcp_err(ssl_pcb, ssl_pcb_err_cb);
                         tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
-                        tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
-                        tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
+                        if (system_get_free_heap_size() * 2 == 1) { // TODO remove this
+                            tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+                            tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
+                        }
 
                         {
                             err_t rc;
