@@ -366,7 +366,6 @@ abort_ssl:;
                     goto connmgr_start_resume;
                 } else {
                     sys_untimeout(connmgr_timer, NULL);
-                    break;
                 }
             }
 
@@ -596,6 +595,7 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
     struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
     user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
+    // TODO figure out how to avoid reallocation
     err_t rc = tcp_write(tpcb, buf, len, TCP_WRITE_FLAG_COPY);
     switch (rc) {
         case ERR_OK:
