@@ -1,4 +1,5 @@
 - tweak keepalive? or get rid of it?
+- consider reverting c279ed781d5138caa3c5d16f6aaa65e10bda5671
 - FOTA
 - server-side analysis, ui
 - fix crash in build_and_debug.sh

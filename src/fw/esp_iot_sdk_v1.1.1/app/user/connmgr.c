@@ -363,10 +363,12 @@ abort_ssl:;
                 user_dprintf("reassociating in 10 seconds");
                 sys_timeout(10 /* seconds */ * 1000, connmgr_timer, NULL);
                 CORO_IF(TIMER) {
-                    goto connmgr_start_resume;
+                    // Do nothing.
                 } else {
                     sys_untimeout(connmgr_timer, NULL);
                 }
+                // Never synthesize a STOP event.
+                goto connmgr_start_resume;
             }
 
             assert_heap();
