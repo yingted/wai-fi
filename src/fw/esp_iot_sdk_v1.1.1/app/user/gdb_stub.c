@@ -189,8 +189,13 @@ static void gdb_write_flush() {
     real_putc1('#');
     gdb_write_byte(gdb_write_cksum);
 
-    char ch = real_getc1();
-    assert(ch == '+');
+    for (;;) {
+        char ch = real_getc1();
+        if (ch == '+') {
+            break;
+        }
+        assert(ch != '-');
+    }
 }
 
 static bool outbuf_unbuffered = false;
