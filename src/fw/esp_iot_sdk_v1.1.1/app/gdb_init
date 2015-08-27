@@ -7,3 +7,6 @@ set remotelogfile gdb.log
 mem 0x00000000 0x3ffe8000 ro
 mem 0x3ffe8000 0x40000000 rw
 mem 0x40000000 0xffffffff ro
+define hook-stop
+    echo \033\133\060\155
+end

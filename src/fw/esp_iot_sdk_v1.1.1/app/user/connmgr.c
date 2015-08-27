@@ -204,10 +204,28 @@ connmgr_start_resume:;
                         assert(ssl_pcb != NULL);
                         ip_set_option(ssl_pcb, SO_REUSEADDR);
                         tcp_nagle_disable(ssl_pcb);
-                        ssl_pcb->so_options |= SOF_KEEPALIVE;
-                        ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
-                        ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
-                        ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
+                        ip_set_option(ssl_pcb, SO_KEEPALIVE);
+                        // IPv4 stuff is all right
+                        _Static_assert(offsetof(struct tcp_pcb, local_ip) == 0, "Not ABI compatible");
+                        _Static_assert(offsetof(struct tcp_pcb, remote_ip) == 4, "Not ABI compatible");
+                        _Static_assert(offsetof(struct tcp_pcb, so_options) == 8, "Not ABI compatible");
+                        _Static_assert(offsetof(struct tcp_pcb, tos) == 9, "Not ABI compatible");
+                        _Static_assert(offsetof(struct tcp_pcb, ttl) == 10, "Not ABI compatible");
+                        // TCP stuff is almost completely broken. Not even going to try to list all of it.
+                        _Static_assert(offsetof(struct tcp_pcb, next) == 12, "Not ABI compatible");
+                        _Static_assert(offsetof(struct tcp_pcb, prio) == 20, "Not ABI compatible"); // 28 by default
+                        _Static_assert(offsetof(struct tcp_pcb, callback_arg) == 24, "Not ABI compatible"); // 16 by default
+                        _Static_assert(offsetof(struct tcp_pcb, mss) == 60, "Not ABI compatible"); // 58 by default
+                        _Static_assert(offsetof(struct tcp_pcb, errf) == 148, "Not ABI compatible"); // 140 by default
+                        _Static_assert(sizeof(struct tcp_pcb) >= 170, "Not ABI compatible");
+
+                        _Static_assert(offsetof(struct tcp_pcb, keep_idle) == 152, "Not ABI compatible");
+                        ssl_pcb->keep_idle = 1000 * 10 /* seconds */; // 2 minutes by default
+                        _Static_assert(offsetof(struct tcp_pcb, keep_intvl) == 156, "Not ABI compatible");
+                        ssl_pcb->keep_intvl = 1000 * 5 /* seconds */; // 10 seconds by default
+                        _Static_assert(offsetof(struct tcp_pcb, keep_cnt) == 160, "Not ABI compatible");
+                        // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
+                        ssl_pcb->keep_cnt = 5; // 9 by default
 
                         {
                             err_t rc;

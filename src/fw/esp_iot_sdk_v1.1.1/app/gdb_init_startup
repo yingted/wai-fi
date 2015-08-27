@@ -4,7 +4,6 @@ target remote /dev/ttyUSB0
 watch *(char(*)[64])(0x3fffbf00 - 64)
 c
 
-echo \033\133\060\155
 bt
 x/5i $pc
 p *(void **)$a1@((0x40000000-$a1)/4)

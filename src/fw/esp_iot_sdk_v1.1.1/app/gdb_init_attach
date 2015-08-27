@@ -2,7 +2,6 @@ source gdb_init
 shell screen -c gdb_screenrc
 target remote /dev/ttyUSB0
 
-echo \033\133\060\155
 info all-registers
 bt
 x/5i $pc
