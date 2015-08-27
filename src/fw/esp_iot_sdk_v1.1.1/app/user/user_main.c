@@ -40,17 +40,6 @@ void user_init(void) {
     connmgr_start();
 }
 
-enum { MSG_LOG=0 };
-struct msg_header {
-    uint8_t type;
-    char pad_;
-    union {
-        struct {
-            s16_t len;
-            // ...
-        } log;
-    };
-};
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
 
 /**
@@ -69,9 +58,9 @@ void connmgr_idle_cb(SSL *ssl) {
         pbuf_dechain(to_send);
         assert(logbuf_head->ref >= 1);
         size_t logged_size = LOGBUF_SIZE - to_send->len;
-        struct msg_header *header = (struct msg_header *)((char *)to_send->payload - logged_size);
-        switch (header->type) {
-            case MSG_LOG:
+        struct waifi_msg *header = (struct waifi_msg *)((char *)to_send->payload - logged_size);
+        switch (header->hdr.type) {
+            case WAIFI_MSG_log:
                 header->log.len = htons((short)(logged_size - sizeof(*header)));
                 break;
             default:
@@ -99,35 +88,32 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) { // can block
         os_printf("\n");
     }
 
-    struct msg_header *hdr = (struct msg_header *)buf;
-    if (len < sizeof(*hdr)) {
+    struct waifi_rpc *rpc = (struct waifi_rpc *)buf;
+    if (len < sizeof(*rpc)) {
         return;
     }
 
-    switch (hdr->type) {
+    switch (rpc->hdr.cmd) {
         case WAIFI_RPC_system_upgrade_userbin_check:
             break;
         case WAIFI_RPC_spi_flash_write:
             break;
         default:
-            user_dprintf("unknown type %d", hdr->type);
+            user_dprintf("unknown command %d", rpc->hdr.cmd);
             break;
     }
 }
 
 ICACHE_FLASH_ATTR
 void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int rssi) {
-    struct logentry {
-        uint8_t header_prefix[24];
-        char rssi;
-    };
-    _Static_assert(sizeof(struct logentry) == 25, "wrong struct size");
-    if (header_len < sizeof(((struct logentry *)NULL)->header_prefix)) {
+    typedef struct waifi_msg_log_logentry logentry_t;
+    _Static_assert(sizeof(logentry_t) == 25, "wrong struct size");
+    if (header_len < sizeof(((logentry_t *)NULL)->header_prefix)) {
         return;
     }
 
     USER_INTR_LOCK();
-    while (!logbuf_tail || pbuf_header(logbuf_tail, -(s16_t)sizeof(struct logentry))) {
+    while (!logbuf_tail || pbuf_header(logbuf_tail, -(s16_t)sizeof(logentry_t))) {
         {
             u8_t num_bufs = 0;
 
@@ -148,11 +134,13 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         }
 
         {
-            _Static_assert(sizeof(struct msg_header) == 4, "msg header wrong size");
-            struct msg_header *const header = (struct msg_header *)new_tail->payload;
+            _Static_assert(sizeof(enum waifi_msg_type) == 1, "msg type wrong size");
+            _Static_assert(sizeof(struct waifi_msg_header) == 2, "msg header wrong size");
+            _Static_assert(sizeof(struct waifi_msg) == 4, "msg wrong size");
+            struct waifi_msg *const header = (struct waifi_msg *)new_tail->payload;
             pbuf_header(new_tail, -(u16_t)sizeof(*header));
             os_memset(header, 0, sizeof(*header));
-            header->type = MSG_LOG;
+            header->hdr.type = WAIFI_MSG_log;
         }
 
         logbuf_tail = new_tail;
@@ -163,7 +151,7 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         }
     }
 
-    struct logentry *const dst = (struct logentry *)logbuf_tail->payload - 1;
+    logentry_t *const dst = (logentry_t *)logbuf_tail->payload - 1;
     os_memcpy(dst->header_prefix, payload, sizeof(dst->header_prefix));
     dst->rssi = rssi;
 

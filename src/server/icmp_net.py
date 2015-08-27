@@ -8,15 +8,59 @@ import models
 import imager.models
 import config
 import sql_hack
+import waifi_rpc
+import abc
 
-class IcmpNet(Protocol):
+class IcmpNet(Protocol, object):
+	'''
+	Protocol for SSL connections through icmp_net.
+	Perform authentication and decoding.
+	'''
+	__metaclass__ = abc.ABCMeta
+
+	def __init__(self, *args, **kwargs):
+		self._device_name = None
+		self._decoder = decoder.Decoder(self, self._decode)
+
+	@abc.abstractmethod
+	def _decode(self, decoder):
+		pass
+
+	def log(self, *args, **kwargs):
+		log.msg('icmp_net://%s' % self._device_name, *args, **kwargs)
+
+	def connectionMade(self):
+		print 'Starting handshake with', self.transport.getPeer()
+		verify.register_handshake_callback(self.transport, self.handshakeDone)
+
+	def handshakeDone(self):
+		conn = self.transport._tlsConnection
+		device_name = verify.get_device_name(conn.get_peer_certificate())
+		self._device_name = device_name
+		self.log('connected')
+
+	def _write_frame(self, frame):
+		assert isinstance(frame, str)
+		assert len(frame) <= 1280
+		self.transport.write(frame)
+
+	def dataReceived(self, data):
+		self._decoder.write(data)
+
+	def connectionLost(self, reason):
+		self.log('disconnected:', reason.value)
+
+class WaifiIcmpNet(IcmpNet):
+	'''
+	Protocol to read/write the various messages sent by the remote.
+	'''
+
 	MSG_LOG = 0
 	MSG_LOG_FMT = '!BBH6s6s6sHb'
 	MSG_LOG_FMT_SIZE = struct.calcsize(MSG_LOG_FMT)
 
 	def __init__(self, *args, **kwargs):
-		self._device_name = None
-		self._decoder = decoder.Decoder(self, self._decode)
+		super(WaifiIcmpNet, self).__init__(*args, **kwargs)
 		self._session = config.sql_Session()
 
 	def _decode(self, decoder):
@@ -46,27 +90,6 @@ class IcmpNet(Protocol):
 		sql_hack.bulk_insert(self._session, headers)
 		self._session.commit()
 
-	def log(self, *args, **kwargs):
-		log.msg('icmp_net://%s' % self._device_name, *args, **kwargs)
-
-	def connectionMade(self):
-		print 'Starting handshake with', self.transport.getPeer()
-		verify.register_handshake_callback(self.transport, self.handshakeDone)
-
 	def handshakeDone(self):
-		conn = self.transport._tlsConnection
-		device_name = verify.get_device_name(conn.get_peer_certificate())
-		self._device_name = device_name
-		self.log('connected')
+		super(WaifiIcmpNet, self).handshakeDone()
 		self._write_frame('Hello, World!\n')
-
-	def _write_frame(self, frame):
-		assert isinstance(frame, str)
-		assert len(frame) <= 1280
-		self.transport.write(frame)
-
-	def dataReceived(self, data):
-		self._decoder.write(data)
-
-	def connectionLost(self, reason):
-		self.log('disconnected:', reason.value)

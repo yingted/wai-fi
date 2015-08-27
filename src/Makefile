@@ -1,4 +1,4 @@
-SUBDIRS = include fw/3rdparty/axtls
+SUBDIRS = server fw/3rdparty/axtls
 RECURSE = $(foreach SUBDIR,$(SUBDIRS),$(MAKE) -C $(SUBDIR) $(MAKECMDGOALS) &&) :
 
 all: axtls.config

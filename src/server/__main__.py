@@ -4,7 +4,7 @@ geventreactor.install()
 from OpenSSL import SSL
 from twisted.internet import ssl, reactor
 from twisted.internet.protocol import Factory
-from icmp_net import IcmpNet
+from icmp_net import WaifiIcmpNet
 from twisted.python import log
 import sys
 import verify
@@ -19,7 +19,7 @@ def main():
 	log.startLogging(sys.stdout)
 
 	factory = Factory()
-	factory.protocol = IcmpNet
+	factory.protocol = WaifiIcmpNet
 
 	ctx_factory = ssl.DefaultOpenSSLContextFactory(
 		ca_key_path,
