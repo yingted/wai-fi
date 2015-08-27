@@ -35,6 +35,7 @@
 
 #include <ssl/ssl_ssl.h>
 #include <ssl/ssl_tls1.h>
+extern int send_raw_packet(SSL *ssl, uint8_t protocol);
 struct tcp_pcb;
 EXP_FUNC SSL *STDCALL SSLClient_new(SSL_CTX *ssl_ctx, struct tcp_pcb *SslClient_pcb, const
                                                 uint8_t *session_id, uint8_t sess_id_size);

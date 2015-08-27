@@ -30,6 +30,7 @@ static uint8 const bcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static struct ip_addr ap_gw_addr;
 static struct tcp_pcb *ssl_pcb = NULL;
 static SSL *ssl = NULL;
+static struct pbuf *write_head = NULL;
 
 // Receive buffer
 static struct pbuf *ssl_pcb_recv_buf = NULL;
@@ -208,10 +209,8 @@ connmgr_start_resume:;
 
                         tcp_err(ssl_pcb, ssl_pcb_err_cb);
                         tcp_recv(ssl_pcb, ssl_pcb_recv_cb);
-                        if (system_get_free_heap_size() * 2 == 1) { // TODO remove this
-                            tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
-                            tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
-                        }
+                        tcp_sent(ssl_pcb, ssl_pcb_sent_cb);
+                        tcp_poll(ssl_pcb, ssl_pcb_poll_cb, 5 /* seconds */ * 1000 / 500);
 
                         {
                             err_t rc;
@@ -264,6 +263,7 @@ connmgr_start_resume:;
                                 promisc_start();
 
                                 for (;;) {
+                                    // Read all we can
                                     for (;;) {
                                         uint8_t *dst = NULL;
                                         int rc = ssl_read(ssl, &dst);
@@ -284,6 +284,35 @@ connmgr_start_resume:;
                                     // Do any writes in connmgr_idle_cb
                                     if (IS_SET_SSL_FLAG(SSL_NEED_RECORD)) {
                                         connmgr_idle_cb(ssl);
+                                        while (write_head != NULL && !CORO_INTERRUPTED(coro)) {
+                                            assert(ssl_pcb != NULL);
+                                            static struct pbuf *to_send;
+
+                                            to_send = write_head;
+                                            pbuf_ref(write_head = to_send->next);
+                                            pbuf_dechain(to_send);
+                                            assert(to_send->len <= RT_MAX_PLAIN_LENGTH);
+
+                                            os_port_impure_errno = 0;
+                                            int rc = send_packet(ssl, PT_APP_PROTOCOL_DATA, to_send->payload, to_send->len);
+                                            while (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY) {
+                                                CORO_IF(POLL) {
+                                                    // Do nothing.
+                                                } else {
+                                                    break; // couldn't handle the connection lost error
+                                                }
+                                                rc = send_raw_packet(ssl, PT_APP_PROTOCOL_DATA);
+                                            }
+
+                                            pbuf_free(to_send);
+
+                                            if (rc < 0) {
+                                                // Send ourselves an event
+                                                user_dprintf("send_raw_packet returned %d", rc);
+                                                coro.event = EVENT_ABORT;
+                                                goto abort_ssl;
+                                            }
+                                        }
                                         if (!CORO_INTERRUPTED(coro)) {
                                             assert(ssl_pcb != NULL);
                                             tcp_output(ssl_pcb);
@@ -304,6 +333,10 @@ abort_ssl:;
                             assert(ssl != NULL);
                             ssl_free(ssl);
                             ssl = NULL;
+                            if (write_head != NULL) {
+                                pbuf_free(write_head);
+                                write_head = NULL;
+                            }
                         }
 
                         user_dprintf("aborting ssl_pcb");
@@ -405,6 +438,16 @@ void connmgr_start() {
 ICACHE_FLASH_ATTR
 void connmgr_stop() {
     CORO_INTERRUPT(coro, EVENT_STOP);
+}
+
+ICACHE_FLASH_ATTR
+void connmgr_write(struct pbuf *p) {
+    assert(p != NULL);
+    if (write_head == NULL) {
+        write_head = p;
+    } else {
+        pbuf_cat(write_head, p);
+    }
 }
 
 // Callbacks for library code
@@ -543,12 +586,12 @@ __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
     assert(len > 0);
-    user_dprintf("%p %d", buf, len);
+    //user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
     const ssize_t ret = len;
     // Read from the linked list.
     while (len > 0) {
-        // Wait for a packet.
+        // Check for a packet.
         USER_INTR_LOCK();
         if (ssl_pcb_recv_buf == NULL) {
             USER_INTR_UNLOCK();
@@ -573,8 +616,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
 
         // Pop off the first pbuf.
         struct pbuf *prev_pbuf = ssl_pcb_recv_buf;
-        ssl_pcb_recv_buf = prev_pbuf->next;
-        pbuf_ref(ssl_pcb_recv_buf);
+        pbuf_ref(ssl_pcb_recv_buf = prev_pbuf->next);
         pbuf_dechain(prev_pbuf);
         assert(ssl_pcb_recv_buf == NULL || ssl_pcb_recv_buf->ref == 1);
         USER_INTR_UNLOCK();
@@ -593,8 +635,8 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
 
 __attribute__((used))
 ICACHE_FLASH_ATTR
-ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t len) {
-    struct tcp_pcb *volatile tpcb = (struct tcp_pcb *)fd;
+ssize_t os_port_socket_write(int fd, const void *buf, size_t len) {
+    struct tcp_pcb *tpcb = (struct tcp_pcb *)fd;
     user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
     // TODO figure out how to avoid reallocation
@@ -604,9 +646,12 @@ ssize_t os_port_socket_write(int fd, const void *volatile buf, volatile size_t l
             user_dprintf("done");
             return len;
         case ERR_MEM:
+            user_dprintf("no memory");
+            os_port_impure_errno = EBUSY; // EAGAIN is taken
+            return -1;
         default:;
             user_dprintf("write failed");
-            os_port_impure_errno = rc;
+            os_port_impure_errno = EIO;
             return -1;
     }
 }

@@ -60,6 +60,7 @@ static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
  */
 ICACHE_FLASH_ATTR
 void connmgr_idle_cb(SSL *ssl) {
+    USER_INTR_LOCK();
     if (logbuf_head != logbuf_tail) {
         struct pbuf *const to_send = logbuf_head;
         assert(to_send);
@@ -81,9 +82,9 @@ void connmgr_idle_cb(SSL *ssl) {
             assert(false);
         }
         pbuf_realloc(to_send, logged_size);
-        ssl_write(ssl, to_send->payload, to_send->len);
-        pbuf_free(to_send);
+        connmgr_write(to_send);
     }
+    USER_INTR_UNLOCK();
 }
 
 ICACHE_FLASH_ATTR
