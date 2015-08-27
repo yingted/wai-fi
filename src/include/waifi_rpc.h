@@ -1,6 +1,13 @@
 #pragma once
 
-typedef enum {
+#ifdef SWIG
+%module waifi_rpc
+#endif
+
+#define WAIFI_MAX_FRAME_SIZE 1280
+
+enum waifi_rpc_cmd {
 	WAIFI_RPC_spi_flash_write,
 	WAIFI_RPC_system_upgrade_userbin_check,
-} waifi_rpc_cmd_t;
+};
+typedef enum waifi_rpc_cmd waifi_rpc_cmd_t;
