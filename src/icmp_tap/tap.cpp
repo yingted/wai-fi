@@ -71,7 +71,7 @@ void ip_set_up(const char *dev, int mtu) {
 	check_call("ip link set " + string(dev) + " mtu " + std::to_string(mtu - 16));
 	check_call("ip link set dev " + string(dev) + " up");
 	{
-		string mac_addr = check_output("cat /sys/class/net/$(ip route list scope global | sed -n 's/^default .*\\<dev \\(\\S*\\)\\>.*/\\1/p')/address");
+		string mac_addr = check_output("cat /sys/class/net/$(ip route list scope global | sed -n 's/^default .*\\<dev \\(\\S*\\)\\>.*/\\1/p' | head -1)/address");
 		check_call("ifconfig " + string(dev) + " 192.168.10.1 hw ether " + mac_addr);
 	}
 }
