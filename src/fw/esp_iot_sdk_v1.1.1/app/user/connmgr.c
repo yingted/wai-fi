@@ -51,6 +51,22 @@ static err_t ssl_pcb_sent_cb(void * arg, struct tcp_pcb * tpcb, u16_t len);
 static void connmgr_timer(void *arg);
 static void connmgr_restart(void *arg);
 
+static bool restart_scheduled = false;
+#define SCHEDULE_RESTART() \
+    do { \
+        if (!restart_scheduled) { \
+            sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL); \
+            restart_scheduled = true; \
+        } \
+    } while (0)
+#define UNSCHEDULE_RESTART() \
+    do { \
+        if (restart_scheduled) { \
+            restart_scheduled = false; \
+            sys_untimeout(connmgr_restart, NULL); \
+        } \
+    } while (0)
+
 #define EVENT_ABORT        0x00000001 // remote closed SSL connection
 #define EVENT_START        0x00000002 // client called connmgr_start
 #define EVENT_STOP         0x00000004 // client called connmgr_stop
@@ -106,7 +122,7 @@ static void connmgr_init_impl() {
 
     user_dprintf("heap: %d", system_get_free_heap_size());
     assert_heap();
-    sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
+    SCHEDULE_RESTART();
 
     wifi_station_set_auto_connect(0);
 
@@ -257,7 +273,7 @@ connmgr_start_resume:;
                                 user_dprintf("handshake failed");
                                 coro.event = EVENT_ABORT;
                             } else {
-                                sys_untimeout(connmgr_restart, NULL);
+                                UNSCHEDULE_RESTART();
                                 user_dprintf("connected\x1b[34m");
                                 filter_dest = filter_bssid = true;
                                 promisc_start();
@@ -295,12 +311,18 @@ connmgr_start_resume:;
 
                                             os_port_impure_errno = 0;
                                             int rc = send_packet(ssl, PT_APP_PROTOCOL_DATA, to_send->payload, to_send->len);
-                                            while (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY) {
-                                                CORO_IF(POLL) {
-                                                    rc = send_raw_packet(ssl, PT_APP_PROTOCOL_DATA);
-                                                } else {
-                                                    rc = SSL_ERROR_CONN_LOST; // restore the local
-                                                    break; // couldn't handle the connection lost error
+                                            if (rc == SSL_ERROR_CONN_LOST) {
+                                                SCHEDULE_RESTART();
+                                                while (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY) {
+                                                    CORO_IF(POLL) {
+                                                        rc = send_raw_packet(ssl, PT_APP_PROTOCOL_DATA);
+                                                    } else {
+                                                        rc = SSL_ERROR_CONN_LOST; // restore the local
+                                                        break; // couldn't handle the connection lost error
+                                                    }
+                                                }
+                                                if (rc != SSL_ERROR_CONN_LOST) {
+                                                    UNSCHEDULE_RESTART();
                                                 }
                                             }
 
@@ -329,7 +351,7 @@ connmgr_start_resume:;
 abort_ssl:;
 
                             user_dprintf("aborting ssl");
-                            sys_timeout(5 /* minutes */ * 60 * 1000, connmgr_restart, NULL);
+                            SCHEDULE_RESTART();
                             assert(ssl != NULL);
                             ssl_free(ssl);
                             ssl = NULL;
