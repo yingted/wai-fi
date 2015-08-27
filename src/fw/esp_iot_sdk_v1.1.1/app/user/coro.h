@@ -8,21 +8,18 @@ struct coro_control {
      * Event(s), as a mask. 3 cases:
      * 1. Yielding for an event: any non-zero mask
      * 2. Resuming with an event: a power of 2
-     * 3. Not blocked: 0
+     * 3. Any other time: undefined
      */
     size_t event;
-#ifndef NDEBUG
     // Check state transitions (start(), yield(), resume(), ..., return)
     // Added benefit of checking for stack corruption
+    // Can also be used to check if the coroutine is interruptible.
     enum {
         CORO_DEAD,
         CORO_YIELD,
         CORO_RESUME,
     } state;
 #define CORO_GOTO(coro, new_state) ((coro).state = CORO_ ## new_state)
-#else
-#define CORO_GOTO(...)
-#endif
 };
 
 typedef struct coro_control coro_t;

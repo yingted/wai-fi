@@ -86,11 +86,8 @@ static bool restart_scheduled = false;
         coro.event = coro_interrupt_later; \
         coro_interrupt_later = 0; \
     } else { \
-        do { \
-            CORO_YIELD(coro, EVENT_ANY); \
-            _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
-            assert(coro.event & (EVENT_INTR | EVENT_ ## event_name | EVENT_IGNORE)); \
-        } while (!(coro.event & (EVENT_INTR | EVENT_ ## event_name))); \
+        _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
+        CORO_YIELD(coro, EVENT_INTR | EVENT_ ## event_name); /* may ignore non-ignorable events */ \
     } \
     if (!(coro.event & EVENT_INTR)) \
         /*user_dprintf("CORO_IF(" # event_name ") <resume>")*/; \
