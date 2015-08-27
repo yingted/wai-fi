@@ -77,33 +77,18 @@ static void real_putc1(char c) {
 ICACHE_FLASH_ATTR
 static char real_getc1() {
     for (;;) {
-        size_t saved_ps;
-        __asm__ __volatile__("\
-            esync\n\
-            rsil %0, 15\n\
-            esync\n\
-        ":"=r"(saved_ps));
-
-        SET_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
-        size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
+        size_t status = READ_PERI_REG(UART_INT_RAW(GDB_UART));
         int ch = -1;
-        // if (status & UART_FRM_ERR_INT_ST) ...
-        if (status & (UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST)) {
+        // if (status & UART_FRM_ERR_INT_RAW) ...
+        if (status & (UART_RXFIFO_FULL_INT_RAW | UART_RXFIFO_TOUT_INT_RAW)) {
             size_t queued = (READ_PERI_REG(UART_STATUS(GDB_UART)) >> UART_RXFIFO_CNT_S) & UART_RXFIFO_CNT;
             if (queued) {
                 ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
             }
-            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
+            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_RAW | UART_RXFIFO_TOUT_INT_RAW);
         }
-        // if (status & UART_TXFIFO_EMPTY_INT_ST) ...
-        // if (status & UART_RXFIFO_OVF_INT_ST) ...
-        CLEAR_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_RXFIFO_FULL_INT_ST | UART_RXFIFO_TOUT_INT_ST);
-
-        __asm__ __volatile__("\
-            esync\n\
-            wsr.ps %0\n\
-            esync\n\
-        "::"r"(saved_ps));
+        // if (status & UART_TXFIFO_EMPTY_INT_RAW) ...
+        // if (status & UART_RXFIFO_OVF_INT_RAW) ...
         if (ch != -1) {
             return ch;
         }
