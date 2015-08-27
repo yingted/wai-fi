@@ -1,4 +1,3 @@
-- tweak keepalive? or get rid of it?
 - FOTA
 - server-side analysis, ui
 - fix crash in build_and_debug.sh

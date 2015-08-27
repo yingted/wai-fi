@@ -204,12 +204,10 @@ connmgr_start_resume:;
                         assert(ssl_pcb != NULL);
                         ip_set_option(ssl_pcb, SO_REUSEADDR);
                         tcp_nagle_disable(ssl_pcb);
-#if 0
                         ssl_pcb->so_options |= SOF_KEEPALIVE;
                         ssl_pcb->keep_idle = 1000 * 10 /* seconds */;
                         ssl_pcb->keep_intvl = 1000 * 5 /* seconds */;
                         ssl_pcb->keep_cnt = 5; // (10 seconds) + (5 - 1) * (5 seconds) = (30 seconds)
-#endif
 
                         {
                             err_t rc;
