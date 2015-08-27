@@ -306,18 +306,23 @@ connmgr_start_resume:;
 
                                             os_port_impure_errno = 0;
                                             int rc = send_packet(ssl, PT_APP_PROTOCOL_DATA, to_send->payload, to_send->len);
-                                            if (rc == SSL_ERROR_CONN_LOST) {
+                                            if (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY) {
+                                                // We're in the middle of writing. If we can't write, we're dead.
                                                 SCHEDULE_RESTART();
-                                                while (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY) {
+                                                user_dprintf("waiting until writing is possible\x1b[36m");
+                                                do {
                                                     CORO_IF(POLL) {
+                                                        os_port_impure_errno = 0;
                                                         rc = send_raw_packet(ssl, PT_APP_PROTOCOL_DATA);
                                                     } else {
                                                         rc = SSL_ERROR_CONN_LOST; // restore the local
                                                         break; // couldn't handle the connection lost error
                                                     }
-                                                }
+                                                } while (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY);
+
                                                 if (rc != SSL_ERROR_CONN_LOST) {
                                                     UNSCHEDULE_RESTART();
+                                                    user_dprintf("reconnected\x1b[34m");
                                                 }
                                             }
 
