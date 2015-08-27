@@ -55,8 +55,7 @@ static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
 
 /**
  * Try to send logbuf_head.
- * Must have intr lock.
- * Should called after the worker's IDLE (or any other blocking call). XXX
+ * Should called after the worker's IDLE (or any other blocking call).
  */
 ICACHE_FLASH_ATTR
 void connmgr_idle_cb(SSL *ssl) {

@@ -480,7 +480,7 @@ void __wrap_sys_check_timeouts(void) {
     process_queued_pbufs();
 }
 
-// XXX steal raw_input to guarantee etharp, etc.
+// TODO steal raw_input to guarantee etharp, etc. get delivered
 static size_t icmp_input_entry_count = 0;
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR

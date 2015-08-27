@@ -123,7 +123,7 @@ static void connmgr_init_impl() {
 
     wifi_station_set_auto_connect(0);
 
-    // XXX session caching
+    // TODO session caching?
     static SSL_CTX *ssl_ctx;
     ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 0);
     {
