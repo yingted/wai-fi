@@ -297,11 +297,11 @@ connmgr_start_resume:;
                                             int rc = send_packet(ssl, PT_APP_PROTOCOL_DATA, to_send->payload, to_send->len);
                                             while (rc == SSL_ERROR_CONN_LOST && os_port_impure_errno == EBUSY) {
                                                 CORO_IF(POLL) {
-                                                    // Do nothing.
+                                                    rc = send_raw_packet(ssl, PT_APP_PROTOCOL_DATA);
                                                 } else {
+                                                    rc = SSL_ERROR_CONN_LOST; // restore the local
                                                     break; // couldn't handle the connection lost error
                                                 }
-                                                rc = send_raw_packet(ssl, PT_APP_PROTOCOL_DATA);
                                             }
 
                                             pbuf_free(to_send);
@@ -415,7 +415,7 @@ abort_ssl:;
         // Only stop logging after connmgr_stop()
         wifi_promiscuous_enable(0);
         user_dprintf("stopped");
-        coro_interrupt_later = false;
+        coro_interrupt_later = 0;
     }
 
     assert(false);
