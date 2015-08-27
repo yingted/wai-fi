@@ -40,11 +40,8 @@ void icmp_net_conn::stop() {
 	outbound_.stop();
 	// Let's extend its life a bit. Delete it later.
 	auto sp = icmp_net_.conns_[cid_];
-	cout << "sp.use_count()=" << sp.use_count() << endl;
 	icmp_net_.io_.post([=]() {
-		cout << "sp.use_count()=" << sp.use_count() << endl;
 		icmp_net_.conns_.erase(cid_);
-		cout << "sp.use_count()=" << sp.use_count() << endl;
 		assert(sp.use_count() == 1);
 	});
 }
