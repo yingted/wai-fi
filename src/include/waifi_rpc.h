@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef SWIG
-%module waifi_rpc
-#endif
-
 #define WAIFI_MAX_FRAME_SIZE 1280
 
 enum waifi_rpc_cmd {
