@@ -126,15 +126,15 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 if (arg->addr == (sec << 12)) { // Erase if we start on a sector
                     ret = spi_flash_erase_sector(sec);
                 }
+                assert(ssl->bm_all_data <= arg->data);
+                assert(arg->data + arg->len <= ssl->bm_all_data + RT_MAX_PLAIN_LENGTH + RT_EXTRA + sizeof(uint32) - 1);
+                _Static_assert(__builtin_popcount(sizeof(uint32)) == 1, "size not a power of 2");
+                uint32 *buf = (uint32 *)((((size_t)arg->data + sizeof(uint32) - 1)) & ~(sizeof(uint32) - 1));
+                assert(((size_t)buf) >= ((size_t)arg->data));
                 if (ret == SPI_FLASH_RESULT_OK) {
-                    uint32 *buf = pvPortMalloc(arg->len);
-                    if (buf == NULL) {
-                        ret = SPI_FLASH_RESULT_ERR;
-                    } else {
-                        os_memcpy(buf, arg->data, arg->len);
-                        ret = spi_flash_write(arg->addr, buf, arg->len);
-                        vPortFree(buf);
-                    }
+                    // Shift the data to an aligned address
+                    os_memmove(buf, arg->data, arg->len);
+                    ret = spi_flash_write(arg->addr, buf, arg->len);
                 }
                 msg->rpc_spi_flash_write.ret = ret;
             }
