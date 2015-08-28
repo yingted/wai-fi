@@ -25,16 +25,29 @@ enum __attribute__((packed)) waifi_msg_type {
 	WAIFI_MSG_log,
 };
 
-struct waifi_msg_log_logentry {
-    BYTE header_prefix[24];
-    char rssi;
+struct waifi_msg_log_logentry_header_fields {
+	BYTE fc_type;
+	BYTE fc_flags;
+	unsigned short dur;
+	BYTE addr1[6];
+	BYTE addr2[6];
+	BYTE addr3[6];
+	unsigned short seqid;
+};
+
+struct __attribute__((packed)) waifi_msg_log_logentry {
+	union {
+		BYTE header_prefix[24];
+		struct waifi_msg_log_logentry_header_fields header_fields;
+	};
+    BYTE rssi;
 };
 
 struct waifi_msg_log {
 	short len;
 	union {
 		BYTE data[0];
-		struct waifi_msg_log_logentry entry[0];
+		struct waifi_msg_log_logentry entries[0];
 	};
 };
 
@@ -48,14 +61,4 @@ struct waifi_msg {
     union {
         struct waifi_msg_log log;
     };
-};
-
-union waifi_msg_buf {
-	struct waifi_msg value;
-	BYTE buf[sizeof(struct waifi_msg)];
-};
-
-union waifi_rpc_buf {
-	struct waifi_rpc value;
-	BYTE buf[sizeof(struct waifi_rpc)];
 };
