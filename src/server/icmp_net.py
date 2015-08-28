@@ -43,6 +43,7 @@ class IcmpNet(Protocol, object):
 	__metaclass__ = abc.ABCMeta
 
 	def __init__(self, *args, **kwargs):
+		super(IcmpNet, self).__init__(*args, **kwargs)
 		self._device_name = None
 		self._decoder = decoder.Decoder(self, self._decode)
 
@@ -54,7 +55,7 @@ class IcmpNet(Protocol, object):
 		log.msg('icmp_net://%s' % self._device_name, *args, **kwargs)
 
 	def connectionMade(self):
-		print 'Starting handshake with', self.transport.getPeer()
+		self.log('Starting handshake with %s' % self.transport.getPeer())
 		verify.register_handshake_callback(self.transport, self.handshakeDone)
 
 	def handshakeDone(self):
@@ -74,7 +75,22 @@ class IcmpNet(Protocol, object):
 	def connectionLost(self, reason):
 		self.log('disconnected:', reason.value)
 
-class WaifiIcmpNet(IcmpNet):
+class AsyncResponseMixin(object):
+	def __init__(self, *args, **kwargs):
+		super(AsyncResponseMixin, self).__init__()
+		self._response_results = multimap()
+
+	def _got_response(self, response):
+		res = self._response_results.pop(type(response))
+		res.set(response)
+
+	def _get_response(self, response_type):
+		res = gevent.event.AsyncResult()
+		self._response_results.insert(response_type, res)
+		print 'waiting for', response_type
+		return res.get()
+
+class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 	r'''
 	Protocol to read/write the various messages sent by the remote.
 	>>> waifi_rpc.sizeof_waifi_msg_header
@@ -102,7 +118,6 @@ class WaifiIcmpNet(IcmpNet):
 	def __init__(self, *args, **kwargs):
 		super(WaifiIcmpNet, self).__init__(*args, **kwargs)
 		self._session = config.sql_Session()
-		self._response_handlers = multimap()
 
 	def _decode(self, decoder):
 		try:
@@ -169,15 +184,6 @@ class WaifiIcmpNet(IcmpNet):
 		waifi_rpc.write(remote, hdr)
 		yield remote
 		self._write_frame(remote.getvalue())
-
-	def _got_response(self, response):
-		res = self._response_handlers.pop(type(response))
-		res.set(response)
-
-	def _get_response(self, response_type):
-		res = gevent.event.AsyncResult()
-		self._response_handlers.insert(response_type, res)
-		return res.get()
 
 	def _rpc_system_upgrade_userbin_check(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_system_upgrade_userbin_check) as remote:

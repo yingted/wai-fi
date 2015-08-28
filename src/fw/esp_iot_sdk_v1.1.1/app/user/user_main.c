@@ -143,6 +143,14 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             user_dprintf("unknown command %d", rpc->hdr.cmd);
             return;
     }
+{
+    int i;
+    os_printf("payload: ");
+    for (i = 0; i < p->len; ++i) {
+        os_printf("%02x", ((uint8_t *)p->payload)[i]);
+    }
+    os_printf("\n");
+}
     connmgr_write(p);
 }
 
