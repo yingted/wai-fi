@@ -108,11 +108,13 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
     switch (rpc->hdr.cmd) {
         case WAIFI_RPC_system_upgrade_userbin_check:
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_system_upgrade_userbin_check));
+            msg->hdr.type = WAIFI_MSG_RPC_system_upgrade_userbin_check;
             msg->rpc_system_upgrade_userbin_check.ret = system_upgrade_userbin_check();
             system_upgrade_flag_set(UPGRADE_FLAG_IDLE);
             break;
         case WAIFI_RPC_spi_flash_write:
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_spi_flash_write));
+            msg->hdr.type = WAIFI_MSG_RPC_spi_flash_write;
             {
                 SpiFlashOpResult ret = SPI_FLASH_RESULT_OK;
                 struct waifi_rpc_spi_flash_write *arg = &rpc->spi_flash_write;
@@ -136,7 +138,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
         case WAIFI_RPC_upgrade_finish:
             system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
             system_upgrade_reboot();
-            break;
+            return;
         default:
             user_dprintf("unknown command %d", rpc->hdr.cmd);
             return;

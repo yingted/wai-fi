@@ -48,6 +48,8 @@ struct waifi_rpc {
 
 enum __attribute__((packed)) waifi_msg_type {
 	WAIFI_MSG_log,
+	WAIFI_MSG_RPC_spi_flash_write,
+	WAIFI_MSG_RPC_system_upgrade_userbin_check,
 };
 
 // IEEE 802.11 byte order, which is little endian
