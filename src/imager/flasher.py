@@ -30,7 +30,7 @@ def flash_port(port, baud=921600, release=False, extra_env={}):
 		print >> sys.stderr, 'Found device', mac_text, 'at', port
 		mac = ''.join(mac)
 		with get_images(mac=mac, release=release, extra_env=extra_env) as images:
-			cmd = [esptool_path, '-p', port, '-b', str(baud), 'write_flash']
+			cmd = [esptool_path, '-p', port, '-b', str(baud), 'write_flash', '-ff', '80m']
 			for addr, image in images.iteritems():
 				cmd.extend((addr, image))
 			print >> sys.stderr, 'Flashing device', mac_text, 'with:', cmd

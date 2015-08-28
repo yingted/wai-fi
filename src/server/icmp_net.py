@@ -188,7 +188,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 		self.log('Upgrading icmp_net://%s using userbin=%d' %(self._device_name, build_userbin))
 		with imager.flasher.get_images(
 				mac=self._device_name,
-				release=False,
+				release=False, # XXX read from config
 				extra_env={
 					'BUILD_USERBIN': str(build_userbin),
 				},
