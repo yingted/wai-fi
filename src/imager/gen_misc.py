@@ -23,7 +23,7 @@ def call(overlay_dir, release=False, extra_env={}):
 			})
 			subprocess.check_call(('make', 'clean'), cwd=app_dir, env=env)
 		env.update(extra_env)
-		p = subprocess.Popen(('./build.sh'), cwd=app_dir, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+		p = subprocess.Popen(('./build.sh',), cwd=app_dir, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 		stdout, stderr = p.communicate()
 		p.wait()
 
