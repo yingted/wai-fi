@@ -9,6 +9,7 @@ import imager.models
 import config
 import sql_hack
 import waifi_rpc
+import traceback
 import abc
 
 class IcmpNet(Protocol, object):
@@ -51,42 +52,72 @@ class IcmpNet(Protocol, object):
 		self.log('disconnected:', reason.value)
 
 class WaifiIcmpNet(IcmpNet):
-	'''
+	r'''
 	Protocol to read/write the various messages sent by the remote.
+	>>> waifi_rpc.sizeof_waifi_msg_header
+	2L
+	>>> waifi_rpc.sizeof_waifi_msg_log
+	2L
+	>>> waifi_rpc.sizeof_waifi_msg_log_logentry
+	25L
+	>>> import struct
+	>>> frame = struct.pack('BBh24sb', waifi_rpc.WAIFI_MSG_log, 0, 25, 'x' * 24, 100)
+	>>> frame
+	'\x00\x00\x19\x00xxxxxxxxxxxxxxxxxxxxxxxxd'
+	>>> w = WaifiIcmpNet()
+	>>> headers = []
+	>>> w._save_headers = headers.extend
+	>>> w.dataReceived(frame * 3)
+	>>> headers # doctest: +ELLIPSIS
+	[<models.Header object at ...>, ...]
+	>>> [x.rssi for x in headers]
+	[100L, 100L, 100L]
+	>>> sorted(x.__dict__.iteritems()) # doctest: +ELLIPSIS
+	[...('addr1', '78:78:78:78:78:78'), ('addr2', '78:78:78:78:78:78'), ('addr3', '78:78:78:78:78:78'), ('dur', 30840L), ('fc_flags', 120L), ('fc_type', 120L), ('logging_device', None), ('rssi', 100L), ('seqid', 30840L)]
 	'''
-
-	MSG_LOG = 0
-	MSG_LOG_FMT = '!BBH6s6s6sHb'
-	MSG_LOG_FMT_SIZE = struct.calcsize(MSG_LOG_FMT)
 
 	def __init__(self, *args, **kwargs):
 		super(WaifiIcmpNet, self).__init__(*args, **kwargs)
 		self._session = config.sql_Session()
 
 	def _decode(self, decoder):
-		while True:
-			msg_type, _ = decoder.read_struct('!bb')
-			if msg_type == self.MSG_LOG:
-				self._decode_log(decoder)
-			else:
-				log.err('invalid message type %d' % msg_type)
-				self.transport.abortConnection()
+		try:
+			while True:
+				msg = waifi_rpc.scan_waifi_msg_header(decoder)
+				if msg.type == waifi_rpc.WAIFI_MSG_log:
+					self._decode_log(decoder)
+				else:
+					raise TypeError('invalid message type %d' % msg.type)
+		except:
+			traceback.print_exc()
+			log.err('could not parse message')
+			self.transport.abortConnection()
 
 	def _decode_log(self, decoder):
-		msg_len, = decoder.read_struct('!h')
-		count, rem = divmod(msg_len, self.MSG_LOG_FMT_SIZE)
+		log_hdr = waifi_rpc.scan_waifi_msg_log(decoder)
+		count, rem = divmod(log_hdr.len, waifi_rpc.sizeof_waifi_msg_log_logentry)
 		if rem != 0:
-			log.err('invalid message length %d' % msg_len)
+			log.err('invalid message length %d' % log_hdr.len)
 
 		headers = []
 		for _ in xrange(count):
-			fields = (self._device_name,) + decoder.read_struct(self.MSG_LOG_FMT)
-			fields = models.Header.Tuple(*fields)
+			# entry must have a reference
+			entry = waifi_rpc.scan_waifi_msg_log_logentry(decoder)
+			fields = entry.header_fields
+			header = models.Header(logging_device=self._device_name, rssi=entry.rssi, **{
+				field_name: getattr(fields, field_name) for field_name in fields.__swig_setmethods__.iterkeys()
+			})
 			for mac_field in 'addr1', 'addr2', 'addr3':
-				old_value = getattr(fields, mac_field)
-				new_value = ':'.join(['%02x'] * 6) % struct.unpack('!BBBBBB', old_value)
-				fields = fields._replace(**{mac_field: new_value})
-			headers.append(models.Header.from_tuple(fields))
+				value = getattr(header, mac_field)
+				# Convert the byte array to a string
+				value = waifi_rpc.strndup(value, 6)
+				# Then, convert it to hex
+				value = ':'.join(['%02x'] * 6) % struct.unpack('!BBBBBB', value)
+				setattr(header, mac_field, value)
+			headers.append(header)
+		self._save_headers(headers)
+	
+	def _save_headers(self, headers):
 		sql_hack.bulk_insert(self._session, headers)
 		self._session.commit()
 
