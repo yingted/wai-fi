@@ -178,10 +178,10 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         {
             _Static_assert(sizeof(enum waifi_msg_type) == 1, "msg type wrong size");
             _Static_assert(sizeof(struct waifi_msg_header) == 2, "msg header wrong size");
-            struct waifi_msg *const header = (struct waifi_msg *)new_tail->payload;
-            pbuf_header(new_tail, -(u16_t)sizeof(*header));
+            struct waifi_msg_header *const header = (struct waifi_msg_header *)new_tail->payload;
+            pbuf_header(new_tail, -(u16_t)(sizeof(*header) + sizeof(struct waifi_msg_log *)));
             os_memset(header, 0, sizeof(*header));
-            header->hdr.type = WAIFI_MSG_log;
+            header->type = WAIFI_MSG_log; // We'll write the rest later
         }
 
         logbuf_tail = new_tail;
