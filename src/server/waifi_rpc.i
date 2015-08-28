@@ -41,10 +41,17 @@ def write(io, obj):
 %}
 %enddef
 CAST_HELPER(waifi_msg_header)
-CAST_HELPER(waifi_msg_log)
-CAST_HELPER(waifi_rpc)
 CAST_HELPER(waifi_rpc_header)
+CAST_HELPER(waifi_msg_log)
 CAST_HELPER(waifi_msg_log_logentry)
+
+%define RPC_CAST_HELPER(foo)
+CAST_HELPER(waifi_rpc_ ## foo)
+CAST_HELPER(waifi_msg_rpc_ ## foo)
+%enddef
+RPC_CAST_HELPER(system_upgrade_userbin_check)
+RPC_CAST_HELPER(spi_flash_write)
+RPC_CAST_HELPER(upgrade_finish)
 
 %pythoncode %{
 import struct

@@ -86,7 +86,7 @@ ICACHE_FLASH_ATTR
 void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
     {
         int i;
-        os_printf("buf: ");
+        os_printf("connmgr_record_cb: buf: ");
         for (i = 0; i != len; ++i) {
             os_printf("%02x", buf[i]);
         }
@@ -94,9 +94,11 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
     }
 
     struct waifi_rpc *rpc = (struct waifi_rpc *)buf;
-    if (len < sizeof(*rpc)) {
+    if (len < sizeof(struct waifi_rpc_header)) {
         return;
     }
+
+    user_dprintf("Got command %d", rpc->hdr.cmd);
 
     struct pbuf *p = NULL;
     struct waifi_msg *msg = NULL;

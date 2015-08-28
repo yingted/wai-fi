@@ -81,6 +81,7 @@ class AsyncResponseMixin(object):
 		self._response_results = multimap()
 
 	def _got_response(self, response):
+		print 'got response', response
 		res = self._response_results.pop(type(response))
 		res.set(response)
 
