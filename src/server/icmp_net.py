@@ -7,6 +7,8 @@ import struct
 import models
 import imager.models
 import config
+import contextlib
+import cStringIO as StringIO
 import sql_hack
 import waifi_rpc
 import traceback
@@ -83,7 +85,7 @@ class WaifiIcmpNet(IcmpNet):
 	def _decode(self, decoder):
 		try:
 			while True:
-				msg = waifi_rpc.scan_waifi_msg_header(decoder)
+				msg = waifi_rpc.read_waifi_msg_header(decoder)
 				if msg.type == waifi_rpc.WAIFI_MSG_log:
 					self._decode_log(decoder)
 				else:
@@ -94,7 +96,7 @@ class WaifiIcmpNet(IcmpNet):
 			self.transport.abortConnection()
 
 	def _decode_log(self, decoder):
-		log_hdr = waifi_rpc.scan_waifi_msg_log(decoder)
+		log_hdr = waifi_rpc.read_waifi_msg_log(decoder)
 		count, rem = divmod(log_hdr.len, waifi_rpc.sizeof_waifi_msg_log_logentry)
 		if rem != 0:
 			log.err('invalid message length %d' % log_hdr.len)
@@ -102,7 +104,7 @@ class WaifiIcmpNet(IcmpNet):
 		headers = []
 		for _ in xrange(count):
 			# entry must have a reference
-			entry = waifi_rpc.scan_waifi_msg_log_logentry(decoder)
+			entry = waifi_rpc.read_waifi_msg_log_logentry(decoder)
 			fields = entry.header_fields
 			header = models.Header(logging_device=self._device_name, rssi=entry.rssi, **{
 				field_name: getattr(fields, field_name) for field_name in fields.__swig_setmethods__.iterkeys()
@@ -123,4 +125,29 @@ class WaifiIcmpNet(IcmpNet):
 
 	def handshakeDone(self):
 		super(WaifiIcmpNet, self).handshakeDone()
-		self._write_frame('Hello, World!\n')
+		userbin = self._rpc_system_upgrade_userbin_check()
+		print 'userbin:', userbin
+
+	@contextlib.contextmanager
+	def _rpc(self, cmd):
+		'''
+		Helper to manage writing a frame to the remote.
+		Everything written in the context will be in the same frame as the header.
+		'''
+		remote = StringIO.StringIO()
+		hdr = waifi_rpc.waifi_rpc_header()
+		hdr.cmd = cmd
+		waifi_rpc.write(remote, hdr)
+		yield remote
+		self._write_frame(remote.getvalue())
+
+	def _rpc_system_upgrade_userbin_check(self, remote):
+		with self._rpc(waifi_rpc.WAIFI_RPC_system_upgrade_userbin_check) as remote:
+			pass
+		return waifi_rpc.read_waifi_msg_rpc_system_upgrade_userbin_check(self._decoder).ret
+
+	def _rpc_spi_flash_write(self, remote):
+		...
+
+	def _rpc_upgrade_finish(self, remote):
+		...

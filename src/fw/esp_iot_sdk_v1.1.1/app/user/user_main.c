@@ -76,9 +76,7 @@ void connmgr_idle_cb(SSL *ssl) {
 }
 
 ICACHE_FLASH_ATTR
-void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) { // can block
-    user_dprintf("userbin=%d", system_upgrade_userbin_check());
-
+void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
     {
         int i;
         os_printf("buf: ");
@@ -93,15 +91,33 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) { // can block
         return;
     }
 
+    struct pbuf *p = NULL;
+    struct waifi_msg *msg = NULL;
+#define REPLY_ALLOC(size_val) \
+    do { \
+        const size_t size = sizeof(msg->hdr) + (size_val); \
+        p = pbuf_alloc(PBUF_RAW, size, PBUF_RAM); \
+        msg = p->payload; \
+        os_memset(&msg->hdr, 0, sizeof(msg->hdr)); \
+    } while (0)
     switch (rpc->hdr.cmd) {
         case WAIFI_RPC_system_upgrade_userbin_check:
+            REPLY_ALLOC(sizeof(struct waifi_msg_rpc_system_upgrade_userbin_check));
+            msg->rpc_system_upgrade_userbin_check->ret = system_upgrade_userbin_check();
             break;
         case WAIFI_RPC_spi_flash_write:
+            REPLY_ALLOC(sizeof(struct waifi_msg_rpc_spi_flash_write));
+            msg->rpc_spi_flash_write->ret = spi_flash_write(...);
+            break;
+        case WAIFI_RPC_upgrade_finish:
+            ...
+            // No reply
             break;
         default:
             user_dprintf("unknown command %d", rpc->hdr.cmd);
-            break;
+            return;
     }
+    connmgr_write(p);
 }
 
 ICACHE_FLASH_ATTR
