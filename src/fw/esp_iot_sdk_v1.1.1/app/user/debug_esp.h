@@ -24,6 +24,7 @@ void mem_error(void);
 void debug_esp_install_exc_handler(void);
 
 #define pvPortMalloc __real_pvPortMalloc
+void *__real_pvPortMalloc(size_t size);
 #define inet_chksum_pseudo __real_inet_chksum_pseudo
 #define inet_chksum_pseudo_partial __real_inet_chksum_pseudo_partial
 #define inet_chksum __real_inet_chksum

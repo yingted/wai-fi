@@ -5,6 +5,11 @@
 #include <gdb_stub.h>
 #include <lwip/netif.h>
 #include <waifi_rpc.h>
+#include <stdlib.h>
+
+#define UPGRADE_FLAG_IDLE 0x00
+#define UPGRADE_FLAG_START 0x01
+#define UPGRADE_FLAG_FINISH 0x02
 
 #define LOGBUF_SIZE 1024
 #define MAX_LOGBUF 2
@@ -103,18 +108,29 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
     switch (rpc->hdr.cmd) {
         case WAIFI_RPC_system_upgrade_userbin_check:
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_system_upgrade_userbin_check));
-            msg->rpc_system_upgrade_userbin_check->ret = system_upgrade_userbin_check();
+            msg->rpc_system_upgrade_userbin_check.ret = system_upgrade_userbin_check();
             system_upgrade_flag_set(UPGRADE_FLAG_IDLE);
             break;
         case WAIFI_RPC_spi_flash_write:
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_spi_flash_write));
             {
+                SpiFlashOpResult ret = SPI_FLASH_RESULT_OK;
                 struct waifi_rpc_spi_flash_write *arg = &rpc->spi_flash_write;
                 uint16_t sec = arg->addr >> 12;
                 if (arg->addr == (sec << 12)) { // Erase if we start on a sector
-                    spi_flash_erase_sector(sec);
+                    ret = spi_flash_erase_sector(sec);
                 }
-                msg->rpc_spi_flash_write->ret = spi_flash_write(arg->addr, arg->data, arg->len);
+                if (ret == SPI_FLASH_RESULT_OK) {
+                    uint32 *buf = pvPortMalloc(arg->len);
+                    if (buf == NULL) {
+                        ret = SPI_FLASH_RESULT_ERR;
+                    } else {
+                        os_memcpy(buf, arg->data, arg->len);
+                        ret = spi_flash_write(arg->addr, buf, arg->len);
+                        vPortFree(buf);
+                    }
+                }
+                msg->rpc_spi_flash_write.ret = ret;
             }
             break;
         case WAIFI_RPC_upgrade_finish:
@@ -160,7 +176,6 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         {
             _Static_assert(sizeof(enum waifi_msg_type) == 1, "msg type wrong size");
             _Static_assert(sizeof(struct waifi_msg_header) == 2, "msg header wrong size");
-            _Static_assert(sizeof(struct waifi_msg) == 4, "msg wrong size");
             struct waifi_msg *const header = (struct waifi_msg *)new_tail->payload;
             pbuf_header(new_tail, -(u16_t)sizeof(*header));
             os_memset(header, 0, sizeof(*header));
