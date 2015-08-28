@@ -18,8 +18,12 @@ union foo ## _buf {
 %}
 %sizeof(struct foo, foo)
 %pythoncode %{
-def _cast_ ## foo(buf):
+def _scan_ ## foo(io):
     un = foo ## _buf()
+    buf = io.read(sizeof_ ## foo)
+    assert len(buf) <= sizeof_ ## foo
+    if len(buf) != sizeof_ ## foo:
+        raise EOFError('Read %d instead of %d bytes' % (len(buf), sizeof_ ## foo))
     _strncpy(un.buf, buf, sizeof_ ## foo)
     ret = un.value
     _refs[ret] = un # reference un until ret is deleted
@@ -61,73 +65,61 @@ _refs = weakref.WeakKeyDictionary()
 
 class WaifiMsg(object):
     __metaclass__ = abc.ABCMeta
-    __slots__ = (
-        'size',
-    )
     def __init__(self, **kwargs):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
     @classmethod
-    def _from_frame(cls, frame):
-        raise TypeError('No class found')
+    def _filter_classes(cls, key, classes=None):
+        if classes is None:
+            classes = cls.__subclasses__()
+        for x in classes:
+            if x._key == key:
+                return x
+        raise TypeError('No class matching key %r in %r' % (key, classes))
     @classmethod
     def from_frame(cls, frame):
-        for subclass in cls.__subclasses__():
-            instance = subclass.from_frame(frame)
-            if instance != NotImplemented:
-                return instance
-        return cls._from_frame(memoryview(frame))
+        hdr = _scan_waifi_msg_header(frame)
+        return cls._filter_classes(hdr.type).from_frame(frame)
 
 class WaifiLogMsg(WaifiMsg):
-    __slots__ = (
-        'entries',
-    )
+    _key = WAIFI_MSG_log
     @classmethod
-    def _from_frame(cls, frame):
+    def from_frame(cls, frame):
         r'''
         >>> sizeof_waifi_msg_log_logentry
         25L
-        >>> frame = struct.pack('BBh24sb', WAIFI_MSG_log, 0, 25, 'x' * 24, 100)
+        >>> frame = struct.pack('BBh24sb', WAIFI_MSG_log, 0, 25, 'x' * 24, 100) + 'hello'
         >>> frame
-        '\x00\x00\x19\x00xxxxxxxxxxxxxxxxxxxxxxxxd'
-        >>> obj = WaifiMsg.from_frame(frame)
+        '\x00\x00\x19\x00xxxxxxxxxxxxxxxxxxxxxxxxdhello'
+        >>> import cStringIO as StringIO
+        >>> io = StringIO.StringIO(frame)
+        >>> obj = WaifiMsg.from_frame(io)
+        >>> io.tell() # should equal len(struct.pack(...)), which is 4 + 24 + 1
+        29
         >>> obj # doctest: +ELLIPSIS
         <....WaifiLogMsg object at ...>
-        >>> obj.size # should equal len(frame), which is 4 + 24 + 1
-        29
         >>> obj.entries # doctest: +ELLIPSIS
         [<...Swig Object of type 'waifi_msg_log_logentry *' at...>]
         >>> obj.entries[0].rssi
         100L
         '''
-        orig_len_frame = len(frame)
-        obj = _cast_waifi_msg_header(frame)
-        frame = frame[sizeof_waifi_msg_header:]
-        if obj.type != WAIFI_MSG_log:
-            return NotImplemented
-
-        log = _cast_waifi_msg_log(frame)
-        frame = frame[sizeof_waifi_msg_log:]
+        log = _scan_waifi_msg_log(frame)
+        # Must have an integral number of log entries.
         n, rem = divmod(log.len, sizeof_waifi_msg_log_logentry)
         if rem != 0:
             raise TypeError('Invalid message length')
-        if len(frame) < log.len:
-            raise TypeError('Log entry buffer too short')
 
         entries = []
         for _ in xrange(n):
-            assert len(frame) >= sizeof_waifi_msg_log_logentry
-            entry_buf = frame[:sizeof_waifi_msg_log_logentry]
-            frame = frame[sizeof_waifi_msg_log_logentry:]
-
-            entry = _cast_waifi_msg_log_logentry(entry_buf)
+            entry = _scan_waifi_msg_log_logentry(frame)
             fields = entry.header_fields
-            #import sys
-            #print >> sys.stderr, fields, dir(fields)
+            import sys
+            print >> sys.stderr, fields, dir(fields)
             entries.append(entry)
 
+        assert len(entries) == n
+
         return cls(
-            size=orig_len_frame - len(frame),
             entries=entries,
         )
 # vi:syntax=python
