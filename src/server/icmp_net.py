@@ -146,8 +146,15 @@ class WaifiIcmpNet(IcmpNet):
 			pass
 		return waifi_rpc.read_waifi_msg_rpc_system_upgrade_userbin_check(self._decoder).ret
 
-	def _rpc_spi_flash_write(self, remote):
-		...
+	def _rpc_spi_flash_write(self, remote, addr, data):
+		with self._rpc(waifi_rpc.WAIFI_RPC_spi_flash_write) as remote:
+			arg = waifi_rpc_spi_flash_write()
+			arg.addr = addr
+			arg.len = len(data)
+			waifi_rpc.write(remote, arg)
+			remote.write(data)
+		return waifi_rpc.read_waifi_msg_rpc_spi_flash_write(self._decoder).ret
 
 	def _rpc_upgrade_finish(self, remote):
-		...
+		with self._rpc(waifi_rpc.WAIFI_RPC_upgrade_finish) as remote:
+			pass

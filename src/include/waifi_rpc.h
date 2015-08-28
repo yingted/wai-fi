@@ -7,9 +7,11 @@
 #define __attribute__(...)
 #endif
 
+// RPC definitions (little-endian)
 enum __attribute__((packed)) waifi_rpc_cmd {
 	WAIFI_RPC_spi_flash_write,
 	WAIFI_RPC_system_upgrade_userbin_check,
+	WAIFI_RPC_upgrade_finish,
 };
 
 struct waifi_rpc_header {
@@ -17,9 +19,15 @@ struct waifi_rpc_header {
 };
 
 struct waifi_rpc_spi_flash_write {
+	unsigned int addr;
+	short len;
+	BYTE data[0];
 };
 
 struct waifi_rpc_system_upgrade_userbin_check {
+};
+
+struct waifi_rpc_upgrade_finish {
 };
 
 struct waifi_rpc {
@@ -27,12 +35,15 @@ struct waifi_rpc {
 	union {
 		struct waifi_rpc_spi_flash_write spi_flash_write;
 		struct waifi_rpc_system_upgrade_userbin_check system_upgrade_userbin_check;
+		struct waifi_rpc_upgrade_finish upgrade_finish;
 	};
 };
 
 enum __attribute__((packed)) waifi_msg_type {
 	WAIFI_MSG_log,
 };
+
+// IEEE 802.11 byte order, which is little endian
 
 struct waifi_msg_log_logentry_header_fields {
 	BYTE fc_type;
@@ -52,6 +63,8 @@ struct __attribute__((packed)) waifi_msg_log_logentry {
     BYTE rssi;
 };
 
+// Various messages, including RPC reply messages. Little-endian.
+
 struct waifi_msg_log {
 	short len;
 	union {
@@ -61,10 +74,14 @@ struct waifi_msg_log {
 };
 
 struct waifi_msg_rpc_system_upgrade_userbin_check {
-	unsigned char userbin;
+	unsigned char ret;
 };
 
 struct waifi_msg_rpc_spi_flash_write {
+	SpiFlashOpResult ret;
+};
+
+struct waifi_msg_rpc_upgrade_finish {
 };
 
 struct waifi_msg_header {
@@ -78,5 +95,6 @@ struct waifi_msg {
         struct waifi_msg_log log;
 		struct waifi_msg_rpc_system_upgrade_userbin_check rpc_system_upgrade_userbin_check;
 		struct waifi_msg_rpc_spi_flash_write rpc_spi_flash_write;
+		struct waifi_msg_rpc_upgrade_finish rpc_upgrade_finish;
     };
 };

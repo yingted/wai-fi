@@ -107,7 +107,10 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             break;
         case WAIFI_RPC_spi_flash_write:
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_spi_flash_write));
-            msg->rpc_spi_flash_write->ret = spi_flash_write(...);
+            {
+                struct waifi_rpc_spi_flash_write *arg = &rpc->spi_flash_write;
+                msg->rpc_spi_flash_write->ret = spi_flash_write(arg->addr, arg->data, arg->len);
+            }
             break;
         case WAIFI_RPC_upgrade_finish:
             ...
