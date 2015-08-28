@@ -48,14 +48,14 @@ def overlay_applied(overlay_dir, build_dir):
 			overlay_path = os.path.join(overlay_dir, name)
 			assert not os.path.exists(displaced_path)
 			if os.path.exists(overlay_path):
-				shutil.copyfile(overlay_path, displaced_path)
+				shutil.copy2(overlay_path, displaced_path)
 
 		subprocess.check_call(('make', '-C', build_dir, 'CC=true') + overlay_file_names)
 		yield
 		for name in overlay_file_names:
 			displaced_path = os.path.join(build_dir, name)
 			overlay_path = os.path.join(overlay_dir, name)
-			shutil.copyfile(displaced_path, overlay_path)
+			shutil.copy2(displaced_path, overlay_path)
 	finally:
 		for displaced_path, backup_path in backups.iteritems():
 			if backup_path is None:
