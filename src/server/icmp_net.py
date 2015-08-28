@@ -12,7 +12,27 @@ import cStringIO as StringIO
 import sql_hack
 import waifi_rpc
 import traceback
+import collections
 import abc
+import gevent
+
+class multimap(object):
+	def __init__(self, what={}):
+		self._dict = collections.defaultdict(list)
+		for k, v in dict(what).iteritems():
+			self.insert(k, v)
+	def insert(self, key, value):
+		self._dict[key].append(value)
+	def __contains__(self, key):
+		return key in self._dict
+	def pop(self, key):
+		if key not in self:
+			raise KeyError(key)
+		x = self._dict[key]
+		value = x.pop(0)
+		if not x:
+			del self._dict[key]
+		return value
 
 class IcmpNet(Protocol, object):
 	'''
@@ -81,6 +101,7 @@ class WaifiIcmpNet(IcmpNet):
 	def __init__(self, *args, **kwargs):
 		super(WaifiIcmpNet, self).__init__(*args, **kwargs)
 		self._session = config.sql_Session()
+		self._response_handlers = multimap()
 
 	def _decode(self, decoder):
 		try:
@@ -88,6 +109,10 @@ class WaifiIcmpNet(IcmpNet):
 				msg = waifi_rpc.read_waifi_msg_header(decoder)
 				if msg.type == waifi_rpc.WAIFI_MSG_log:
 					self._decode_log(decoder)
+				elif msg.type == waifi_rpc.WAIFI_MSG_RPC_spi_flash_write:
+					self._got_response(waifi_rpc.read_waifi_msg_rpc_spi_flash_write(decoder))
+				elif msg.type == waifi_rpc.WAIFI_MSG_RPC_system_upgrade_userbin_check:
+					self._got_response(waifi_rpc.read_waifi_msg_rpc_system_upgrade_userbin_check(decoder))
 				else:
 					raise TypeError('invalid message type %d' % msg.type)
 		except:
@@ -125,6 +150,11 @@ class WaifiIcmpNet(IcmpNet):
 
 	def handshakeDone(self):
 		super(WaifiIcmpNet, self).handshakeDone()
+		g = gevent.Greenlet(self.do_fota_upgrade)
+		g.main = gevent.getcurrent()
+		g.start()
+
+	def do_fota_upgrade(self):
 		userbin = self._rpc_system_upgrade_userbin_check()
 		print 'userbin:', userbin
 
@@ -141,20 +171,33 @@ class WaifiIcmpNet(IcmpNet):
 		yield remote
 		self._write_frame(remote.getvalue())
 
-	def _rpc_system_upgrade_userbin_check(self, remote):
+	def _got_response(self, response):
+		self._response_handlers.pop(type(response))(response)
+
+	def _get_response(self, response_type):
+		cur = gevent.getcurrent()
+		responses = []
+		def resume(response):
+			responses[:] = response,
+			cur.switch()
+		self._response_handlers.insert(response_type, resume)
+		cur.main.switch()
+		return responses[0]
+
+	def _rpc_system_upgrade_userbin_check(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_system_upgrade_userbin_check) as remote:
 			pass
-		return waifi_rpc.read_waifi_msg_rpc_system_upgrade_userbin_check(self._decoder).ret
+		return self._get_response(waifi_rpc.waifi_msg_rpc_system_upgrade_userbin_check)
 
-	def _rpc_spi_flash_write(self, remote, addr, data):
+	def _rpc_spi_flash_write(self, addr, data):
 		with self._rpc(waifi_rpc.WAIFI_RPC_spi_flash_write) as remote:
 			arg = waifi_rpc_spi_flash_write()
 			arg.addr = addr
 			arg.len = len(data)
 			waifi_rpc.write(remote, arg)
 			remote.write(data)
-		return waifi_rpc.read_waifi_msg_rpc_spi_flash_write(self._decoder).ret
+		return self._get_response(waifi_msg_rpc_spi_flash_write)
 
-	def _rpc_upgrade_finish(self, remote):
+	def _rpc_upgrade_finish(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_upgrade_finish) as remote:
 			pass

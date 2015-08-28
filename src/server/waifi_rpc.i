@@ -43,6 +43,7 @@ def write(io, obj):
 CAST_HELPER(waifi_msg_header)
 CAST_HELPER(waifi_msg_log)
 CAST_HELPER(waifi_rpc)
+CAST_HELPER(waifi_rpc_header)
 CAST_HELPER(waifi_msg_log_logentry)
 
 %pythoncode %{

@@ -10,5 +10,5 @@ _waifi_rpc.so: waifi_rpc_wrap.o
 clean:
 	rm -f waifi_rpc.py waifi_rpc_wrap.c waifi_rpc_wrap.o _waifi_rpc.so *.pyc
 test: all
-	cd .. && python -m doctest server/*.py
+	cd .. && python -m doctest server/[a-zA-Z]*.py
 .PHONY: all clean test
