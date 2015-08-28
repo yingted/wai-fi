@@ -15,6 +15,7 @@ import traceback
 import collections
 import abc
 import gevent
+import gevent.event
 
 class multimap(object):
 	def __init__(self, what={}):
@@ -150,9 +151,7 @@ class WaifiIcmpNet(IcmpNet):
 
 	def handshakeDone(self):
 		super(WaifiIcmpNet, self).handshakeDone()
-		g = gevent.Greenlet(self.do_fota_upgrade)
-		g.main = gevent.getcurrent()
-		g.start()
+		gevent.Greenlet.spawn(self.do_fota_upgrade)
 
 	def do_fota_upgrade(self):
 		userbin = self._rpc_system_upgrade_userbin_check()
@@ -172,17 +171,13 @@ class WaifiIcmpNet(IcmpNet):
 		self._write_frame(remote.getvalue())
 
 	def _got_response(self, response):
-		self._response_handlers.pop(type(response))(response)
+		res = self._response_handlers.pop(type(response))
+		res.set(response)
 
 	def _get_response(self, response_type):
-		cur = gevent.getcurrent()
-		responses = []
-		def resume(response):
-			responses[:] = response,
-			cur.switch()
-		self._response_handlers.insert(response_type, resume)
-		cur.main.switch()
-		return responses[0]
+		res = gevent.event.AsyncResult()
+		self._response_handlers.insert(response_type, res)
+		return res.get()
 
 	def _rpc_system_upgrade_userbin_check(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_system_upgrade_userbin_check) as remote:
