@@ -8,6 +8,10 @@
 %array_functions(BYTE, bytep)
 %array_functions(struct waifi_msg_log_logentry, logentryp)
 
+%pythoncode %{
+import multimethods
+%}
+
 %include cmalloc.i
 %define CAST_HELPER(foo)
 %inline %{
@@ -18,7 +22,7 @@ union foo ## _buf {
 %}
 %sizeof(struct foo, foo)
 %pythoncode %{
-def scan_ ## foo(io):
+def read_ ## foo(io):
     un = foo ## _buf()
     buf = io.read(sizeof_ ## foo)
     assert len(buf) <= sizeof_ ## foo
@@ -28,6 +32,12 @@ def scan_ ## foo(io):
     ret = un.value
     _refs[ret] = un # reference un until ret is deleted
     return ret
+
+@multimethods.multimethod(object, foo)
+def write(io, obj):
+    obj_buf = foo ## _buf()
+    obj_buf.value = obj
+    io.write(strndup(obj_buf.buf, sizeof_ ## foo))
 %}
 %enddef
 CAST_HELPER(waifi_msg_header)
@@ -61,5 +71,20 @@ def strndup(src_buf, n):
     return struct.pack('B' * n, *[bytep_getitem(src_buf, i) for i in xrange(n)])
 
 _refs = weakref.WeakKeyDictionary()
+
+def _write_test():
+    '''
+    >>> import cStringIO as StringIO
+    >>> inp = StringIO.StringIO('x' * sizeof_waifi_msg_log)
+    >>> inp.getvalue()
+    'xx'
+    >>> x = read_waifi_msg_log(inp)
+    >>> x # doctest: +ELLIPSIS
+    <...Swig Object of type 'waifi_msg_log *' at ...>
+    >>> out = StringIO.StringIO()
+    >>> write(out, x)
+    >>> out.getvalue()
+    'xx'
+    '''
 # vi:syntax=python
 %}
