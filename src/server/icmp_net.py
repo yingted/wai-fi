@@ -18,6 +18,10 @@ import gevent
 import gevent.event
 
 class multimap(object):
+	'''
+	Ordered multimap.
+	TODO use gevent.queue.Queue when 1.1b3 is available, when it's ordered.
+	'''
 	def __init__(self, what={}):
 		self._dict = collections.defaultdict(list)
 		for k, v in dict(what).iteritems():
@@ -76,19 +80,21 @@ class IcmpNet(Protocol, object):
 		self.log('disconnected:', reason.value)
 
 class AsyncResponseMixin(object):
+	'''
+	Mixin for blocking until a result of a certain (concrete) type is available.
+	All results are processed in order.
+	'''
 	def __init__(self, *args, **kwargs):
-		super(AsyncResponseMixin, self).__init__()
+		super(AsyncResponseMixin, self).__init__(*args, **kwargs)
 		self._response_results = multimap()
 
 	def _got_response(self, response):
-		print 'got response', response
 		res = self._response_results.pop(type(response))
 		res.set(response)
 
 	def _get_response(self, response_type):
 		res = gevent.event.AsyncResult()
 		self._response_results.insert(response_type, res)
-		print 'waiting for', response_type
 		return res.get()
 
 class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
