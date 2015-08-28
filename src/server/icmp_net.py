@@ -178,6 +178,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 
 	def do_fota_upgrade(self):
 		userbin = self._rpc_system_upgrade_userbin_check()
+		# Build the other userbin
 		if userbin == waifi_rpc.UPGRADE_FW_BIN1:
 			build_userbin = 2
 		elif userbin == waifi_rpc.UPGRADE_FW_BIN2:
@@ -185,8 +186,19 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 		else:
 			raise ValueError('invalid userbin %r' % userbin)
 		print 'build_userbin:', build_userbin
-		with imager.flasher.get_images(mac=mac, release=False, extra_env={'BUILD_USERBIN': build_userbin}) as images:
-			...
+		with imager.flasher.get_images(
+				mac=self._device_name,
+				release=False,
+				extra_env={
+					'BUILD_USERBIN': str(build_userbin),
+				},
+			) as images:
+			for addr, path in images.iteritems():
+				assert addr.startswith('0x')
+				addr = int(addr, 16)
+				assert addr >= 0
+				if addr > 0:
+					print addr, path
 
 	@contextlib.contextmanager
 	def _rpc(self, cmd):
