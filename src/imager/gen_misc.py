@@ -13,7 +13,7 @@ bin_dir = os.path.join(sdk_dir, 'bin')
 app_dir = os.path.join(sdk_dir, 'app')
 build_dir = os.path.join(app_dir, 'user')
 
-def call(overlay_dir, release=False):
+def call(overlay_dir, release=False, extra_env={}):
 	with fslock.FsLock(app_dir), overlay.overlay_applied(overlay_dir=overlay_dir, build_dir=build_dir):
 		env = dict(os.environ)
 		env['PWD'] = os.path.abspath(app_dir)
@@ -22,6 +22,7 @@ def call(overlay_dir, release=False):
 				'FLAVOR': 'release',
 			})
 			subprocess.check_call(('make', 'clean'), cwd=app_dir, env=env)
+		env.update(extra_env)
 		p = subprocess.Popen(('bash', 'gen_misc.sh'), cwd=app_dir, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 		stdout, stderr = p.communicate()
 		p.wait()

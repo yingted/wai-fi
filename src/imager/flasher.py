@@ -3,6 +3,7 @@ import sys
 import subprocess
 import gen_misc
 import overlay
+import contextlib
 
 def import_esptool():
 	global esptool, esptool_path
@@ -11,7 +12,12 @@ def import_esptool():
 	esptool_path = distutils.spawn.find_executable('esptool.py')
 	esptool = imp.load_source('esptool', esptool_path)
 
-def flash_port(port, baud=921600, release=False):
+@contextlib.contextmanager
+def get_images(mac, release=False, extra_env={}):
+	with overlay.get_overlay_dir(mac=mac) as overlay_dir:
+		yield gen_misc.call(overlay_dir=overlay_dir, release=release, extra_env=extra_env)
+
+def flash_port(port, baud=921600, release=False, extra_env={}):
 	import_esptool()
 
 	print >> sys.stderr, 'Probing', port
@@ -23,8 +29,7 @@ def flash_port(port, baud=921600, release=False):
 		mac_text = ':'.join(mac)
 		print >> sys.stderr, 'Found device', mac_text, 'at', port
 		mac = ''.join(mac)
-		with overlay.get_overlay_dir(mac=mac, port=port) as overlay_dir:
-			images = gen_misc.call(overlay_dir=overlay_dir, release=release)
+		with get_images(mac=mac, release=release, extra_env=extra_env) as images:
 			cmd = [esptool_path, '-p', port, '-b', str(baud), 'write_flash']
 			for addr, image in images.iteritems():
 				cmd.extend((addr, image))

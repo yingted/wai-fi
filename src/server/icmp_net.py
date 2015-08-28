@@ -16,6 +16,7 @@ import collections
 import abc
 import gevent
 import gevent.event
+import imager.flasher
 
 class multimap(object):
 	'''
@@ -177,7 +178,15 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 
 	def do_fota_upgrade(self):
 		userbin = self._rpc_system_upgrade_userbin_check()
-		print 'userbin:', userbin
+		if userbin == waifi_rpc.UPGRADE_FW_BIN1:
+			build_userbin = 2
+		elif userbin == waifi_rpc.UPGRADE_FW_BIN2:
+			build_userbin = 1
+		else:
+			raise ValueError('invalid userbin %r' % userbin)
+		print 'build_userbin:', build_userbin
+		with imager.flasher.get_images(mac=mac, release=False, extra_env={'BUILD_USERBIN': build_userbin}) as images:
+			...
 
 	@contextlib.contextmanager
 	def _rpc(self, cmd):
@@ -195,7 +204,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 	def _rpc_system_upgrade_userbin_check(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_system_upgrade_userbin_check) as remote:
 			pass
-		return self._get_response(waifi_rpc.waifi_msg_rpc_system_upgrade_userbin_check)
+		return self._get_response(waifi_rpc.waifi_msg_rpc_system_upgrade_userbin_check).ret
 
 	def _rpc_spi_flash_write(self, addr, data):
 		with self._rpc(waifi_rpc.WAIFI_RPC_spi_flash_write) as remote:
@@ -204,7 +213,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 			arg.len = len(data)
 			waifi_rpc.write(remote, arg)
 			remote.write(data)
-		return self._get_response(waifi_msg_rpc_spi_flash_write)
+		return self._get_response(waifi_msg_rpc_spi_flash_write).ret
 
 	def _rpc_upgrade_finish(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_upgrade_finish) as remote:

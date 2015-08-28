@@ -1,5 +1,9 @@
 #pragma once
 
+// From SDK PDF
+#define UPGRADE_FW_BIN1 0x00
+#define UPGRADE_FW_BIN2 0x01
+
 #define WAIFI_MAX_FRAME_SIZE 1280
 
 #define BYTE unsigned char

@@ -1,5 +1,7 @@
+import sys
 import sqlalchemy.orm
 
+release = '--release' in sys.argv[1:]
 sdk_dir = 'fw/esp_iot_sdk_v1.1.1'
 data_dir = 'data/pki'
 

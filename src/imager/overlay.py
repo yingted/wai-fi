@@ -82,7 +82,7 @@ def seed_overlay(overlay_dir, mac, device_id):
 		print >> f, device_id
 
 @contextlib.contextmanager
-def get_overlay_dir(mac, port):
+def get_overlay_dir(mac):
 	session = config.sql_Session()
 	overlay_dir = None
 	try:
