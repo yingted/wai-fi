@@ -122,19 +122,27 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             {
                 SpiFlashOpResult ret = SPI_FLASH_RESULT_OK;
                 struct waifi_rpc_spi_flash_write *arg = &rpc->spi_flash_write;
-                uint16_t sec = arg->addr >> 12;
-                if (arg->addr == (sec << 12)) { // Erase if we start on a sector
+#define ASSIGN(dst, src) \
+    _Static_assert(sizeof(dst) == sizeof(src), "assignment size mismatch"); \
+    os_memcpy(&(dst), &(src), sizeof(dst));
+                uint32_t addr;
+                ASSIGN(addr, arg->addr);
+                int16_t len;
+                ASSIGN(len, arg->len);
+                uint16_t sec = addr >> 12;
+                if (addr == (sec << 12)) { // Erase if we start on a sector
                     ret = spi_flash_erase_sector(sec);
                 }
                 assert(ssl->bm_all_data <= arg->data);
-                assert(arg->data + arg->len <= ssl->bm_all_data + RT_MAX_PLAIN_LENGTH + RT_EXTRA + sizeof(uint32) - 1);
+                assert(arg->data + len <= ssl->bm_all_data + RT_MAX_PLAIN_LENGTH + RT_EXTRA + sizeof(uint32) - 1);
                 _Static_assert(__builtin_popcount(sizeof(uint32)) == 1, "size not a power of 2");
                 uint32 *buf = (uint32 *)((((size_t)arg->data + sizeof(uint32) - 1)) & ~(sizeof(uint32) - 1));
                 assert(((size_t)buf) >= ((size_t)arg->data));
                 if (ret == SPI_FLASH_RESULT_OK) {
                     // Shift the data to an aligned address
-                    os_memmove(buf, arg->data, arg->len);
-                    ret = spi_flash_write(arg->addr, buf, arg->len);
+                    os_memmove(buf, arg->data, len);
+                    user_dprintf("spi_flash_write(%p, %p, %p)", addr, buf, len);
+                    ret = spi_flash_write(addr, buf, len);
                 }
                 msg->rpc_spi_flash_write.ret = ret;
             }

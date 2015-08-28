@@ -206,6 +206,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 								break
 							self.log('Writing %d B at 0x%08x' % (len(block), addr))
 							self._rpc_spi_flash_write(addr, block)
+							addr += len(block)
 			# Finish the upgrade and release the lock
 			self._rpc_upgrade_finish()
 
