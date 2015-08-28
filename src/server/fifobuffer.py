@@ -48,7 +48,6 @@ class FifoBuffer(object):
 		ret += self._first[self._index:new_index]
 		self._index = new_index
 		assert len(ret) == n
-		print 'read', repr(ret)
 		return ret
 
 	def write(self, data):

@@ -65,8 +65,10 @@ void connmgr_idle_cb(SSL *ssl) {
         size_t logged_size = LOGBUF_SIZE - to_send->len;
         struct waifi_msg *header = (struct waifi_msg *)((char *)to_send->payload - logged_size);
         switch (header->hdr.type) {
-            case WAIFI_MSG_log:
-                header->log.len = htons((short)(logged_size - sizeof(*header)));
+            case WAIFI_MSG_log:;
+                _Static_assert((sizeof(header->hdr) + sizeof(header->log)) == 4, "Wrong header size");
+                _Static_assert(offsetof(struct waifi_msg, log.len) == 2, "Wrong offset for len");
+                header->log.len = (short)(logged_size - (sizeof(header->hdr) + sizeof(header->log)));
                 break;
             default:
                 assert(false);
@@ -143,14 +145,6 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             user_dprintf("unknown command %d", rpc->hdr.cmd);
             return;
     }
-{
-    int i;
-    os_printf("payload: ");
-    for (i = 0; i < p->len; ++i) {
-        os_printf("%02x", ((uint8_t *)p->payload)[i]);
-    }
-    os_printf("\n");
-}
     connmgr_write(p);
 }
 
@@ -186,8 +180,9 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
         {
             _Static_assert(sizeof(enum waifi_msg_type) == 1, "msg type wrong size");
             _Static_assert(sizeof(struct waifi_msg_header) == 2, "msg header wrong size");
+            _Static_assert(sizeof(struct waifi_msg_log) == 2, "msg log wrong size");
             struct waifi_msg_header *const header = (struct waifi_msg_header *)new_tail->payload;
-            pbuf_header(new_tail, -(u16_t)(sizeof(*header) + sizeof(struct waifi_msg_log *)));
+            pbuf_header(new_tail, -(u16_t)(sizeof(*header) + sizeof(struct waifi_msg_log)));
             os_memset(header, 0, sizeof(*header));
             header->type = WAIFI_MSG_log; // We'll write the rest later
         }

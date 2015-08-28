@@ -98,7 +98,7 @@ struct waifi_msg_header {
     BYTE pad_;
 };
 
-struct waifi_msg {
+struct __attribute__((packed)) waifi_msg {
 	struct waifi_msg_header hdr;
     union {
         struct waifi_msg_log log;
