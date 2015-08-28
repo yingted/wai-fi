@@ -7,6 +7,7 @@ import overlay
 import shutil
 import tempfile
 import config
+import collections
 
 sdk_dir = config.sdk_dir
 bin_dir = os.path.join(sdk_dir, 'bin')
@@ -27,7 +28,7 @@ def call(overlay_dir, release=False, extra_env={}):
 		stdout, stderr = p.communicate()
 		p.wait()
 
-		paths = {}
+		paths = collections.OrderedDict()
 		m = re.match(pattern=r'.*^Generate .* successully in.* (\S+)\.\n(.*)', string=stdout, flags=re.M | re.S)
 		if not m:
 			raise Exception('Compilation failed')
