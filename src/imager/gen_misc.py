@@ -34,6 +34,6 @@ def call(overlay_dir, release=False, extra_env={}):
 		out_dir, rest = m.groups()
 		for m in re.finditer(r'^([^-\n ]+)-+>(0x[0-9a-f]+)$', rest, flags=re.M):
 			name, addr = m.groups()
-			out_path = os.path.join(bin_dir, name)
+			out_path = os.path.join(sdk_dir, out_dir, name)
 			paths[addr] = out_path
 		return paths

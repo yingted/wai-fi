@@ -67,7 +67,7 @@ class IcmpNet(Protocol, object):
 		conn = self.transport._tlsConnection
 		device_name = verify.get_device_name(conn.get_peer_certificate())
 		self._device_name = device_name
-		self.log('connected')
+		self.log('Connected')
 
 	def _write_frame(self, frame):
 		assert isinstance(frame, str)
@@ -78,7 +78,7 @@ class IcmpNet(Protocol, object):
 		self._decoder.write(data)
 
 	def connectionLost(self, reason):
-		self.log('disconnected:', reason.value)
+		self.log('Disconnected:', reason.value)
 
 class AsyncResponseMixin(object):
 	'''
@@ -185,7 +185,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 			build_userbin = 1
 		else:
 			raise ValueError('invalid userbin %r' % userbin)
-		print 'build_userbin:', build_userbin
+		self.log('Upgrading icmp_net://%s using userbin=%d' %(self._device_name, build_userbin))
 		with imager.flasher.get_images(
 				mac=self._device_name,
 				release=False,
@@ -198,7 +198,16 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 				addr = int(addr, 16)
 				assert addr >= 0
 				if addr > 0:
-					print addr, path
+					self.log('Flashing icmp_net://%s at 0x%08x: %s' % (self._device_name, addr, path))
+					with open(path, 'rb') as f:
+						while True:
+							block = f.read(1024)
+							if len(block) == 0:
+								break
+							self.log('Writing %d B at 0x%08x' % (len(block), addr))
+							self._rpc_spi_flash_write(addr, block)
+			# Finish the upgrade and release the lock
+			self._rpc_upgrade_finish()
 
 	@contextlib.contextmanager
 	def _rpc(self, cmd):
@@ -220,12 +229,12 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 
 	def _rpc_spi_flash_write(self, addr, data):
 		with self._rpc(waifi_rpc.WAIFI_RPC_spi_flash_write) as remote:
-			arg = waifi_rpc_spi_flash_write()
+			arg = waifi_rpc.waifi_rpc_spi_flash_write()
 			arg.addr = addr
 			arg.len = len(data)
 			waifi_rpc.write(remote, arg)
 			remote.write(data)
-		return self._get_response(waifi_msg_rpc_spi_flash_write).ret
+		return self._get_response(waifi_rpc.waifi_msg_rpc_spi_flash_write).ret
 
 	def _rpc_upgrade_finish(self):
 		with self._rpc(waifi_rpc.WAIFI_RPC_upgrade_finish) as remote:
