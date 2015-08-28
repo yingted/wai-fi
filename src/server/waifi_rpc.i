@@ -27,6 +27,7 @@ def _cast_ ## foo(buf):
 %}
 %enddef
 CAST_HELPER(waifi_msg_header)
+CAST_HELPER(waifi_msg_log)
 CAST_HELPER(waifi_rpc)
 CAST_HELPER(waifi_msg_log_logentry)
 
@@ -100,15 +101,17 @@ class WaifiLogMsg(WaifiMsg):
         100L
         '''
         orig_len_frame = len(frame)
-        obj = cls._parse_header(frame)
-        if obj.hdr.type != WAIFI_MSG_log:
+        obj = _cast_waifi_msg_header(frame)
+        frame = frame[sizeof_waifi_msg_header:]
+        if obj.type != WAIFI_MSG_log:
             return NotImplemented
 
-        n, rem = divmod(obj.log.len, sizeof_waifi_msg_log_logentry)
+        log = _cast_waifi_msg_log(frame)
+        frame = frame[sizeof_waifi_msg_log:]
+        n, rem = divmod(log.len, sizeof_waifi_msg_log_logentry)
         if rem != 0:
             raise TypeError('Invalid message length')
-        frame = frame[int(obj.log.entries.this) - int(obj.this):]
-        if len(frame) < obj.log.len:
+        if len(frame) < log.len:
             raise TypeError('Log entry buffer too short')
 
         entries = []
@@ -119,6 +122,8 @@ class WaifiLogMsg(WaifiMsg):
 
             entry = _cast_waifi_msg_log_logentry(entry_buf)
             fields = entry.header_fields
+            #import sys
+            #print >> sys.stderr, fields, dir(fields)
             entries.append(entry)
 
         return cls(
