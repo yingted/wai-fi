@@ -8,9 +8,11 @@
 #endif
 
 // Include the SPI flash driver header
+#ifdef __linux__
 typedef uint32_t uint32;
 typedef uint16_t uint16;
 #include "../fw/3rdparty/esp_iot_rtos_sdk/include/espressif/spi_flash.h"
+#endif
 
 // RPC definitions (little-endian)
 enum __attribute__((packed)) waifi_rpc_cmd {
