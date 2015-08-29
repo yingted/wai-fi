@@ -10,6 +10,23 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/**
+ * @file gdb_stub.c
+ * GDB debugging stub for esp8266
+ * Implements basic features of the GDB remote protocol and "break 1, 1".
+ * gdb_stub_init() installs the stub as the exception handler for the most
+ * common exceptions. To support the debug option, make sure
+ * gdb_stub_DebugExceptionVector gets mapped to the debug exception vector.
+ * Supported GDB commands include:
+ * Ctrl+C, continue, hbreak, watch, examine, finish, print, and info all-reg
+ * The following commands are buggy: step, next, kill
+ * In addition, GDB can call functions, for example, to run:
+ * print system_get_free_heap_size()
+ * When the stub is started, it takes over GDB_UART (uart 0). To prevent output
+ * from interfering with the remote protocol, all output is redirected to
+ * GDB's output using the O command.
+ */
+
 #define SIZE_MAX ((size_t)~0)
 
 // Template function macros
@@ -375,6 +392,10 @@ static void gdb_attach(int exccause, int debugcause) {
         case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
             assert(regs.interrupt.valid);
             // Let's try to skip some interrupts
+            // This doesn't actually work very well, since the interrupt level
+            // can drop before the interrupt handler is finished.
+            // Maybe we can check for the rfi (return from interrupt)
+            // instruction and the number of times an interrupt was triggered.
             if (get_target_intlevel() != icount_intlevel || regs.interrupt.value != icount_interrupt) {
                 assert(regs.icount.valid);
                 --regs.icount.value;
