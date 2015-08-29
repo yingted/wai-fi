@@ -116,7 +116,9 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             msg->rpc_system_upgrade_userbin_check.ret = system_upgrade_userbin_check();
             system_upgrade_flag_set(UPGRADE_FLAG_IDLE);
             break;
-        case WAIFI_RPC_spi_flash_write:
+        case WAIFI_RPC_spi_flash_write:;
+            _Static_assert(offsetof(struct waifi_rpc, spi_flash_write.len) == 2, "wrong len offset");
+            _Static_assert(offsetof(struct waifi_rpc, spi_flash_write.addr) == 4, "wrong addr offset");
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_spi_flash_write));
             msg->hdr.type = WAIFI_MSG_RPC_spi_flash_write;
             {
@@ -141,7 +143,6 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 if (ret == SPI_FLASH_RESULT_OK) {
                     // Shift the data to an aligned address
                     os_memmove(buf, arg->data, len);
-                    user_dprintf("spi_flash_write(%p, %p, %p)", addr, buf, len);
                     ret = spi_flash_write(addr, buf, len);
                 }
                 msg->rpc_spi_flash_write.ret = ret;

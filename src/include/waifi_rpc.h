@@ -7,9 +7,6 @@
 #define WAIFI_MAX_FRAME_SIZE 1280
 
 #define BYTE unsigned char
-#ifdef SWIG
-#define __attribute__(...)
-#endif
 
 // Include the SPI flash driver header
 #ifdef __linux__
@@ -27,11 +24,12 @@ enum __attribute__((packed)) waifi_rpc_cmd {
 
 struct waifi_rpc_header {
 	enum waifi_rpc_cmd cmd;
+	BYTE pad_;
 };
 
-struct waifi_rpc_spi_flash_write {
-	unsigned int addr;
+struct __attribute__((packed)) waifi_rpc_spi_flash_write {
 	short len;
+	unsigned int addr;
 	BYTE data[0];
 };
 
@@ -41,7 +39,7 @@ struct waifi_rpc_system_upgrade_userbin_check {
 struct waifi_rpc_upgrade_finish {
 };
 
-struct waifi_rpc {
+struct __attribute__((packed)) waifi_rpc {
 	struct waifi_rpc_header hdr;
 	union {
 		struct waifi_rpc_spi_flash_write spi_flash_write;

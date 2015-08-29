@@ -2,6 +2,7 @@
 %{
 #include <waifi_rpc.h>
 %}
+#define __attribute__(...)
 %include <waifi_rpc.h>
 
 %include carrays.i
