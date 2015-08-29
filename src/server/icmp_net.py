@@ -91,6 +91,7 @@ class AsyncResponseMixin(object):
 
 	def _got_response(self, response):
 		res = self._response_results.pop(type(response))
+		print 'response', response, int(response.ret)
 		res.set(response)
 
 	def _get_response(self, response_type):
@@ -205,8 +206,9 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 							if len(block) == 0:
 								break
 							self.log('Writing %d B at 0x%08x' % (len(block), addr))
-							self._rpc_spi_flash_write(addr, block)
-							addr += len(block)
+							rc = self._rpc_spi_flash_write(addr, block)
+							if rc == waifi_rpc.SPI_FLASH_RESULT_OK:
+								addr += len(block)
 			# Finish the upgrade and release the lock
 			self._rpc_upgrade_finish()
 

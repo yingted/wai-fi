@@ -9,10 +9,14 @@
 #define BYTE unsigned char
 
 // Include the SPI flash driver header
-#ifdef __linux__
-typedef uint32_t uint32;
-typedef uint16_t uint16;
-#include "../fw/3rdparty/esp_iot_rtos_sdk/include/espressif/spi_flash.h"
+#if defined(__linux__) || defined(SWIG)
+// swig does not like anonymous enums
+enum SpiFlashOpResult_ {
+    SPI_FLASH_RESULT_OK,
+    SPI_FLASH_RESULT_ERR,
+    SPI_FLASH_RESULT_TIMEOUT
+};
+typedef enum SpiFlashOpResult_ SpiFlashOpResult;
 #endif
 
 // RPC definitions (little-endian)
