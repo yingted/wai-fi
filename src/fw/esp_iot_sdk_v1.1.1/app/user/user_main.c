@@ -23,6 +23,21 @@ ICACHE_FLASH_ATTR
 static void noop_put1c() {}
 #endif
 
+__attribute__((optimize("omit-frame-pointer")))
+size_t my_spi_flash_erase_sector(size_t sec) {
+    user_dprintf("storing 115");
+    __asm__ __volatile__("memw");
+    ((size_t *)0x60000600)[0x314 / 4] = 115;
+    user_dprintf("calling some function");
+    ((void(*)(size_t))0x400047f0)(0x60000600);
+    user_dprintf("doing the op");
+    size_t ret = ((size_t(*)(size_t))0x40004a00)(sec);
+    user_dprintf("undoing something");
+    extern void Cache_Read_Enable_New();
+    Cache_Read_Enable_New();
+    return ret;
+}
+
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
@@ -41,8 +56,10 @@ void user_init(void) {
     ets_wdt_disable();
 #endif
 
-    connmgr_init();
-    connmgr_start();
+    gdb_stub_break();
+    user_dprintf("ret: %d", my_spi_flash_erase_sector(128));
+    //connmgr_init();
+    //connmgr_start();
 }
 
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
