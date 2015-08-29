@@ -492,7 +492,8 @@ retrans:
 #undef XTREG_ty2
                         };
                         size_t cur_i = 0, i, j;
-                        for (i = 0; i != sizeof(regno);) {
+                        _Static_assert(sizeof(regno) / sizeof(regno[0]) == sizeof(regs) / sizeof(regs.pc), "Register size mismatch");
+                        for (i = 0; i != sizeof(regno) / sizeof(regno[0]);) {
                             bool is_supported = cur_i++ == regno[i];
                             // Match any regno[i], but write x's in between
                             struct GdbRegister *const reg = &((struct GdbRegister *)&regs)[i];
@@ -512,6 +513,7 @@ retrans:
                                 reg->valid = true;
                                 size_t value = __builtin_bswap32(gdb_read_impl(8));
                                 if (reg == &regs.pc && value != reg->value) {
+                                    SET_REG(EPC_REG, value);
                                     debug_break_size = 0;
                                 }
                                 reg->value = value;
@@ -645,7 +647,6 @@ cont:
     regs.pc.value += debug_break_size;
     assert(regs.EPC_REG.valid);
     regs.EPC_REG.value += debug_break_size;
-    WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_CLR); // to be safe
     __asm__ __volatile__("\
         esync\n\
         wsr.ps %0\n\
