@@ -449,9 +449,6 @@ retrans:
                     if (set_pc) {
                         SET_REG(EPC_REG, pc);
                         debug_break_size = 0;
-                    } else if (!regs.pc.valid) {
-                        gdb_write_string("E01");
-                        goto next;
                     }
                     if (cmd == 's') {
                         gdb_icount_in(1);
@@ -492,10 +489,11 @@ retrans:
                         for (i = 0; i != sizeof(regno);) {
                             bool is_supported = cur_i++ == regno[i];
                             // Match any regno[i], but write x's in between
+                            struct GdbRegister *const reg = &((struct GdbRegister *)&regs)[i];
                             if (cmd == 'g') {
-                                if (is_supported && ((struct GdbRegister *)&regs)[i].valid) {
+                                if (is_supported && reg->valid) {
                                     for (j = 0; j < 4; ++j) {
-                                        os_sprintf(&buf[2 * j], "%02x", ((char *)&((struct GdbRegister *)&regs)[i].value)[j]);
+                                        os_sprintf(&buf[2 * j], "%02x", ((char *)&reg->value)[j]);
                                     }
                                     gdb_write_string(buf);
                                 } else {
@@ -505,8 +503,12 @@ retrans:
                                 // We can write the registers as we go, since
                                 // GDB will retry on error. We also overwrite
                                 // invalid register values, so that's ok too.
-                                ((struct GdbRegister *)&regs)[i].valid = true;
-                                ((struct GdbRegister *)&regs)[i].value = __builtin_bswap32(gdb_read_impl(8));
+                                reg->valid = true;
+                                size_t value = __builtin_bswap32(gdb_read_impl(8));
+                                if (reg == &regs.pc && value != reg->value) {
+                                    debug_break_size = 0;
+                                }
+                                reg->value = value;
                             }
                             i += is_supported;
                         }
@@ -692,8 +694,8 @@ void gdb_stub_exception_handler(UserFrame *frame, bool is_debug) {
 #undef XTREG_ty2
 
     size_t intlevel = xthal_vpri_to_intlevel(frame->vpri);
+    assert(regs.pc.valid);
     if (is_debug) { // max intlevel, vpri=-1, debug
-        assert(regs.pc.valid);
         assert(regs.epc2.valid);
         assert(regs.epc2.value == regs.pc.value);
         user_dprintf("intlevel=%d interrupt=%d debugcause=%p pc=%p", intlevel, sr_interrupt, (void *)sr_debugcause, (void *)regs.pc.value);
