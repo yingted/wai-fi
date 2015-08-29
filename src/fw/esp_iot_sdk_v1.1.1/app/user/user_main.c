@@ -84,6 +84,7 @@ void connmgr_idle_cb(SSL *ssl) {
 
 ICACHE_FLASH_ATTR
 void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
+#if 0
     {
         int i;
         os_printf("connmgr_record_cb: buf: ");
@@ -92,7 +93,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
         }
         os_printf("\n");
     }
-
+#endif
     struct waifi_rpc *rpc = (struct waifi_rpc *)buf;
     if (len < sizeof(struct waifi_rpc_header)) {
         return;
