@@ -453,8 +453,7 @@ retrans:
                     bool set_pc = !gdb_read_err;
                     GDB_READ();
                     if (set_pc) {
-                        SET_REG(EPC_REG, pc);
-                        debug_break_size = 0;
+                        SET_REG(pc, pc);
                     }
                     if (cmd == 's') {
                         gdb_icount_in(1);
@@ -511,12 +510,7 @@ retrans:
                                 // GDB will retry on error. We also overwrite
                                 // invalid register values, so that's ok too.
                                 reg->valid = true;
-                                size_t value = __builtin_bswap32(gdb_read_impl(8));
-                                if (reg == &regs.pc && value != reg->value) {
-                                    SET_REG(EPC_REG, value);
-                                    debug_break_size = 0;
-                                }
-                                reg->value = value;
+                                reg->value = __builtin_bswap32(gdb_read_impl(8));
                             }
                             i += is_supported;
                         }
@@ -644,9 +638,13 @@ cont:
     gdb_write_flush();
     ets_wdt_restore(saved_wdt_mode);
     assert(regs.pc.valid);
-    regs.pc.value += debug_break_size;
     assert(regs.EPC_REG.valid);
-    regs.EPC_REG.value += debug_break_size;
+    // If we're resuming, skip any breakpoints
+    if (regs.pc.value == regs.EPC_REG.value) {
+        regs.pc.value += debug_break_size;
+    }
+    // Then, resume at pc.
+    SET_REG(EPC_REG, regs.pc.value);
     __asm__ __volatile__("\
         esync\n\
         wsr.ps %0\n\
