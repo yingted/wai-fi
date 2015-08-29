@@ -366,9 +366,11 @@ ICACHE_FLASH_ATTR
 __attribute__((noreturn))
 static void gdb_attach(int exccause, int debugcause) {
     size_t debug_break_size = 0;
+    const char *signal = signal_intr ? "S02" /* SIGINT */ : "S05" /* SIGTRAP */;
     // We can only have 1 debug cause
     switch (debugcause & XCHAL_DEBUGCAUSE_VALIDMASK) {
         case 0: // exception
+            signal = "S09" /* SIGKILL */;
             break;
         case XCHAL_DEBUGCAUSE_ICOUNT_MASK: // single-stepping
             assert(regs.interrupt.valid);
@@ -381,12 +383,17 @@ static void gdb_attach(int exccause, int debugcause) {
             SET_REG(icountlevel, 0);
             break;
         case XCHAL_DEBUGCAUSE_IBREAK_MASK:
+            signal = "T05hwbreak:;";
+            break;
         case XCHAL_DEBUGCAUSE_DBREAK_MASK:
+            signal = "T05watch:;";
             break;
         case XCHAL_DEBUGCAUSE_BREAK_MASK:
+            signal = "S05swbreak:;";
             debug_break_size = 3;
             break;
         case XCHAL_DEBUGCAUSE_BREAKN_MASK:
+            signal = "S05swbreak:;";
             debug_break_size = 2;
             break;
         case XCHAL_DEBUGCAUSE_DEBUGINT_MASK:
@@ -394,7 +401,6 @@ static void gdb_attach(int exccause, int debugcause) {
             break;
     }
 
-    const char *signal = signal_intr ? "S02" : debugcause ? "S05" : "S09";
     signal_intr = false;
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;

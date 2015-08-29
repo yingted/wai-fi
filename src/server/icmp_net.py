@@ -138,17 +138,17 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 				elif msg.type == waifi_rpc.WAIFI_MSG_RPC_system_upgrade_userbin_check:
 					self._got_response(waifi_rpc.read_waifi_msg_rpc_system_upgrade_userbin_check(decoder))
 				else:
-					raise TypeError('invalid message type %d' % msg.type)
-		except:
+					raise TypeError('Invalid message type %d' % msg.type)
+		except Exception:
 			traceback.print_exc()
-			log.err('could not parse message')
+			log.msg('Could not parse message')
 			self.transport.abortConnection()
 
 	def _decode_log(self, decoder):
 		log_hdr = waifi_rpc.read_waifi_msg_log(decoder)
 		count, rem = divmod(log_hdr.len, waifi_rpc.sizeof_waifi_msg_log_logentry)
 		if rem != 0:
-			log.err('invalid message length %d' % log_hdr.len)
+			log.msg('Invalid message length %d' % log_hdr.len)
 
 		headers = []
 		for _ in xrange(count):
@@ -209,7 +209,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 							if rc == waifi_rpc.SPI_FLASH_RESULT_OK:
 								addr += len(block)
 							else:
-								log.err('Error %d, retrying' % rc)
+								log.msg('Error %d, retrying' % rc)
 			# Finish the upgrade and release the lock
 			self._rpc_upgrade_finish()
 
