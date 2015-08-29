@@ -24,15 +24,21 @@ static void noop_put1c() {}
 #endif
 
 __attribute__((optimize("omit-frame-pointer")))
+size_t my_spi_flash_erase_sector_impl(size_t sec) {
+    //return ((size_t(*)(size_t))0x40004a00)(sec);
+    size_t *local0 = *(size_t **)0x3fffc714;
+    // args are: 0x80000, 0x1000
+    // looks like division:
+    // ((long(*)(long, long))0x4000e21c)(1234567, 2345) = 526
+    return ((size_t(*)(size_t, size_t))0x4000e21c)(local0[4 / 4], local0[12 / 4]);
+}
+
+__attribute__((optimize("omit-frame-pointer")))
 size_t my_spi_flash_erase_sector(size_t sec) {
-    user_dprintf("storing 115");
     __asm__ __volatile__("memw");
     ((size_t *)0x60000600)[0x314 / 4] = 115;
-    user_dprintf("calling some function");
     ((void(*)(size_t))0x400047f0)(0x60000600);
-    user_dprintf("doing the op");
-    size_t ret = ((size_t(*)(size_t))0x40004a00)(sec);
-    user_dprintf("undoing something");
+    size_t ret = my_spi_flash_erase_sector_impl(sec);
     extern void Cache_Read_Enable_New();
     Cache_Read_Enable_New();
     return ret;
