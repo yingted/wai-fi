@@ -33,27 +33,6 @@ extern struct {
     // ...
 } flashchip;
 
-__attribute__((optimize("omit-frame-pointer")))
-size_t my_spi_flash_erase_sector_impl(size_t sec) {
-    //return ((size_t(*)(size_t))0x40004a00)(sec);
-    size_t *local0 = *(size_t **)0x3fffc714; // looks like flashchip
-    // args are: 0x80000, 0x1000
-    // looks like division:
-    // ((long(*)(long, long))0x4000e21c)(1234567, 2345) = 526
-    return ((size_t(*)(size_t, size_t))0x4000e21c)(local0[4 / 4], local0[12 / 4]);
-}
-
-__attribute__((optimize("omit-frame-pointer")))
-size_t my_spi_flash_erase_sector(size_t sec) {
-    __asm__ __volatile__("memw");
-    ((size_t *)0x60000600)[0x314 / 4] = 115;
-    ((void(*)(size_t))0x400047f0)(0x60000600);
-    size_t ret = my_spi_flash_erase_sector_impl(sec);
-    extern void Cache_Read_Enable_New();
-    Cache_Read_Enable_New();
-    return ret;
-}
-
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
@@ -74,13 +53,6 @@ void user_init(void) {
 
     assert(flashchip.id == 0x1640ef);
     flashchip.bytes = 4 * 1024 * 1024;
-#if 0
-    user_dprintf("ret: %d", my_spi_flash_erase_sector(128));
-    int i;
-    for (i = 150; i < 1024; i += 5) {
-        user_dprintf("%d: %d", i, spi_flash_erase_sector(i));
-    }
-#endif
     connmgr_init();
     connmgr_start();
 }
