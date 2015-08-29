@@ -144,7 +144,7 @@ static uint8_t gdb_write_cksum;
 static bool wrote_dollar;
 
 ICACHE_FLASH_ATTR
-static void gdb_write_string(char *buf) {
+static void gdb_write_string(const char *buf) {
     if (!wrote_dollar) {
         wrote_dollar = true;
         real_putc1('$');
@@ -392,6 +392,7 @@ static void gdb_attach(int exccause, int debugcause) {
             break;
     }
 
+    const char *signal = debugcause ? "S05" : "S09";
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     CLEAR_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
@@ -413,7 +414,7 @@ static void gdb_attach(int exccause, int debugcause) {
 
     if (should_output_stopped) {
         gdb_write_reset();
-        gdb_write_string(debugcause ? "S02" : "S09");
+        gdb_write_string(signal);
         gdb_write_flush();
     }
 
@@ -435,7 +436,7 @@ retrans:
             switch (cmd) {
                 case '?':
                     GDB_READ();
-                    gdb_write_string(debugcause ? "S02" : "S09");
+                    gdb_write_string(signal);
                     break;
                 case 's':
                 case 'c': {
