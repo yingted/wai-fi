@@ -95,11 +95,13 @@ static char real_getc1() {
     }
 }
 
+static bool signal_intr = false;
 ICACHE_FLASH_ATTR
 static void gdb_uart_intr_handler(void *arg) {
     size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
     if (status & UART_BRK_DET_INT_ST) {
         WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST);
+        signal_intr = true;
         // We got a break from GDB. Attach GDB.
         gdb_stub_break();
     } else {
@@ -392,7 +394,8 @@ static void gdb_attach(int exccause, int debugcause) {
             break;
     }
 
-    const char *signal = debugcause ? "S05" : "S09";
+    const char *signal = signal_intr ? "S02" : debugcause ? "S05" : "S09";
+    signal_intr = false;
     bool should_output_stopped = gdb_attached;
     gdb_attached = true;
     CLEAR_PERI_REG_MASK(UART_INT_ENA(GDB_UART), UART_BRK_DET_INT_ENA);
