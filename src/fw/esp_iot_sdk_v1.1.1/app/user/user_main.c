@@ -23,10 +23,20 @@ ICACHE_FLASH_ATTR
 static void noop_put1c() {}
 #endif
 
+extern struct {
+    // address of flashchip.id (most likely as a struct)
+    size_t *id_ptr;
+    size_t id;
+    size_t bytes;
+    size_t unknown_0x10000;
+    size_t sector_bytes;
+    // ...
+} flashchip;
+
 __attribute__((optimize("omit-frame-pointer")))
 size_t my_spi_flash_erase_sector_impl(size_t sec) {
     //return ((size_t(*)(size_t))0x40004a00)(sec);
-    size_t *local0 = *(size_t **)0x3fffc714;
+    size_t *local0 = *(size_t **)0x3fffc714; // looks like flashchip
     // args are: 0x80000, 0x1000
     // looks like division:
     // ((long(*)(long, long))0x4000e21c)(1234567, 2345) = 526
@@ -62,10 +72,17 @@ void user_init(void) {
     ets_wdt_disable();
 #endif
 
-    gdb_stub_break();
+    assert(flashchip.id == 0x1640ef);
+    flashchip.bytes = 4 * 1024 * 1024;
+#if 0
     user_dprintf("ret: %d", my_spi_flash_erase_sector(128));
-    //connmgr_init();
-    //connmgr_start();
+    int i;
+    for (i = 150; i < 1024; i += 5) {
+        user_dprintf("%d: %d", i, spi_flash_erase_sector(i));
+    }
+#endif
+    connmgr_init();
+    connmgr_start();
 }
 
 static struct pbuf *logbuf_head = NULL, *logbuf_tail = NULL;
