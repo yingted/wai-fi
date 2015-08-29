@@ -27,9 +27,9 @@ extern struct {
     // address of flashchip.id (most likely as a struct)
     size_t *id_ptr;
     size_t id;
-    size_t bytes;
+    size_t bytes; // 512 * 1024
     size_t unknown_0x10000;
-    size_t sector_bytes;
+    size_t sector_bytes; // 4 * 1024
     // ...
 } flashchip;
 
@@ -146,6 +146,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 ASSIGN(len, arg->len);
                 uint16_t sec = addr >> 12;
                 if (addr == (sec << 12)) { // Erase if we start on a sector
+                    user_dprintf("erasing sector %d", sec);
                     ret = spi_flash_erase_sector(sec);
                     user_dprintf("spi_flash_erase_sector(%d) = %d", sec, ret);
                 }
