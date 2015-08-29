@@ -645,6 +645,7 @@ cont:
     regs.pc.value += debug_break_size;
     assert(regs.EPC_REG.valid);
     regs.EPC_REG.value += debug_break_size;
+    WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST); // to be safe
     __asm__ __volatile__("\
         esync\n\
         wsr.ps %0\n\
