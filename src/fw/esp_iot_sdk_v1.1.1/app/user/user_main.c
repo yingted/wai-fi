@@ -135,6 +135,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 uint16_t sec = addr >> 12;
                 if (addr == (sec << 12)) { // Erase if we start on a sector
                     ret = spi_flash_erase_sector(sec);
+                    user_dprintf("spi_flash_erase_sector(%d) = %d", sec, ret);
                 }
                 assert(ssl->bm_all_data <= arg->data);
                 assert(arg->data + len <= ssl->bm_all_data + RT_MAX_PLAIN_LENGTH + RT_EXTRA + sizeof(uint32) - 1);
@@ -145,6 +146,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                     // Shift the data to an aligned address
                     os_memmove(buf, arg->data, len);
                     ret = spi_flash_write(addr, buf, len);
+                    user_dprintf("spi_flash_write(%p, %p, %d) = %d", addr, buf, len, ret);
                 }
                 msg->rpc_spi_flash_write.ret = ret;
             }

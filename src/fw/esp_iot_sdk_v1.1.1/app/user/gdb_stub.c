@@ -207,7 +207,7 @@ static void gdb_install_io() {
 ICACHE_FLASH_ATTR
 static uint8_t gdb_read_nibble() {
     char ch = gdb_read_char();
-    if (ch == ',' || ch == ':' || ch == ';') {
+    if (ch == ',' || ch == ':' || ch == ';' || ch == '=') {
         gdb_read_err = true;
         return 0;
     }
@@ -262,6 +262,8 @@ static void gdb_download(size_t addr, size_t len) {
     if (gdb_read_to_cksum()) {
         os_memcpy(addr, buf, len);
         gdb_write_string("OK");
+    } else {
+        gdb_write_string("E05");
     }
 }
 
@@ -469,15 +471,12 @@ retrans:
                     GDB_READ();
                     gdb_download(addr, len);
                     break;
-                // read all registers
                 case 'g':
-                case 'p':
+                case 'G':
                     {
-                        uint8_t reg_i;
-                        if (cmd == 'p') {
-                            reg_i = gdb_read_byte();
+                        if (cmd == 'g') {
+                            GDB_READ();
                         }
-                        GDB_READ();
                         const static uint8_t regno[] = {
 #define XTREG_ty2(...) XTREG_ty8(__VA_ARGS__)
 #define XTREG_ty8(name, tnum, index, ...) index,
@@ -486,31 +485,30 @@ retrans:
 #undef XTREG_ty2
                         };
                         size_t cur_i = 0, i, j;
-                        os_strcpy(buf, "xxxxxxxx");
-                        for (i = 0; i != sizeof(regno); ++i) {
-                            if (cmd == 'p') {
-                                if (regno[i] != reg_i) {
-                                    continue;
-                                }
-                            } else {
-                                while (cur_i++ != regno[i]) {
+                        for (i = 0; i != sizeof(regno);) {
+                            bool is_supported = cur_i++ == regno[i];
+                            // Match any regno[i], but write x's in between
+                            if (cmd == 'g') {
+                                if (is_supported && ((struct GdbRegister *)&regs)[i].valid) {
+                                    for (j = 0; j < 4; ++j) {
+                                        os_sprintf(&buf[2 * j], "%02x", ((char *)&((struct GdbRegister *)&regs)[i].value)[j]);
+                                    }
+                                    gdb_write_string(buf);
+                                } else {
                                     gdb_write_string("xxxxxxxx");
                                 }
-                            }
-                            if (((struct GdbRegister *)&regs)[i].valid) {
-                                for (j = 0; j < 4; ++j) {
-                                    os_sprintf(&buf[2 * j], "%02x", ((char *)&((struct GdbRegister *)&regs)[i].value)[j]);
-                                }
                             } else {
-                                os_strcpy(buf, "xxxxxxxx");
+                                // We can write the registers as we go, since
+                                // GDB will retry on error. We also overwrite
+                                // invalid register values, so that's ok too.
+                                ((struct GdbRegister *)&regs)[i].valid = true;
+                                ((struct GdbRegister *)&regs)[i].value = __builtin_bswap32(gdb_read_impl(8));
                             }
-                            if (cmd == 'p') {
-                                break; // never print more than 1
-                            }
-                            gdb_write_string(buf);
+                            i += is_supported;
                         }
-                        if (cmd == 'p') { // always print something at the end
-                            gdb_write_string(buf);
+                        if (cmd == 'G') {
+                            GDB_READ();
+                            gdb_write_string("OK"); // just a confirmation reply
                         }
                     }
                     break;
