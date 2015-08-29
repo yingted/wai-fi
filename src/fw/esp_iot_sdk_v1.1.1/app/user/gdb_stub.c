@@ -85,7 +85,7 @@ static char real_getc1() {
             if (queued) {
                 ch = (READ_PERI_REG(UART_FIFO(GDB_UART)) >> UART_RXFIFO_RD_BYTE_S) & UART_RXFIFO_RD_BYTE;
             }
-            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_RAW | UART_RXFIFO_TOUT_INT_RAW);
+            WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_RXFIFO_FULL_INT_CLR | UART_RXFIFO_TOUT_INT_CLR);
         }
         // if (status & UART_TXFIFO_EMPTY_INT_RAW) ...
         // if (status & UART_RXFIFO_OVF_INT_RAW) ...
@@ -98,9 +98,9 @@ static char real_getc1() {
 static bool signal_intr = false;
 ICACHE_FLASH_ATTR
 static void gdb_uart_intr_handler(void *arg) {
-    size_t status = READ_PERI_REG(UART_INT_ST(GDB_UART));
-    if (status & UART_BRK_DET_INT_ST) {
-        WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST);
+    size_t status = READ_PERI_REG(UART_INT_RAW(GDB_UART));
+    if (status & UART_BRK_DET_INT_RAW) {
+        WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_CLR);
         signal_intr = true;
         // We got a break from GDB. Attach GDB.
         gdb_stub_break();
@@ -645,7 +645,7 @@ cont:
     regs.pc.value += debug_break_size;
     assert(regs.EPC_REG.valid);
     regs.EPC_REG.value += debug_break_size;
-    WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_ST); // to be safe
+    WRITE_PERI_REG(UART_INT_CLR(GDB_UART), UART_BRK_DET_INT_CLR); // to be safe
     __asm__ __volatile__("\
         esync\n\
         wsr.ps %0\n\
