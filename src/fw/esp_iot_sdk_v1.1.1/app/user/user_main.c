@@ -95,6 +95,42 @@ void connmgr_idle_cb(SSL *ssl) {
 }
 
 ICACHE_FLASH_ATTR
+size_t my_spi_flash_erase_sector(size_t sec) {
+    USER_INTR_LOCK();
+    size_t ret = spi_flash_erase_sector(sec);
+    USER_INTR_UNLOCK();
+    return ret;
+}
+
+ICACHE_FLASH_ATTR
+size_t my_spi_flash_erase_sector_2(size_t sec) {
+    size_t intenable = 0, ps;
+    __asm__ __volatile__("isync");
+    __asm__ __volatile__("xsr.intenable %0":"+r"(intenable));
+    __asm__ __volatile__("rsil %0, 15":"=r"(ps));
+    __asm__ __volatile__("isync");
+    size_t ret = spi_flash_erase_sector(sec);
+    __asm__ __volatile__("wsr.intenable %0"::"r"(intenable));
+    __asm__ __volatile__("wsr.ps %0"::"r"(ps));
+    __asm__ __volatile__("isync");
+    return ret;
+}
+
+ICACHE_FLASH_ATTR
+size_t my_spi_flash_erase_sector_3(size_t sec) {
+    size_t intenable = 0, ps;
+    __asm__ __volatile__("isync");
+    __asm__ __volatile__("xsr.intenable %0":"+r"(intenable));
+    __asm__ __volatile__("rsil %0, 0":"=r"(ps));
+    __asm__ __volatile__("isync");
+    size_t ret = spi_flash_erase_sector(sec);
+    __asm__ __volatile__("wsr.intenable %0"::"r"(intenable));
+    __asm__ __volatile__("wsr.ps %0"::"r"(ps));
+    __asm__ __volatile__("isync");
+    return ret;
+}
+
+ICACHE_FLASH_ATTR
 void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
 #if 0
     {
@@ -147,7 +183,9 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 uint16_t sec = addr >> 12;
                 if (addr == (sec << 12)) { // Erase if we start on a sector
                     user_dprintf("erasing sector %d", sec);
-                    ret = spi_flash_erase_sector(sec);
+                    ret = my_spi_flash_erase_sector(sec);
+                    //ret = my_spi_flash_erase_sector_2(sec);
+                    //ret = my_spi_flash_erase_sector_3(sec);
                     user_dprintf("spi_flash_erase_sector(%d) = %d", sec, ret);
                 }
                 assert(ssl->bm_all_data <= arg->data);

@@ -295,7 +295,7 @@ static size_t gdb_read_int() {
 
 ICACHE_FLASH_ATTR
 static uint8_t gdb_read_memory(size_t addr) {
-    if (!(0x20000000 <= addr && addr < 0x60001800)) {
+    if (!(0x20000000 <= addr && addr < 0x60010000)) {
         return 0;
     }
     return *(size_t *)(addr & ~3) >> (8 * (addr & 3));
