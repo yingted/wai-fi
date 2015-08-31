@@ -14,6 +14,14 @@
 #define LOGBUF_SIZE 1024
 #define MAX_LOGBUF 2
 
+ICACHE_FLASH_ATTR
+size_t my_spi_flash_erase_sector(size_t sec) {
+    USER_INTR_LOCK();
+    size_t ret = spi_flash_erase_sector(sec);
+    USER_INTR_UNLOCK();
+    return ret;
+}
+
 __attribute__((weak))
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {}
@@ -92,42 +100,6 @@ void connmgr_idle_cb(SSL *ssl) {
         connmgr_write(to_send);
     }
     USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-size_t my_spi_flash_erase_sector(size_t sec) {
-    USER_INTR_LOCK();
-    size_t ret = spi_flash_erase_sector(sec);
-    USER_INTR_UNLOCK();
-    return ret;
-}
-
-ICACHE_FLASH_ATTR
-size_t my_spi_flash_erase_sector_2(size_t sec) {
-    size_t intenable = 0, ps;
-    __asm__ __volatile__("isync");
-    __asm__ __volatile__("xsr.intenable %0":"+r"(intenable));
-    __asm__ __volatile__("rsil %0, 15":"=r"(ps));
-    __asm__ __volatile__("isync");
-    size_t ret = spi_flash_erase_sector(sec);
-    __asm__ __volatile__("wsr.intenable %0"::"r"(intenable));
-    __asm__ __volatile__("wsr.ps %0"::"r"(ps));
-    __asm__ __volatile__("isync");
-    return ret;
-}
-
-ICACHE_FLASH_ATTR
-size_t my_spi_flash_erase_sector_3(size_t sec) {
-    size_t intenable = 0, ps;
-    __asm__ __volatile__("isync");
-    __asm__ __volatile__("xsr.intenable %0":"+r"(intenable));
-    __asm__ __volatile__("rsil %0, 0":"=r"(ps));
-    __asm__ __volatile__("isync");
-    size_t ret = spi_flash_erase_sector(sec);
-    __asm__ __volatile__("wsr.intenable %0"::"r"(intenable));
-    __asm__ __volatile__("wsr.ps %0"::"r"(ps));
-    __asm__ __volatile__("isync");
-    return ret;
 }
 
 ICACHE_FLASH_ATTR
