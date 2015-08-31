@@ -127,7 +127,10 @@ static void connmgr_init_impl() {
     static SSL_CTX *ssl_ctx;
     ssl_ctx = ssl_ctx_new(SSL_CONNECT_IN_PARTS, 0);
     {
-        err_t rc = add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
+#ifndef NDEBUG
+        err_t rc =
+#endif
+            add_cert_auth(ssl_ctx, default_ca_certificate, default_ca_certificate_len);
         assert(rc == SSL_OK);
     }
     assert(ssl_ctx->ca_cert_ctx);
@@ -737,7 +740,9 @@ void __wrap_tcp_tmr(void) {
 void __real_tcp_timer_needed(void);
 ICACHE_FLASH_ATTR
 void __wrap_tcp_timer_needed(void) {
+#ifndef NDEBUG
     static size_t enter_count = 0;
+#endif
     assert(enter_count++ == 0);
     //user_dprintf("");
     __real_tcp_timer_needed();

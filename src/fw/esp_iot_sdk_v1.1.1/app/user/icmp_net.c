@@ -481,7 +481,9 @@ void __wrap_sys_check_timeouts(void) {
 }
 
 // TODO steal raw_input to guarantee etharp, etc. get delivered
+#ifndef NDEBUG
 static size_t icmp_input_entry_count = 0;
+#endif
 void __real_icmp_input(struct pbuf *p, struct netif *inp);
 ICACHE_FLASH_ATTR
 void __wrap_icmp_input(struct pbuf *p, struct netif *inp) {
