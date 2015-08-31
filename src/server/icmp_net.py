@@ -199,6 +199,7 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 				assert addr >= 0
 				if addr > 0:
 					self.log('Flashing icmp_net://%s at 0x%08x: %s' % (self._device_name, addr, path))
+					# This should not happen, but check just in case
 					sec_start = (addr >> 12) << 12
 					if addr != sec_start:
 						self._rpc_spi_flash_write(sec_start, '')

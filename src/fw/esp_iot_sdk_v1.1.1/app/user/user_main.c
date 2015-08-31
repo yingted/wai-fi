@@ -14,14 +14,6 @@
 #define LOGBUF_SIZE 1024
 #define MAX_LOGBUF 2
 
-ICACHE_FLASH_ATTR
-size_t my_spi_flash_erase_sector(size_t sec) {
-    USER_INTR_LOCK();
-    size_t ret = spi_flash_erase_sector(sec);
-    USER_INTR_UNLOCK();
-    return ret;
-}
-
 __attribute__((weak))
 ICACHE_FLASH_ATTR
 void user_rf_pre_init(void) {}
@@ -154,10 +146,10 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 ASSIGN(len, arg->len);
                 uint16_t sec = addr >> 12;
                 if (addr == (sec << 12)) { // Erase if we start on a sector
-                    user_dprintf("erasing sector %d", sec);
-                    ret = my_spi_flash_erase_sector(sec);
-                    //ret = my_spi_flash_erase_sector_2(sec);
-                    //ret = my_spi_flash_erase_sector_3(sec);
+                    user_dprintf("spi_flash_erase_sector(%d) = ...", sec);
+                    USER_INTR_LOCK();
+                    ret = spi_flash_erase_sector(sec);
+                    USER_INTR_UNLOCK();
                     user_dprintf("spi_flash_erase_sector(%d) = %d", sec, ret);
                 }
                 assert(ssl->bm_all_data <= arg->data);
@@ -166,9 +158,13 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
                 uint32 *buf = (uint32 *)((((size_t)arg->data + sizeof(uint32) - 1)) & ~(sizeof(uint32) - 1));
                 assert(((size_t)buf) >= ((size_t)arg->data));
                 if (ret == SPI_FLASH_RESULT_OK) {
+                    user_dprintf("os_memmove(%p, %p, %d)", buf, arg->data, len);
                     // Shift the data to an aligned address
                     os_memmove(buf, arg->data, len);
+                    user_dprintf("spi_flash_write(%p, %p, %d) = ...", addr, buf, len);
+                    USER_INTR_LOCK();
                     ret = spi_flash_write(addr, buf, len);
+                    USER_INTR_UNLOCK();
                     user_dprintf("spi_flash_write(%p, %p, %d) = %d", addr, buf, len, ret);
                 }
                 msg->rpc_spi_flash_write.ret = ret;

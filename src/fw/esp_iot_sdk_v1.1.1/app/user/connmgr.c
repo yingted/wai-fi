@@ -81,7 +81,7 @@ static bool restart_scheduled = false;
 #define EVENT_IGNORE (EVENT_POLL | EVENT_IDLE) // events that can be ignored
 
 #define CORO_IF(event_name) \
-    /*user_dprintf("CORO_IF(" # event_name ") <yield>")*/; \
+    user_dprintf("CORO_IF(" # event_name ") <yield>"); \
     if (coro_interrupt_later) { \
         coro.event = coro_interrupt_later; \
         coro_interrupt_later = 0; \
@@ -90,9 +90,9 @@ static bool restart_scheduled = false;
         CORO_YIELD(coro, EVENT_INTR | EVENT_ ## event_name); /* may ignore non-ignorable events */ \
     } \
     if (!(coro.event & EVENT_INTR)) \
-        /*user_dprintf("CORO_IF(" # event_name ") <resume>")*/; \
+        user_dprintf("CORO_IF(" # event_name ") <resume>"); \
     else \
-        /*user_dprintf("CORO_IF(" # event_name ") <interrupt>")*/; \
+        user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
     assert(coro.state == CORO_RESUME); \
     if (!(coro.event & EVENT_INTR))
 
@@ -629,6 +629,7 @@ static void connmgr_restart(void *arg) {
 __attribute__((used))
 ICACHE_FLASH_ATTR
 ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
+    struct tcp_pcb *tpcb = (struct tcp_pcb *)fd;
     assert(len > 0);
     //user_dprintf("%p %d", buf, len);
     CONNMGR_TESTCANCEL();
@@ -654,6 +655,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
             // Read < 1 pbuf. Read was satisfied. Only update source pointers.
             memcpy(buf, ssl_pcb_recv_buf->payload, len);
             pbuf_header(ssl_pcb_recv_buf, -len); // always succeeds
+            tcp_recved(tpcb, len);
             USER_INTR_UNLOCK();
             break;
         }
@@ -669,6 +671,7 @@ ssize_t os_port_socket_read(int fd, void *buf, size_t len) {
         memcpy(buf, prev_pbuf->payload, read_len);
         *(char **)&buf += read_len;
         len -= read_len;
+        tcp_recved(tpcb, read_len);
 
         // Free the pbuf.
         pbuf_free(prev_pbuf);
