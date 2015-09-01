@@ -81,7 +81,7 @@ static bool restart_scheduled = false;
 #define EVENT_IGNORE (EVENT_POLL | EVENT_IDLE) // events that can be ignored
 
 #define CORO_IF(event_name) \
-    user_dprintf("CORO_IF(" # event_name ") <yield>"); \
+    /*user_dprintf("CORO_IF(" # event_name ") <yield>");*/ \
     if (coro_interrupt_later) { \
         coro.event = coro_interrupt_later; \
         coro_interrupt_later = 0; \
@@ -89,10 +89,10 @@ static bool restart_scheduled = false;
         _Static_assert(!(EVENT_INTR & EVENT_ ## event_name), "Cannot wait for any interruption"); \
         CORO_YIELD(coro, EVENT_INTR | EVENT_ ## event_name); /* may ignore non-ignorable events */ \
     } \
-    if (!(coro.event & EVENT_INTR)) \
+    /*if (!(coro.event & EVENT_INTR)) \
         user_dprintf("CORO_IF(" # event_name ") <resume>"); \
     else \
-        user_dprintf("CORO_IF(" # event_name ") <interrupt>"); \
+        user_dprintf("CORO_IF(" # event_name ") <interrupt>");*/ \
     assert(coro.state == CORO_RESUME); \
     if (!(coro.event & EVENT_INTR))
 

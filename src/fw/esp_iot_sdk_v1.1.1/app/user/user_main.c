@@ -130,6 +130,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             msg->hdr.type = WAIFI_MSG_RPC_system_upgrade_userbin_check;
             msg->rpc_system_upgrade_userbin_check.ret = system_upgrade_userbin_check();
             system_upgrade_flag_set(UPGRADE_FLAG_IDLE);
+            system_upgrade_flag_set(UPGRADE_FLAG_START);
             break;
         case WAIFI_RPC_spi_flash_write:;
             _Static_assert(offsetof(struct waifi_rpc, spi_flash_write.len) == 2, "wrong len offset");
@@ -175,7 +176,12 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             break;
         case WAIFI_RPC_upgrade_finish:
             system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
-            system_upgrade_reboot();
+            {
+                static os_timer_t reboot;
+                os_timer_disarm(&reboot);
+                os_timer_setfn(&reboot, system_upgrade_reboot, NULL);
+                os_timer_arm(&reboot, 0, 0);
+            }
             return;
         default:
             user_dprintf("unknown command %d", rpc->hdr.cmd);

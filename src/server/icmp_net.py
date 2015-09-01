@@ -212,9 +212,13 @@ class WaifiIcmpNet(IcmpNet, AsyncResponseMixin):
 							rc = self._rpc_spi_flash_write(addr, block)
 							if rc == waifi_rpc.SPI_FLASH_RESULT_OK:
 								addr += len(block)
+								# In case remote is a debug build, let it print out its logs
+								gevent.sleep(0.2)
 							else:
 								log.msg('Error %d, retrying' % rc)
+								gevent.sleep(1)
 			# Finish the upgrade and release the lock
+			log.msg('Rebooting icmp_net://%s' % self._device_name)
 			self._rpc_upgrade_finish()
 
 	@contextlib.contextmanager
