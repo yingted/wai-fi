@@ -97,6 +97,13 @@ void connmgr_idle_cb(SSL *ssl) {
 }
 
 ICACHE_FLASH_ATTR
+void upgrade_finish(void *arg) {
+    USER_INTR_LOCK();
+    system_upgrade_reboot();
+    USER_INTR_UNLOCK();
+}
+
+ICACHE_FLASH_ATTR
 void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
 #if 0
     {
@@ -175,10 +182,13 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             }
             break;
         case WAIFI_RPC_upgrade_finish:
-            USER_INTR_LOCK();
             system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
-            system_upgrade_reboot();
-            USER_INTR_UNLOCK();
+            {
+                static os_timer_t reboot;
+                os_timer_disarm(&reboot);
+                os_timer_setfn(&reboot, upgrade_finish, NULL);
+                os_timer_arm(&reboot, 0, 0);
+            }
             return;
         default:
             user_dprintf("unknown command %d", rpc->hdr.cmd);
