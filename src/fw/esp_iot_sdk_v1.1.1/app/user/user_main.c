@@ -33,6 +33,8 @@ extern struct {
     // ...
 } flashchip;
 
+static bool logging_paused = false;
+
 ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
@@ -132,6 +134,7 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
         case WAIFI_RPC_spi_flash_write:;
             _Static_assert(offsetof(struct waifi_rpc, spi_flash_write.len) == 2, "wrong len offset");
             _Static_assert(offsetof(struct waifi_rpc, spi_flash_write.addr) == 4, "wrong addr offset");
+            logging_paused = true;
             REPLY_ALLOC(sizeof(struct waifi_msg_rpc_spi_flash_write));
             msg->hdr.type = WAIFI_MSG_RPC_spi_flash_write;
             {
@@ -190,6 +193,9 @@ void connmgr_packet_cb(uint8_t *payload, short header_len, short body_len, int r
     }
 
     USER_INTR_LOCK();
+    if (logging_paused) {
+        return;
+    }
     while (!logbuf_tail || pbuf_header(logbuf_tail, -(s16_t)sizeof(logentry_t))) {
         {
             u8_t num_bufs = 0;
