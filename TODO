@@ -1,5 +1,6 @@
 - FOTA
 - correctly use tcp_recved to update the TCP window only when data is processed
+- improved logging
 - server-side analysis, ui
 - fix crash in build_and_debug.sh
 - switch to SCons

@@ -175,13 +175,10 @@ void connmgr_record_cb(SSL *ssl, uint8_t *buf, int len) {
             }
             break;
         case WAIFI_RPC_upgrade_finish:
+            USER_INTR_LOCK();
             system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
-            {
-                static os_timer_t reboot;
-                os_timer_disarm(&reboot);
-                os_timer_setfn(&reboot, system_upgrade_reboot, NULL);
-                os_timer_arm(&reboot, 0, 0);
-            }
+            system_upgrade_reboot();
+            USER_INTR_UNLOCK();
             return;
         default:
             user_dprintf("unknown command %d", rpc->hdr.cmd);
