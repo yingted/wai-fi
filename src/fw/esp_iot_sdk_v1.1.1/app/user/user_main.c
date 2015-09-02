@@ -36,6 +36,14 @@ extern struct {
 static bool logging_paused = false;
 
 ICACHE_FLASH_ATTR
+void upgrade_finish(void *arg) {
+    USER_INTR_LOCK();
+    system_upgrade_reboot();
+    USER_INTR_UNLOCK();
+    user_dprintf("should never get here");
+}
+
+ICACHE_FLASH_ATTR
 void user_init(void) {
     system_update_cpu_freq(160);
     extern void uart_div_modify(size_t uart_no, size_t divider);
@@ -54,7 +62,7 @@ void user_init(void) {
 #endif
 
     assert(flashchip.id == 0x1640ef);
-    flashchip.bytes = 4 * 1024 * 1024;
+    flashchip.bytes = 2 * 1024 * 1024; // instead of 4 MB
     connmgr_init();
     connmgr_start();
 }
@@ -93,13 +101,6 @@ void connmgr_idle_cb(SSL *ssl) {
         pbuf_realloc(to_send, logged_size);
         connmgr_write(to_send);
     }
-    USER_INTR_UNLOCK();
-}
-
-ICACHE_FLASH_ATTR
-void upgrade_finish(void *arg) {
-    USER_INTR_LOCK();
-    system_upgrade_reboot();
     USER_INTR_UNLOCK();
 }
 
