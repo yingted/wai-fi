@@ -62,8 +62,17 @@ void user_init(void) {
 #endif
 
     assert(flashchip.id == 0x1640ef);
-    flashchip.bytes = 2 * 1024 * 1024; // instead of 4 MB
+    user_dprintf("flashchip.bytes=%d", flashchip.bytes);
+    //assert(flashchip.bytes > 512 * 1024);
+    //flashchip.bytes = 2 * 1024 * 1024; // instead of 4 MB
     connmgr_init();
+user_dprintf("userbin=%d", system_upgrade_userbin_check());
+system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
+extern void system_upgrade_userbin_set(size_t);
+//system_upgrade_userbin_set(system_upgrade_userbin_check() ^ 1);
+gdb_stub_break();
+upgrade_finish(NULL);
+return;
     connmgr_start();
 }
 
