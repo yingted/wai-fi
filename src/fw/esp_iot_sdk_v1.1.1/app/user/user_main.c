@@ -70,6 +70,8 @@ user_dprintf("userbin=%d", system_upgrade_userbin_check());
 system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
 extern void system_upgrade_userbin_set(size_t);
 //system_upgrade_userbin_set(system_upgrade_userbin_check() ^ 1);
+system_restart();
+return;
 gdb_stub_break();
 upgrade_finish(NULL);
 return;
