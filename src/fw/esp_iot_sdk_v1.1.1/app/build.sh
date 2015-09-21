@@ -1,5 +1,5 @@
 #!/bin/bash
-build_userbin="${BUILD_USERBIN:-1}"
+. flash_config.conf
 bash gen_misc.sh < <(
 # STEP 1: choose boot version(0=boot_v1.1, 1=boot_v1.2+, 2=none)
 # enter(0/1/2, default 2):
