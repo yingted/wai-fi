@@ -4,6 +4,9 @@ import subprocess
 import gen_misc
 import overlay
 import contextlib
+import os.path
+
+flash_config_path = os.path.join(gen_misc.app_dir, 'flash_config.conf')
 
 def import_esptool():
 	global esptool, esptool_path
@@ -16,6 +19,9 @@ def import_esptool():
 def get_images(mac, release=False, extra_env={}):
 	with overlay.get_overlay_dir(mac=mac) as overlay_dir:
 		yield gen_misc.call(overlay_dir=overlay_dir, release=release, extra_env=extra_env)
+
+def get_flash_args():
+	return subprocess.check_output(('bash', '-c', '. "$0"; echo "$flash_args"', flash_config_path)).split()
 
 def flash_port(port, baud=921600, release=False, extra_env={}):
 	import_esptool()
@@ -30,7 +36,7 @@ def flash_port(port, baud=921600, release=False, extra_env={}):
 		print >> sys.stderr, 'Found device', mac_text, 'at', port
 		mac = ''.join(mac)
 		with get_images(mac=mac, release=release, extra_env=extra_env) as images:
-			cmd = [esptool_path, '-p', port, '-b', str(baud), 'write_flash', '-ff', '80m']
+			cmd = [esptool_path, '-p', port, '-b', str(baud), 'write_flash'] + get_flash_args()
 			for addr, image in images.iteritems():
 				cmd.extend((addr, image))
 			print >> sys.stderr, 'Flashing device', mac_text, 'with:', cmd
